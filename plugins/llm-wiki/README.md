@@ -2,7 +2,7 @@
 
 An OKF-native knowledge wiki for Claude Code. Claude builds and tends a persistent, portable
 knowledge base for your project — a directory of markdown "concept" files in Google's
-[Open Knowledge Format (OKF) v0.1](../../source_docs/okf_spec.md) — so each session starts
+[Open Knowledge Format (OKF) v0.1](../../docs/llm-wiki/reference/okf_spec.md) — so each session starts
 smarter than the last.
 
 Everything the plugin writes is **OKF-conformant by construction** (a deterministic Doctor gates

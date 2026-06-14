@@ -11,6 +11,10 @@ Planning and design for the `llm-wiki` plugin. Three documents, distinct purpose
 Where they disagree, the later/more-specific doc wins (PHASE_PLAN over PRODUCT_PLAN on phasing;
 PHASE_1_TECH_PLAN over both on Phase 1 specifics).
 
+[`reference/`](./reference/) holds the source material these plans are built on: the distilled OKF
+v0.1 spec (`okf_spec.md` — what the Doctor enforces), the OKF announcement (`okf_blog.md`) and repo
+links (`okf_repo.md`), and the Claude Code plugin-system reference (`claude_code_plugin_system.md`).
+
 ## Status (2026-06-14)
 
 - **Phase 1 — Prove the Loop (MVP): ✅ shipped & dogfooded.** Marketplace + plugin, the

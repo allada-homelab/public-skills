@@ -12,7 +12,7 @@
 > **Contract verification status (orchestrator):** the manifest locations, the `.claude-plugin/`
 > placement, the inline-path `source` form, `${CLAUDE_PLUGIN_ROOT}`, the skill auto-activation model,
 > and the hook-event list were re-checked against
-> [`../../source_docs/claude_code_plugin_system.md`](../../source_docs/claude_code_plugin_system.md)
+> [`reference/claude_code_plugin_system.md`](./reference/claude_code_plugin_system.md)
 > and hold. The `allowed-tools` Bash glob syntax was **confirmed** against `permissions.md` (the
 > trailing `Bash(python3:*)` colon form is a documented equivalent of the space form — see §4). The
 > only items left for a live `capture` run are *behavioral*: that the call runs without a permission
@@ -62,7 +62,7 @@ public-skills/                                  (marketplace repo root)
 │           ├── doctor.py
 │           ├── secret_scan.py
 │           └── fixtures/                       (the proof corpus — §5)
-├── CLAUDE.md  ·  LICENSE  ·  README.md  ·  source_docs/
+├── CLAUDE.md  ·  LICENSE  ·  README.md  ·  docs/llm-wiki/reference/
 ```
 
 **Placement rules (hard, from the verified contract):**

@@ -24,7 +24,7 @@ plugins/llm-wiki/                  # the plugin
   scripts/                         # doctor.py, secret_scan.py, fixtures/ (the test corpus)
 llm-wiki/                          # this repo's own OKF bundle (dogfood + living example)
 docs/llm-wiki/                     # PRODUCT_PLAN, PHASE_PLAN, PHASE_1_TECH_PLAN, README (index)
-source_docs/                       # OKF spec/blog + Claude Code plugin-system reference
+  reference/                       # OKF spec/blog/repo + Claude Code plugin-system reference
 ```
 
 ## Commands (test / validate)
@@ -75,9 +75,9 @@ via ordinary markdown links, forming a graph richer than the directory tree. Two
 filenames: `index.md` (progressive disclosure) and `log.md` (chronological change history).
 Producers and consumers are independent — no SDK, account, or platform required.
 
-## source_docs/
+## docs/llm-wiki/reference/
 
-Reference material (not itself an OKF bundle):
+Reference material that grounds this repo's work (not itself an OKF bundle):
 
 - `okf_spec.md` — distilled OKF v0.1 rules (the Doctor enforces these).
 - `okf_blog.md` — Google Cloud's OKF announcement (2026-06-12).

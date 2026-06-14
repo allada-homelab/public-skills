@@ -9,7 +9,7 @@ and tooling for development use.
 
 Lets Claude build and tend a persistent, portable knowledge base for a project, so each
 session starts smarter than the last. The wiki is a directory of markdown "concept" files in
-Google's [Open Knowledge Format (OKF) v0.1](./source_docs/okf_spec.md) — just files, readable
+Google's [Open Knowledge Format (OKF) v0.1](./docs/llm-wiki/reference/okf_spec.md) — just files, readable
 on GitHub, portable to any OKF consumer. Conformance is **guaranteed by a deterministic Doctor
 script**, and every write is **confirm-first** (shown before it lands).
 
@@ -45,8 +45,7 @@ public-skills/
 ├── plugins/
 │   └── llm-wiki/                      # the plugin (manifest, commands, skill, scripts)
 ├── llm-wiki/                          # this repo's own OKF bundle (dogfood + living example)
-├── docs/llm-wiki/                     # product, phasing, and Phase 1 technical plans
-└── source_docs/                       # OKF spec/blog + Claude Code plugin-system reference
+└── docs/llm-wiki/                     # product/phasing/Phase-1 plans + reference/ (OKF spec/blog, CC plugin system)
 ```
 
 ## Development

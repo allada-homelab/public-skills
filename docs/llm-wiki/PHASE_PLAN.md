@@ -7,7 +7,7 @@
 >
 > Produced via a multi-agent pass (3 independent phase proposals → synthesis → primitive mapping →
 > adversarial verification across OKF-conformance / primitive-fit / completeness lenses). Conformance
-> claims below were re-verified against [`../../source_docs/okf_spec.md`](../../source_docs/okf_spec.md).
+> claims below were re-verified against [`reference/okf_spec.md`](./reference/okf_spec.md).
 
 ---
 
