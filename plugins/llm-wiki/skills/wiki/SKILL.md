@@ -77,6 +77,7 @@ Never paste the raw OKF spec into context — these notes plus the on-demand ref
 - `/llm-wiki:refine` — edit an existing concept in place (indexes + log kept correct).
 - `/llm-wiki:prune` — remove a concept; dangling inbound links are *reported*, not rewritten.
 - `/llm-wiki:reorganize` — move/rename concepts (incl. into subdirectories) with zero broken links.
+- `/llm-wiki:tend` — emit a read-only curation digest (conformance, broken links, staleness, gaps) and propose maintenance.
 
 Each command owns its own arguments, allowed-tools, and Doctor wiring — this skill does not restate them.
 

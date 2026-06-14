@@ -8,11 +8,13 @@ Guidance for Claude Code (claude.ai/code) when working in this repository.
 marketplace (`.claude-plugin/marketplace.json`); plugins live under `plugins/`.
 
 The first and current plugin is **`llm-wiki`**: an OKF-native knowledge wiki for Claude Code.
-It lets Claude author, read, and (later) maintain a persistent OKF knowledge bundle for a
-project. **Phases 1 & 2 are shipped** — Phase 1: init / capture / explore / query / conform; Phase 2:
-refine / prune / reorganize over the deterministic `bundle_ops` engine + Doctor R4 link-health. All
-confirm-first, gated by a deterministic Doctor. See [docs/llm-wiki](./docs/llm-wiki/) for the product
-plan, phasing, and the per-phase technical plans.
+It lets Claude author, read, and maintain a persistent OKF knowledge bundle for a project.
+**Phases 1 & 2 shipped; Phase 3 (autonomy) core landed** — Phase 1: init / capture / explore / query /
+conform; Phase 2: refine / prune / reorganize over the deterministic `bundle_ops` engine + Doctor R4
+link-health; Phase 3 core: autonomy mode (default `proactive`), SessionStart preload, a PreToolUse
+secret/Doctor guard floor, UserPromptSubmit auto-capture, and the `/tend` digest (PostToolUse +
+auto-digest + Max deferred). All user commands confirm-first, gated by a deterministic Doctor. See
+[docs/llm-wiki](./docs/llm-wiki/) for the product plan, phasing, and the per-phase technical plans.
 
 ## Repository layout
 
@@ -20,14 +22,16 @@ plan, phasing, and the per-phase technical plans.
 .claude-plugin/marketplace.json   # marketplace manifest
 plugins/llm-wiki/                  # the plugin
   .claude-plugin/plugin.json       # plugin manifest (note: inside .claude-plugin/, not plugin root)
-  commands/                        # /llm-wiki:{init,capture,explore,query,conform,refine,prune,reorganize}
+  commands/                        # /llm-wiki:{init,capture,explore,query,conform,refine,prune,reorganize,tend}
   skills/wiki/                     # the llm-wiki:wiki skill (SKILL.md + references/)
-  scripts/                         # doctor.py, secret_scan.py, bundle_ops.py;
-                                   #   fixtures/ (Doctor corpus) + ops_fixtures/ (bundle_ops golden corpus)
+  hooks/hooks.json                 # Phase 3 hooks: SessionStart, PreToolUse, UserPromptSubmit
+  scripts/                         # doctor.py, secret_scan.py, bundle_ops.py, mode.py;
+                                   #   hooks: hook_session_start.py, secret_guard.py, doctor_guard.py, hook_user_prompt.py
+                                   #   fixtures/ (Doctor) + ops_fixtures/ (bundle_ops) + hook_fixtures/ (hooks)
 llm-wiki/                          # this repo's own OKF bundle (dogfood + living example)
 docs/llm-wiki/                     # design docs (README = index/hub, TRIAL_BRIEF = dogfooding)
   planning/                        # PRODUCT_PLAN (vision) + PHASE_PLAN (roadmap + primitive map)
-  phases/                          # per-phase tech plans (phase-1-tech-plan.md, phase-2-tech-plan.md)
+  phases/                          # per-phase tech plans (phase-1/2/3-tech-plan.md)
   reference/                       # OKF spec/blog/repo + Claude Code plugin-system reference
 ```
 
@@ -47,6 +51,12 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   bash plugins/llm-wiki/scripts/ops_fixtures/run_ops.sh
   ```
   Expect `pass=12 fail=0`.
+- **Test the hooks** (the `hook_fixtures` corpus — run after any change to `mode.py` or a `hook_*` /
+  `*_guard.py` script):
+  ```bash
+  bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh
+  ```
+  Expect `pass=15 fail=0`.
 - **Validate a bundle**:
   ```bash
   python3 plugins/llm-wiki/scripts/doctor.py <bundle-dir> --mode strict --format text
@@ -65,7 +75,13 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
 - **Confirm-first.** No command writes to a bundle without showing the exact content/diff and
   getting explicit approval. `explore`/`query`/`conform` are read-only.
 - **Report-only secret scan.** `secret_scan.py` surfaces credentials in the capture diff but
-  never blocks in Phase 1 (it becomes a blocking PreToolUse hook in Phase 3).
+  never blocks in Phase 1; in Phase 3 the same scanner backs a *blocking* PreToolUse hook.
+- **Autonomy is hook-driven (Phase 3), with a guard floor.** `hooks/hooks.json` wires SessionStart
+  (preload root index + mode notice), PreToolUse (`secret_guard.py` denies credential writes,
+  `doctor_guard.py` denies non-conformant concept writes — scoped to bundle `Write|Edit|MultiEdit`),
+  and UserPromptSubmit (`hook_user_prompt.py` — terse capture nudge). Mode (`mode.py`, from
+  `.claude/llm-wiki.local.md`) defaults to **`proactive`** when absent; the floor is what makes that
+  safe. Hooks are deterministic command scripts (no model-call hooks); changes need `/reload-plugins`.
 - **Tests are fixtures.** `scripts/fixtures/<name>/` is a minimal bundle with a planted defect and an
   `expected/<name>.json` contract (Doctor); `scripts/ops_fixtures/<name>/` is an input→expected output
   tree for `bundle_ops`. Add a fixture *before* implementing any new rule or engine behavior (TDD).

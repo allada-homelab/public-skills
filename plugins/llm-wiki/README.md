@@ -28,6 +28,7 @@ every write) and **confirm-first** (you see the exact content/diff before it lan
 | `/llm-wiki:refine [concept] [--bundle <path>]` | Edit an existing concept in place; indexes + log kept correct (Doctor-gated). |
 | `/llm-wiki:prune [concept] [--bundle <path>]` | Remove a concept; dangling inbound links are *reported*, not rewritten. |
 | `/llm-wiki:reorganize [what] [--bundle <path>]` | Move/rename concepts (incl. into subdirectories) with a zero-broken-links gate. |
+| `/llm-wiki:tend [--bundle <path>]` | Read-only curation digest (conformance, broken links, staleness, gaps) proposing maintenance. |
 
 The `llm-wiki:wiki` **skill** carries the OKF authoring/reading rules and auto-activates when you
 talk about capturing to a wiki or knowledge base.
@@ -41,9 +42,15 @@ talk about capturing to a wiki or knowledge base.
 - **Durability engine (`scripts/bundle_ops.py`)** — deterministic index regeneration, `log.md` appends,
   and link-preserving concept moves. The Phase 2 maintenance commands compose it instead of hand-editing
   indexes or links.
-- **Secret scan (`scripts/secret_scan.py`)** — report-only credential scan surfaced in the capture
-  diff (regex + entropy). It never blocks in Phase 1.
-- **Confirm-first** — no bundle file is created or edited without explicit approval.
+- **Secret scan (`scripts/secret_scan.py`)** — credential scan (regex + entropy). Report-only in the
+  capture diff; in Phase 3 the same scanner backs a *blocking* PreToolUse hook.
+- **Autonomy hooks (Phase 3, `hooks/hooks.json` + `scripts/`)** — **SessionStart** preloads the root
+  index + active-mode notice; a **PreToolUse** floor (`secret_guard.py` denies credential writes,
+  `doctor_guard.py` denies non-conformant concept writes); **UserPromptSubmit** nudges during-work
+  capture. Mode lives in `.claude/llm-wiki.local.md` (`mode.py`); **default is `proactive` (auto)**,
+  made safe by that always-on floor. Curated (propose-only) and Max are opt-in.
+- **Confirm-first** — the user-invoked commands never write without explicit approval; proactive
+  auto-capture still passes the secret + Doctor guards and is logged + git-reversible.
 
 Default bundle location: `${CLAUDE_PROJECT_DIR}/llm-wiki`. Cross-links use relative `./` form so
 they resolve on GitHub.
@@ -55,7 +62,9 @@ Python 3 **stdlib only**. Run both proof corpora:
 ```text
 bash scripts/fixtures/run_fixtures.sh        # Doctor — expect pass=12 fail=0 skip=0
 bash scripts/ops_fixtures/run_ops.sh         # bundle_ops golden — expect pass=12 fail=0
+bash scripts/hook_fixtures/run_hooks.sh      # hooks (mode/session/guards/nudge) — expect pass=15 fail=0
 ```
 
-Status: **Phases 1 & 2 shipped.** Roadmap and design in
-[../../docs/llm-wiki](../../docs/llm-wiki/).
+Status: **Phases 1 & 2 shipped; Phase 3 autonomy core landed** (modes, SessionStart preload, PreToolUse
+guards, UserPromptSubmit capture, `/tend`; PostToolUse + auto-digest + Max deferred). Roadmap and design
+in [../../docs/llm-wiki](../../docs/llm-wiki/).

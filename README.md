@@ -25,8 +25,11 @@ script**, and every write is **confirm-first** (shown before it lands).
 | `/llm-wiki:refine` | Edit an existing concept in place; indexes and the log stay correct. |
 | `/llm-wiki:prune` | Remove a concept; dangling inbound links are reported, not rewritten. |
 | `/llm-wiki:reorganize` | Move/rename concepts (incl. into subdirectories) with zero broken links. |
+| `/llm-wiki:tend` | Read-only curation digest (conformance, broken links, staleness, gaps) proposing maintenance. |
 
-Plus the `llm-wiki:wiki` skill (OKF authoring/reading knowledge). Status: **Phases 1 & 2 shipped**
+Plus the `llm-wiki:wiki` skill (OKF authoring/reading knowledge), and **Phase 3 autonomy** — hooks that
+preload the wiki at session start, block credential/non-conformant writes (PreToolUse guards), and nudge
+during-work capture; mode in `.claude/llm-wiki.local.md` defaults to `proactive` (auto). Status: **Phases 1 & 2 shipped; Phase 3 autonomy core landed**
 — see [docs/llm-wiki](./docs/llm-wiki/).
 
 ## Install
