@@ -1,5 +1,9 @@
 # /llm-wiki — Phase 1 Technical Plan
 
+> **Status: ✅ shipped & dogfooded (2026-06-14).** This spec is built and verified; the test corpus
+> is green (`pass=10 fail=0 skip=1`) and the loop was dogfooded on this repo. See
+> [README.md](./README.md) for overall roadmap status.
+>
 > Companion to [`PHASE_PLAN.md`](./PHASE_PLAN.md) (phasing) and [`PRODUCT_PLAN.md`](./PRODUCT_PLAN.md)
 > (product vision). This is the buildable spec for **Phase 1 only**. Produced via a multi-agent pass
 > (scope distill + live Claude Code contract research + OKF rule extraction → 4 component designs →
