@@ -1,6 +1,9 @@
 # Session/handoff state (local only)
 .remember/
 
+# llm-wiki per-project autonomy mode (local only)
+.claude/llm-wiki.local.md
+
 # Python
 __pycache__/
 *.py[cod]
