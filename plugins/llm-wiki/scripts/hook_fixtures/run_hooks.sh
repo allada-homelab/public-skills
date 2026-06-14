@@ -23,7 +23,9 @@ for dir in "$HERE"/*/; do
   tmp="$(mktemp -d)"
   [ -d "$dir/bundle" ] && cp -r "$dir/bundle/." "$tmp/"
   args="$(sed "s#BUNDLE#$tmp#g" "$dir/cmd")"
-  stdin="$dir/stdin.json"; [ -f "$stdin" ] || stdin=/dev/null
+  # event JSON (stdin) may reference the bundle via the BUNDLE token → substitute it too
+  stdin=/dev/null
+  if [ -f "$dir/stdin.json" ]; then sed "s#BUNDLE#$tmp#g" "$dir/stdin.json" >"$tmp/.stdin"; stdin="$tmp/.stdin"; fi
 
   # run from the plugin root so relative script paths + sibling imports resolve;
   # capture exact stdout to a file (command substitution would strip trailing newlines)
