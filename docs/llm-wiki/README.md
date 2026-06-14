@@ -7,6 +7,7 @@ Planning and design for the `llm-wiki` plugin. Three documents, distinct purpose
 | [PRODUCT_PLAN.md](./PRODUCT_PLAN.md) | What the plugin is and how it behaves — vision, personas, capabilities, autonomy model. Product, not implementation. | product |
 | [PHASE_PLAN.md](./PHASE_PLAN.md) | The 4-phase roadmap and the capability → Claude Code primitive mapping. Authoritative on phasing/sequencing. | architecture |
 | [PHASE_1_TECH_PLAN.md](./PHASE_1_TECH_PLAN.md) | The buildable spec for Phase 1 (MVP): manifests, command contracts, the Doctor, fixtures. | implementation |
+| [TRIAL_BRIEF.md](./TRIAL_BRIEF.md) | How to trial the plugin in another repo and bring findings back to scope Phase 2. | dogfooding |
 
 Where they disagree, the later/more-specific doc wins (PHASE_PLAN over PRODUCT_PLAN on phasing;
 PHASE_1_TECH_PLAN over both on Phase 1 specifics).
