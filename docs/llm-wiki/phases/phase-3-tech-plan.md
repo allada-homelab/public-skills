@@ -1,11 +1,13 @@
 # /llm-wiki — Phase 3 Technical Plan
 
-> **Status: 🚧 in progress — 3a + 3b shipped, 3c core landed (test-first).** "Make It Autonomous" —
-> cross the hooks cliff: from user-invoked-only to a wiki that preloads context, auto-captures, and
+> **Status: 🚧 3a–3c shipped (test-first); only the Max tail remains.** "Make It Autonomous" — cross
+> the hooks cliff: from user-invoked-only to a wiki that preloads context, auto-captures, and
 > self-guards, with **auto (Proactive) as the default**. 3a: autonomy mode + SessionStart preload. 3b:
-> the PreToolUse safety floor (blocking secret guard + per-file Doctor guard). 3c core: UserPromptSubmit
-> capture-nudge + the `/tend` curation digest (PostToolUse + auto end-of-session digest deferred — §9).
-> Hook corpus green (`pass=15 fail=0`).
+> the PreToolUse safety floor (blocking secret guard + per-file Doctor guard). 3c: UserPromptSubmit +
+> PostToolUse capture nudges, the SessionEnd digest, and the `/tend` curation command. Five hook events
+> wired (SessionStart, PreToolUse, UserPromptSubmit, PostToolUse, SessionEnd); hook corpus green
+> (`pass=21 fail=0`). The loop is confirmed live (the UserPromptSubmit nudge surfaces in a reloaded
+> session). Deferred: the **Max** background-subagent tail (runtime spike, §6).
 >
 > Companion to [`PHASE_PLAN.md`](../planning/PHASE_PLAN.md) and the
 > [Phase 1](./phase-1-tech-plan.md) / [Phase 2](./phase-2-tech-plan.md) plans. Hook capabilities below
@@ -101,12 +103,12 @@ each explicit mode), SessionStart (bundle present → injects index + mode; abse
 - **3a** ✅ — mode mechanism (`mode.py`) + SessionStart preload hook (`hook_session_start.py`).
 - **3b** ✅ — secret guard (`secret_guard.py`) + Doctor guardrail (`doctor_guard.py`), both PreToolUse
   (`Write|Edit|MultiEdit` + bundle-path scope), deny on hit. The floor; precedes any unattended write.
-- **3c** 🟡 *core landed* — during-work auto-capture trigger (`hook_user_prompt.py`, UserPromptSubmit:
-  terse mode-aware nudge — capture in proactive, propose in curated) + the `/tend` on-demand curation
-  digest command (read-only; proposes refine/prune/reorganize). **Deferred 3c tail:** the PostToolUse
-  pre-filter and the *automatic* end-of-session digest (SessionEnd is observe-only and its output
-  surfacing is unverified — the digest is delivered on-demand via `/tend` for now; an auto-trigger waits
-  on a live check).
+- **3c** ✅ — during-work auto-capture: `hook_user_prompt.py` (UserPromptSubmit, terse mode-aware nudge —
+  capture in proactive, propose in curated) + `hook_post_tool.py` (PostToolUse pre-filter — nudges only
+  after a *non-bundle* code edit in an auto mode; silent for bundle writes / curated / no bundle, so it
+  isn't a per-call model call; tunable if noisy) + `hook_session_end.py` (SessionEnd plain-text digest of
+  the newest log day, pointing at `/tend`; observe-only, surfaces via the transcript) + the `/tend`
+  on-demand curation command.
 - **3d** *(out of this phase)* — Max tail, only after a passing runtime spike.
 
 ## 10. Exit criteria

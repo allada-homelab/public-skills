@@ -44,11 +44,12 @@ talk about capturing to a wiki or knowledge base.
   indexes or links.
 - **Secret scan (`scripts/secret_scan.py`)** — credential scan (regex + entropy). Report-only in the
   capture diff; in Phase 3 the same scanner backs a *blocking* PreToolUse hook.
-- **Autonomy hooks (Phase 3, `hooks/hooks.json` + `scripts/`)** — **SessionStart** preloads the root
-  index + active-mode notice; a **PreToolUse** floor (`secret_guard.py` denies credential writes,
-  `doctor_guard.py` denies non-conformant concept writes); **UserPromptSubmit** nudges during-work
-  capture. Mode lives in `.claude/llm-wiki.local.md` (`mode.py`); **default is `proactive` (auto)**,
-  made safe by that always-on floor. Curated (propose-only) and Max are opt-in.
+- **Autonomy hooks (Phase 3, `hooks/hooks.json` + `scripts/`)** — five events: **SessionStart** preloads
+  the root index + active-mode notice; a **PreToolUse** floor (`secret_guard.py` denies credential
+  writes, `doctor_guard.py` denies non-conformant concept writes); **UserPromptSubmit** + **PostToolUse**
+  nudge during-work capture; **SessionEnd** prints a digest pointing at `/tend`. Mode lives in
+  `.claude/llm-wiki.local.md` (`mode.py`); **default is `proactive` (auto)**, made safe by that
+  always-on floor. Curated (propose-only) and Max are opt-in.
 - **Confirm-first** — the user-invoked commands never write without explicit approval; proactive
   auto-capture still passes the secret + Doctor guards and is logged + git-reversible.
 
@@ -62,7 +63,7 @@ Python 3 **stdlib only**. Run both proof corpora:
 ```text
 bash scripts/fixtures/run_fixtures.sh        # Doctor — expect pass=12 fail=0 skip=0
 bash scripts/ops_fixtures/run_ops.sh         # bundle_ops golden — expect pass=12 fail=0
-bash scripts/hook_fixtures/run_hooks.sh      # hooks (mode/session/guards/nudge) — expect pass=15 fail=0
+bash scripts/hook_fixtures/run_hooks.sh      # hooks (mode/session/guards/nudges/digest) — expect pass=21 fail=0
 ```
 
 Status: **Phases 1 & 2 shipped; Phase 3 autonomy core landed** (modes, SessionStart preload, PreToolUse

@@ -24,9 +24,10 @@ plugins/llm-wiki/                  # the plugin
   .claude-plugin/plugin.json       # plugin manifest (note: inside .claude-plugin/, not plugin root)
   commands/                        # /llm-wiki:{init,capture,explore,query,conform,refine,prune,reorganize,tend}
   skills/wiki/                     # the llm-wiki:wiki skill (SKILL.md + references/)
-  hooks/hooks.json                 # Phase 3 hooks: SessionStart, PreToolUse, UserPromptSubmit
+  hooks/hooks.json                 # Phase 3 hooks: SessionStart, PreToolUse, UserPromptSubmit, PostToolUse, SessionEnd
   scripts/                         # doctor.py, secret_scan.py, bundle_ops.py, mode.py;
-                                   #   hooks: hook_session_start.py, secret_guard.py, doctor_guard.py, hook_user_prompt.py
+                                   #   hooks: hook_session_start.py, secret_guard.py, doctor_guard.py,
+                                   #          hook_user_prompt.py, hook_post_tool.py, hook_session_end.py
                                    #   fixtures/ (Doctor) + ops_fixtures/ (bundle_ops) + hook_fixtures/ (hooks)
 llm-wiki/                          # this repo's own OKF bundle (dogfood + living example)
 docs/llm-wiki/                     # design docs (README = index/hub, TRIAL_BRIEF = dogfooding)
@@ -56,7 +57,7 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   ```bash
   bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh
   ```
-  Expect `pass=15 fail=0`.
+  Expect `pass=21 fail=0`.
 - **Validate a bundle**:
   ```bash
   python3 plugins/llm-wiki/scripts/doctor.py <bundle-dir> --mode strict --format text
@@ -76,10 +77,12 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   getting explicit approval. `explore`/`query`/`conform` are read-only.
 - **Report-only secret scan.** `secret_scan.py` surfaces credentials in the capture diff but
   never blocks in Phase 1; in Phase 3 the same scanner backs a *blocking* PreToolUse hook.
-- **Autonomy is hook-driven (Phase 3), with a guard floor.** `hooks/hooks.json` wires SessionStart
-  (preload root index + mode notice), PreToolUse (`secret_guard.py` denies credential writes,
-  `doctor_guard.py` denies non-conformant concept writes — scoped to bundle `Write|Edit|MultiEdit`),
-  and UserPromptSubmit (`hook_user_prompt.py` — terse capture nudge). Mode (`mode.py`, from
+- **Autonomy is hook-driven (Phase 3), with a guard floor.** `hooks/hooks.json` wires five events:
+  SessionStart (preload root index + mode notice), PreToolUse (`secret_guard.py` denies credential
+  writes, `doctor_guard.py` denies non-conformant concept writes — scoped to bundle
+  `Write|Edit|MultiEdit`), UserPromptSubmit (`hook_user_prompt.py` — terse per-turn capture nudge),
+  PostToolUse (`hook_post_tool.py` — nudge after a non-bundle code edit in an auto mode; mostly silent),
+  and SessionEnd (`hook_session_end.py` — a digest pointing at `/tend`). Mode (`mode.py`, from
   `.claude/llm-wiki.local.md`) defaults to **`proactive`** when absent; the floor is what makes that
   safe. Hooks are deterministic command scripts (no model-call hooks); changes need `/reload-plugins`.
 - **Tests are fixtures.** `scripts/fixtures/<name>/` is a minimal bundle with a planted defect and an
