@@ -1,5 +1,10 @@
 # Product Plan — `/llm-wiki`: an OKF-native LLM Wiki as a Claude Code Plugin
 
+> **Phasing & sequencing decisions are refined in [`PHASE_PLAN.md`](./PHASE_PLAN.md)** — where they
+> differ (e.g. 4 phases vs. the 5-phase roadmap below; "Proactive default" clarified as Curated-when-absent;
+> the `/loop` idea deferred past Phase 4), the phase plan is authoritative. This document remains the
+> stable product-vision reference.
+>
 > Scope of this document: **product & behavior**, not implementation. It defines what the
 > plugin is, who it's for, how it behaves, and the phased path to ship it. A separate
 > technical plan will follow for each phase before code is written.
