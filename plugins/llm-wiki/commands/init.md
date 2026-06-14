@@ -7,7 +7,7 @@ allowed-tools: Glob, Read, Write, Bash(python3:*)
 You are running `/llm-wiki:init`. Create a new, conformant OKF v0.1 bundle. Use the `wiki` skill for
 the format rules. **Confirm-first: write nothing until the user approves the shown content.**
 
-Target directory: `$ARGUMENTS` if given, else `${CLAUDE_PROJECT_DIR}`.
+Target directory: `$ARGUMENTS` if given, else the default bundle location `${CLAUDE_PROJECT_DIR}/llm-wiki`.
 
 Steps:
 

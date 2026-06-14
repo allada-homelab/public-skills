@@ -7,12 +7,12 @@ allowed-tools: Glob, Read, Bash(python3:*)
 You are running `/llm-wiki:conform`. This is the user-facing surface of the Doctor. **Read-only — never
 write or edit anything.**
 
-Arguments: `$ARGUMENTS` may carry a target path (default `${CLAUDE_PROJECT_DIR}`) and an optional
+Arguments: `$ARGUMENTS` may carry a target path (default `${CLAUDE_PROJECT_DIR}/llm-wiki`) and an optional
 `--json` flag.
 
 Steps:
 
-1. Resolve the target path (default `${CLAUDE_PROJECT_DIR}`).
+1. Resolve the target path (default `${CLAUDE_PROJECT_DIR}/llm-wiki`).
 2. Run the Doctor in strict-producer mode:
    `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" <target> --mode strict --format text`
    (use `--format json` instead if the user passed `--json`).

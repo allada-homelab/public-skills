@@ -13,9 +13,9 @@ Arguments: `$ARGUMENTS` may carry a title/finding hint and an optional `--bundle
 
 Steps:
 
-1. **Resolve the bundle root.** Use `--bundle` if given, else walk up from `${CLAUDE_PROJECT_DIR}` for
-   a root `index.md` (`okf_version: "0.1"`). None found → stop: "No OKF bundle here. Run
-   `/llm-wiki:init` first."
+1. **Resolve the bundle root.** Use `--bundle` if given; else the default `${CLAUDE_PROJECT_DIR}/llm-wiki`
+   if it holds a root `index.md` (`okf_version: "0.1"`); else walk up from the cwd for one. None found →
+   stop: "No OKF bundle here. Run `/llm-wiki:init` first."
 2. **Decide the concept.** From the hint and session context, determine `type`, `title`, and a
    root-level slug (`<slug>.md`). If the subject is unclear, ask before proceeding.
 3. **Duplicate check.** Grep the bundle for the title / slug / any `resource`, and Glob the path. On a

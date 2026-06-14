@@ -12,8 +12,8 @@ Arguments: `$ARGUMENTS` may carry a start subpath (default: bundle root) and `--
 
 Steps:
 
-1. **Resolve the bundle root** (`--bundle`, else walk up from `${CLAUDE_PROJECT_DIR}`). None →
-   "No OKF bundle here. Run `/llm-wiki:init` first."
+1. **Resolve the bundle root** (`--bundle`; else the default `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk
+   up from the cwd for a root `index.md`). None → "No OKF bundle here. Run `/llm-wiki:init` first."
 2. **Read the starting `index.md`** and present its bullets — titles + descriptions only, **not** full
    bodies (this is the lean-context win). If an `index.md` is missing at a level, fall back to a Glob
    listing of `*.md` and continue — never abort (tolerant consumer).

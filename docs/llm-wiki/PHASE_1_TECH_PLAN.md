@@ -202,9 +202,10 @@ A read-only `query`/`explore` loads none of the authoring references; a `capture
 - **Confirm-first:** no file is created/modified without first showing the exact proposed change (full
   content for new files; unified diff for edits) and receiving explicit affirmative. `explore`/`query`
   are read-only *except* the counter increment, itself confirm-gated.
-- **Bundle-root resolution:** explicit `--bundle <path>` → else walk up from `${CLAUDE_PROJECT_DIR}` for
-  an `index.md` whose frontmatter is `okf_version: "0.1"`. None found → `init` offers to create; the
-  other four fail with "No OKF bundle here. Run `/llm-wiki:init` first."
+- **Bundle-root resolution:** explicit `--bundle <path>` → else the default bundle location
+  `${CLAUDE_PROJECT_DIR}/llm-wiki` (if it holds a root `index.md` with `okf_version: "0.1"`) → else walk
+  up from the cwd for such an `index.md`. None found → `init` offers to create; the other four fail with
+  "No OKF bundle here. Run `/llm-wiki:init` first." (Default bundle dir is `llm-wiki/`, per the product plan.)
 - **Consultation counter:** `<bundle-root>/.llm-wiki/consultations.json` (a dotdir non-`.md`, invisible
   to Doctor and OKF consumers — never affects conformance or GitHub-render). Phase 1 only increments.
 - **`allowed-tools` Bash scoping:** the pattern matches the **stable command head**, not the volatile
@@ -439,7 +440,7 @@ Run top to bottom; the loop "exists" only when all pass. Dogfood target is this 
    `llm-wiki:` namespace; no `hooks/`/`.mcp.json`/`agents/` anywhere. ☐
 
 **C. The loop, on this repo (each step confirm-first, each write logged):**
-4. `/llm-wiki:init` at the repo root → creates root `index.md` (`okf_version` only), `log.md`
+4. `/llm-wiki:init` → creates the default `llm-wiki/` bundle: root `index.md` (`okf_version` only), `log.md`
    (`**Initialization**`), shown and confirmed before write. ☐
 5. `/llm-wiki:capture` a **real public-skills finding** — proposed proof artifact: *"OKF Doctor
    strict-producer rule set (R1/R2/R3a–c)"* as a concept of `type: Reference`. First capture into a

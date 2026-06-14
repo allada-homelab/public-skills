@@ -13,8 +13,8 @@ carry `--bundle <path>`.
 
 Steps:
 
-1. **Resolve the bundle root** (`--bundle`, else walk up from `${CLAUDE_PROJECT_DIR}`). None →
-   "No OKF bundle here. Run `/llm-wiki:init` first."
+1. **Resolve the bundle root** (`--bundle`; else the default `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk
+   up from the cwd for a root `index.md`). None → "No OKF bundle here. Run `/llm-wiki:init` first."
 2. **Find entry points.** Grep key terms from the question and read the root `index.md`. Traverse
    minimally, following only cross-links that bear on the question. A concept "counts" only when you
    actually `Read` its body (index files don't count).
