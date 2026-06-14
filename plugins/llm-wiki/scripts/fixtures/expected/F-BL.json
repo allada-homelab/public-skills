@@ -1,0 +1,1 @@
+{ "skip": true, "reason": "broken-link detection is a documented Phase 4 seam; Phase 1 Doctor does not walk links" }

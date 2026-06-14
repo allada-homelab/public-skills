@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""Report-only secret scanner for the /llm-wiki plugin (Phase 1).
+
+Scans one pending payload (a file path, or '-' for stdin) for credential-shaped
+content and reports findings. **Always exits 0 in Phase 1** — the calling command
+surfaces findings in the confirm-first diff; the human decides. Phase 3 re-wires the
+caller (a PreToolUse hook) to treat findings as blocking; this script is unchanged.
+
+Usage:
+    secret_scan.py <file-or-"-"> [--format text|json]
+
+Two stages:
+    1. Labeled high-precision regexes (cloud keys, API tokens, PEM blocks, conn strings).
+    2. Entropy gate for unmatched long tokens (Shannon >= 4.0 bits/char, >= 2 charset classes).
+
+Previews are redacted (first 4 chars + ellipsis) — the full secret is never emitted.
+"""
+import json
+import math
+import re
+import sys
+
+SCHEMA = "okf-secret-scan/1"
+ENTROPY_MIN = 4.0          # bits/char — the one tunable knob (retuned in Phase 3)
+ENTROPY_MIN_LEN = 20
+
+PATTERNS = [
+    ("aws_access_key_id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
+    ("gcp_api_key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b")),
+    ("slack_token", re.compile(r"\bxox[baprs]-[0-9A-Za-z-]{10,}\b")),
+    ("github_token", re.compile(r"\bgh[pousr]_[0-9A-Za-z]{36,}\b")),
+    ("openai_key", re.compile(r"\bsk-(?:ant-)?[0-9A-Za-z_\-]{20,}\b")),
+    ("bearer_token", re.compile(r"(?i)\bauthorization:\s*bearer\s+([0-9A-Za-z._\-]{16,})")),
+    ("pem_private_key", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----")),
+    ("connection_string_creds", re.compile(r"\b[a-z][a-z0-9+.\-]*://[^\s:/@]+:([^\s:/@]+)@")),
+    ("jdbc_password", re.compile(r"(?i)\bpassword=([^\s;&]+)")),
+    ("assigned_secret", re.compile(
+        r"(?i)\b(?:password|passwd|secret|token|api[_-]?key|access[_-]?key)\b\s*[:=]\s*[\"']?([^\s\"']{8,})")),
+]
+
+TOKEN_RE = re.compile(r"[A-Za-z0-9+/=_\-]{%d,}" % ENTROPY_MIN_LEN)
+
+
+def shannon_entropy(s):
+    if not s:
+        return 0.0
+    counts = {}
+    for ch in s:
+        counts[ch] = counts.get(ch, 0) + 1
+    n = len(s)
+    return -sum((c / n) * math.log2(c / n) for c in counts.values())
+
+
+def charset_classes(s):
+    classes = 0
+    if re.search(r"[a-z]", s):
+        classes += 1
+    if re.search(r"[A-Z]", s):
+        classes += 1
+    if re.search(r"[0-9]", s):
+        classes += 1
+    if re.search(r"[^A-Za-z0-9]", s):
+        classes += 1
+    return classes
+
+
+def redact(value):
+    value = value.strip().strip("\"'")
+    return (value[:4] + "…") if len(value) > 4 else "…"
+
+
+def scan(text):
+    findings = []
+    seen = set()  # (line, value) to avoid double-reporting across stages
+    for lineno, line in enumerate(text.split("\n"), 1):
+        # Stage 1: labeled patterns.
+        for category, rx in PATTERNS:
+            for m in rx.finditer(line):
+                value = m.group(m.lastindex) if m.lastindex else m.group(0)
+                key = (lineno, value)
+                if key in seen:
+                    continue
+                seen.add(key)
+                findings.append({"category": category, "detector": "pattern",
+                                 "line": lineno, "preview": redact(value)})
+        # Stage 2: entropy gate on unmatched long tokens.
+        for m in TOKEN_RE.finditer(line):
+            token = m.group(0)
+            if (lineno, token) in seen:
+                continue
+            if shannon_entropy(token) >= ENTROPY_MIN and charset_classes(token) >= 2:
+                seen.add((lineno, token))
+                findings.append({"category": "high_entropy_token", "detector": "entropy",
+                                 "line": lineno, "preview": redact(token)})
+    findings.sort(key=lambda f: (f["line"], f["category"], f["preview"]))
+    return findings
+
+
+def main(argv):
+    fmt, target = "text", None
+    it = iter(argv)
+    for a in it:
+        if a == "--format":
+            fmt = next(it, "")
+        elif a.startswith("--"):
+            sys.stderr.write("unknown flag: %s\n" % a)
+            return 0  # report-only: never fail the caller
+        elif target is None:
+            target = a
+        else:
+            sys.stderr.write("unexpected extra argument: %s\n" % a)
+            return 0
+
+    if target is None or fmt not in ("text", "json"):
+        sys.stderr.write("usage: secret_scan.py <file-or-\"-\"> [--format text|json]\n")
+        return 0
+
+    try:
+        text = sys.stdin.read() if target == "-" else open(target, "r", encoding="utf-8").read()
+    except OSError as e:
+        sys.stderr.write("cannot read %s: %s\n" % (target, e))
+        return 0
+
+    findings = scan(text)
+    if fmt == "json":
+        print(json.dumps({"schema": SCHEMA, "target": target,
+                          "summary": {"findings": len(findings)}, "findings": findings},
+                         sort_keys=True, indent=2))
+    else:
+        for f in findings:
+            print("SECRET %-22s %s:%d   preview=%s" % (f["category"], target, f["line"], f["preview"]))
+        print("Potential secrets: %d (report-only)" % len(findings))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
