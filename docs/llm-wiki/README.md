@@ -4,9 +4,9 @@ Planning and design for the `llm-wiki` plugin. Three documents, distinct purpose
 
 | Doc | Purpose | Audience |
 |---|---|---|
-| [PRODUCT_PLAN.md](./PRODUCT_PLAN.md) | What the plugin is and how it behaves — vision, personas, capabilities, autonomy model. Product, not implementation. | product |
-| [PHASE_PLAN.md](./PHASE_PLAN.md) | The 4-phase roadmap and the capability → Claude Code primitive mapping. Authoritative on phasing/sequencing. | architecture |
-| [PHASE_1_TECH_PLAN.md](./PHASE_1_TECH_PLAN.md) | The buildable spec for Phase 1 (MVP): manifests, command contracts, the Doctor, fixtures. | implementation |
+| [PRODUCT_PLAN.md](./planning/PRODUCT_PLAN.md) | What the plugin is and how it behaves — vision, personas, capabilities, autonomy model. Product, not implementation. | product |
+| [PHASE_PLAN.md](./planning/PHASE_PLAN.md) | The 4-phase roadmap and the capability → Claude Code primitive mapping. Authoritative on phasing/sequencing. | architecture |
+| [PHASE_1_TECH_PLAN.md](./phases/phase-1-tech-plan.md) | The buildable spec for Phase 1 (MVP): manifests, command contracts, the Doctor, fixtures. | implementation |
 | [TRIAL_BRIEF.md](./TRIAL_BRIEF.md) | How to trial the plugin in another repo and bring findings back to scope Phase 2. | dogfooding |
 
 Where they disagree, the later/more-specific doc wins (PHASE_PLAN over PRODUCT_PLAN on phasing;
@@ -28,5 +28,5 @@ links (`okf_repo.md`), and the Claude Code plugin-system reference (`claude_code
 - **Phase 3 — Autonomous (hooks, modes, self-improve)** and **Phase 4 — Interoperate** — planned.
 
 Backlog ideas (loop-based curation, a dedicated cheaper curation model, the blocking secret hook)
-are recorded in [PRODUCT_PLAN.md](./PRODUCT_PLAN.md#future-ideas--backlog-not-committed-to-mvpv1)
+are recorded in [PRODUCT_PLAN.md](./planning/PRODUCT_PLAN.md#future-ideas--backlog-not-committed-to-mvpv1)
 and PHASE_PLAN locked decisions.

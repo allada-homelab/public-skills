@@ -23,7 +23,9 @@ plugins/llm-wiki/                  # the plugin
   skills/wiki/                     # the llm-wiki:wiki skill (SKILL.md + references/)
   scripts/                         # doctor.py, secret_scan.py, fixtures/ (the test corpus)
 llm-wiki/                          # this repo's own OKF bundle (dogfood + living example)
-docs/llm-wiki/                     # PRODUCT_PLAN, PHASE_PLAN, PHASE_1_TECH_PLAN, README (index)
+docs/llm-wiki/                     # design docs (README = index/hub, TRIAL_BRIEF = dogfooding)
+  planning/                        # PRODUCT_PLAN (vision) + PHASE_PLAN (roadmap + primitive map)
+  phases/                          # per-phase tech plans (phase-1-tech-plan.md)
   reference/                       # OKF spec/blog/repo + Claude Code plugin-system reference
 ```
 

@@ -2,9 +2,9 @@
 
 > **Status: ✅ shipped & dogfooded (2026-06-14).** This spec is built and verified; the test corpus
 > is green (`pass=10 fail=0 skip=1`) and the loop was dogfooded on this repo. See
-> [README.md](./README.md) for overall roadmap status.
+> [README.md](../README.md) for overall roadmap status.
 >
-> Companion to [`PHASE_PLAN.md`](./PHASE_PLAN.md) (phasing) and [`PRODUCT_PLAN.md`](./PRODUCT_PLAN.md)
+> Companion to [`PHASE_PLAN.md`](../planning/PHASE_PLAN.md) (phasing) and [`PRODUCT_PLAN.md`](../planning/PRODUCT_PLAN.md)
 > (product vision). This is the buildable spec for **Phase 1 only**. Produced via a multi-agent pass
 > (scope distill + live Claude Code contract research + OKF rule extraction → 4 component designs →
 > adversarial verification → synthesis).
@@ -12,7 +12,7 @@
 > **Contract verification status (orchestrator):** the manifest locations, the `.claude-plugin/`
 > placement, the inline-path `source` form, `${CLAUDE_PLUGIN_ROOT}`, the skill auto-activation model,
 > and the hook-event list were re-checked against
-> [`reference/claude_code_plugin_system.md`](./reference/claude_code_plugin_system.md)
+> [`reference/claude_code_plugin_system.md`](../reference/claude_code_plugin_system.md)
 > and hold. The `allowed-tools` Bash glob syntax was **confirmed** against `permissions.md` (the
 > trailing `Bash(python3:*)` colon form is a documented equivalent of the space form — see §4). The
 > only items left for a live `capture` run are *behavioral*: that the call runs without a permission
