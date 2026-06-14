@@ -9,9 +9,10 @@ marketplace (`.claude-plugin/marketplace.json`); plugins live under `plugins/`.
 
 The first and current plugin is **`llm-wiki`**: an OKF-native knowledge wiki for Claude Code.
 It lets Claude author, read, and (later) maintain a persistent OKF knowledge bundle for a
-project. **Phase 1 (MVP) is shipped** — init / capture / explore / query / conform, all
-confirm-first, gated by a deterministic Doctor. See [docs/llm-wiki](./docs/llm-wiki/) for the
-product plan, phasing, and the Phase 1 technical plan.
+project. **Phases 1 & 2 are shipped** — Phase 1: init / capture / explore / query / conform; Phase 2:
+refine / prune / reorganize over the deterministic `bundle_ops` engine + Doctor R4 link-health. All
+confirm-first, gated by a deterministic Doctor. See [docs/llm-wiki](./docs/llm-wiki/) for the product
+plan, phasing, and the per-phase technical plans.
 
 ## Repository layout
 
@@ -19,13 +20,14 @@ product plan, phasing, and the Phase 1 technical plan.
 .claude-plugin/marketplace.json   # marketplace manifest
 plugins/llm-wiki/                  # the plugin
   .claude-plugin/plugin.json       # plugin manifest (note: inside .claude-plugin/, not plugin root)
-  commands/                        # /llm-wiki:{init,capture,explore,query,conform} (.md slash commands)
+  commands/                        # /llm-wiki:{init,capture,explore,query,conform,refine,prune,reorganize}
   skills/wiki/                     # the llm-wiki:wiki skill (SKILL.md + references/)
-  scripts/                         # doctor.py, secret_scan.py, fixtures/ (the test corpus)
+  scripts/                         # doctor.py, secret_scan.py, bundle_ops.py;
+                                   #   fixtures/ (Doctor corpus) + ops_fixtures/ (bundle_ops golden corpus)
 llm-wiki/                          # this repo's own OKF bundle (dogfood + living example)
 docs/llm-wiki/                     # design docs (README = index/hub, TRIAL_BRIEF = dogfooding)
   planning/                        # PRODUCT_PLAN (vision) + PHASE_PLAN (roadmap + primitive map)
-  phases/                          # per-phase tech plans (phase-1-tech-plan.md)
+  phases/                          # per-phase tech plans (phase-1-tech-plan.md, phase-2-tech-plan.md)
   reference/                       # OKF spec/blog/repo + Claude Code plugin-system reference
 ```
 
@@ -38,7 +40,13 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   ```bash
   bash plugins/llm-wiki/scripts/fixtures/run_fixtures.sh
   ```
-  Expect `pass=10 fail=0 skip=1` (the skipped `F-BL` fixture is a documented Phase 4 seam).
+  Expect `pass=12 fail=0 skip=0`.
+- **Test the durability engine** (the `bundle_ops` golden corpus — run after any change to
+  `bundle_ops.py`):
+  ```bash
+  bash plugins/llm-wiki/scripts/ops_fixtures/run_ops.sh
+  ```
+  Expect `pass=12 fail=0`.
 - **Validate a bundle**:
   ```bash
   python3 plugins/llm-wiki/scripts/doctor.py <bundle-dir> --mode strict --format text
@@ -47,16 +55,20 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
 ## Architecture & conventions
 
 - **Doctor is the conformance authority.** `doctor.py` deterministically enforces OKF v0.1
-  (rules R1/R2/R3a–c). The `wiki` skill only makes drafts *near*-conformant; if they disagree,
-  the Doctor wins. Commands stage writes to a `/tmp` bundle mirror and run the Doctor in bundle
-  mode *before* writing anything.
+  (rules R1/R2/R3a–c, plus report-only **R4** link-health). The `wiki` skill only makes drafts
+  *near*-conformant; if they disagree, the Doctor wins. Commands stage writes to a `/tmp` bundle
+  mirror and run the Doctor in bundle mode *before* writing anything.
+- **Maintenance is deterministic.** `bundle_ops.py` (index regeneration, `log.md` appends,
+  link-preserving moves, guarded remove) is the engine the Phase 2 commands compose instead of
+  hand-editing indexes/links. `reorganize` gates on an R4 pre/post diff (`after ⊆ before` → zero
+  newly-broken links).
 - **Confirm-first.** No command writes to a bundle without showing the exact content/diff and
-  getting explicit approval. `explore`/`query` are read-only.
+  getting explicit approval. `explore`/`query`/`conform` are read-only.
 - **Report-only secret scan.** `secret_scan.py` surfaces credentials in the capture diff but
   never blocks in Phase 1 (it becomes a blocking PreToolUse hook in Phase 3).
-- **Tests are fixtures.** Each `scripts/fixtures/<name>/` is a minimal bundle with one planted
-  defect; `expected/<name>.json` is its contract. Add a fixture + expected pair for any new rule
-  *before* implementing it (TDD).
+- **Tests are fixtures.** `scripts/fixtures/<name>/` is a minimal bundle with a planted defect and an
+  `expected/<name>.json` contract (Doctor); `scripts/ops_fixtures/<name>/` is an input→expected output
+  tree for `bundle_ops`. Add a fixture *before* implementing any new rule or engine behavior (TDD).
 - **Default bundle location is `./llm-wiki/`** (`${CLAUDE_PROJECT_DIR}/llm-wiki`).
 - **Cross-links use the relative `./` form** (resolves on GitHub; OKF-valid).
 

@@ -18,6 +18,7 @@ Rules (see PHASE_1_TECH_PLAN.md §5):
     R3a  subdirectory index.md has zero frontmatter
     R3b  root index.md frontmatter keys ⊆ {okf_version}, and okf_version == "0.1"
     R3c  log.md: ISO YYYY-MM-DD headings, newest-first, bold **Update/Creation/Initialization** bullets
+    R4   internal markdown links resolve (WARNING only — broken links are tolerated per OKF spec §5)
 """
 import json
 import os
@@ -30,6 +31,8 @@ KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$")
 LIST_ITEM_RE = re.compile(r"^\s+-\s+(.*)$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 LOG_PREFIXES = ("**Update**", "**Creation**", "**Initialization**")
+LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+EXTERNAL_SCHEMES = ("http://", "https://", "mailto:", "ftp://", "tel:", "//")
 
 # Frontmatter parse outcomes.
 NONE = "none"          # no frontmatter block at all
@@ -165,6 +168,38 @@ def check_log(text, relpath, findings):
             break
 
 
+def check_links(text, abspath, bundle_root, relpath, findings):
+    """R4 (report-only): flag internal markdown links whose target doesn't resolve.
+    Resolves `/...` from the bundle root and everything else relative to the file's
+    directory; skips external schemes and bare `#anchor` links. Per spec §5 broken
+    links are *tolerated*, so these are WARNINGs that never affect the exit code."""
+    base = os.path.dirname(abspath)
+    for n, line in enumerate(text.split("\n"), 1):
+        for m in LINK_RE.finditer(line):
+            raw = m.group(1).strip()
+            # markdown allows `(<url> "title")`; take the URL part only
+            if raw.startswith("<") and ">" in raw:
+                target = raw[1:raw.index(">")]
+            else:
+                target = raw.split()[0] if raw.split() else ""
+            if not target or target.startswith("#"):
+                continue
+            if target.lower().startswith(EXTERNAL_SCHEMES):
+                continue
+            target = target.split("#", 1)[0].split("?", 1)[0]
+            if not target:
+                continue  # was a pure fragment
+            if target.startswith("/"):
+                resolved = os.path.join(bundle_root, target.lstrip("/"))
+            else:
+                resolved = os.path.join(base, target)
+            resolved = os.path.normpath(resolved)
+            exists = os.path.isdir(resolved) if target.endswith("/") else os.path.isfile(resolved)
+            if not exists:
+                findings.append(_f("WARNING", "R4", relpath, n,
+                                   "Link target does not resolve: %s" % target))
+
+
 def _key_line(text, key):
     for n, line in enumerate(text.split("\n"), 1):
         m = KEY_RE.match(line)
@@ -212,6 +247,7 @@ def validate(target):
             check_subdir_index(text, rel, findings)
         elif kind == "log":
             check_log(text, rel, findings)
+        check_links(text, p, bundle_root, rel, findings)
     findings.sort(key=lambda f: (f["file"], f["line"], f["rule"]))
     return bundle_root, len(paths), findings
 

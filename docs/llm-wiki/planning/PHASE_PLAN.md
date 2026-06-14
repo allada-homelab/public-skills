@@ -115,6 +115,10 @@ planted credential in the capture diff. Bundle is readable by any OKF-conformant
 
 ## Phase 2 — Make It Durable: Maintain (lifecycle + automated index/log)
 
+> **Status: ✅ shipped & dogfooded (2026-06-14).** Built test-first; see the
+> [Phase 2 tech plan](../phases/phase-2-tech-plan.md). Engine = `scripts/bundle_ops.py`
+> (index / log-append / move / remove); Doctor gained **R4** link-health (report-only).
+
 **Goal.** Keep the wiki conformant, navigable, and accurate as it grows, so the Phase 1 loop doesn't rot.
 
 **Capabilities.** `refine`, `prune`, `reorganize` commands; automated `index.md` regeneration and
