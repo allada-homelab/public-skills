@@ -9,9 +9,10 @@
 > placement, the inline-path `source` form, `${CLAUDE_PLUGIN_ROOT}`, the skill auto-activation model,
 > and the hook-event list were re-checked against
 > [`../../source_docs/claude_code_plugin_system.md`](../../source_docs/claude_code_plugin_system.md)
-> and hold. **The one unconfirmed item is the `allowed-tools` Bash glob syntax** (colon `Bash(python3:*)`
-> vs space `Bash(python3 *)`) — see the inline note in §4; settle it with one live `capture` run before
-> relying on it.
+> and hold. The `allowed-tools` Bash glob syntax was **confirmed** against `permissions.md` (the
+> trailing `Bash(python3:*)` colon form is a documented equivalent of the space form — see §4). The
+> only items left for a live `capture` run are *behavioral*: that the call runs without a permission
+> prompt, and that the skill `description` auto-activates on real phrasings.
 
 ## 1. Overview
 
@@ -205,12 +206,12 @@ A read-only `query`/`explore` loads none of the authoring references; a `capture
   to Doctor and OKF consumers — never affects conformance or GitHub-render). Phase 1 only increments.
 - **`allowed-tools` Bash scoping:** the pattern matches the **stable command head**, not the volatile
   post-expansion absolute path (Claude expands `${CLAUDE_PLUGIN_ROOT}` *before* the Bash call, so a
-  literal-`${CLAUDE_PLUGIN_ROOT}` pattern can never match). Form proposed by the workflow: `Bash(python3 *)`.
-  > **⚠ Orchestrator note (unconfirmed):** the workflow called the colon-glob `Bash(python3:*)`
-  > "undocumented" and switched to a space-glob. My understanding is the opposite — the colon-glob is
-  > Claude Code's documented permission form. Treat the exact syntax as **unsettled**; the real
-  > verification is one live `/llm-wiki:capture` run confirming the Doctor/scan calls execute *without*
-  > a permission prompt. One-line change either way.
+  literal-`${CLAUDE_PLUGIN_ROOT}` pattern can never match). Form used: `Bash(python3:*)`.
+  > **✓ Resolved (confirmed against `permissions.md`):** the workflow's claim that the colon-glob is
+  > "undocumented" was wrong. The official permissions doc states the trailing `:*` suffix is an exact
+  > equivalent of the space form (`Bash(ls:*)` == `Bash(ls *)`), valid only at the *end* of a pattern.
+  > The implementation uses `Bash(python3:*)`. What still needs a live `/llm-wiki:capture` run is only
+  > whether the call actually executes *without* a permission prompt (behavior), not the syntax.
 
 **Doctor invocation contract assumed by writing commands (bundle mode):**
 ```

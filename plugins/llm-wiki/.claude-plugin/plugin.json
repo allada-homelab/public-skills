@@ -1,0 +1,8 @@
+{
+  "name": "llm-wiki",
+  "version": "0.1.0",
+  "description": "Capture and query a curated OKF v0.1 knowledge bundle from inside a Claude Code session — init, capture, explore, query, conform, all confirm-first.",
+  "author": { "name": "David Allada", "email": "davidanilallada@gmail.com" },
+  "license": "MIT",
+  "keywords": ["okf", "knowledge", "wiki", "open-knowledge-format"]
+}

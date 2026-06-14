@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "public-skills",
+  "description": "David Allada's public Claude Code marketplace.",
+  "owner": { "name": "David Allada", "email": "davidanilallada@gmail.com" },
+  "plugins": [
+    {
+      "name": "llm-wiki",
+      "description": "Capture and query a curated OKF v0.1 knowledge bundle from inside a Claude Code session.",
+      "category": "knowledge",
+      "source": "./plugins/llm-wiki"
+    }
+  ]
+}
