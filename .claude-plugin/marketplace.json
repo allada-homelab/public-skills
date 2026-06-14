@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "llm-wiki",
-      "description": "Capture and query a curated OKF v0.1 knowledge bundle from inside a Claude Code session.",
+      "description": "An autonomous OKF v0.1 knowledge wiki for Claude Code — author, read, and maintain a curated knowledge bundle so each session starts smarter.",
       "category": "knowledge",
       "source": "./plugins/llm-wiki"
     }
