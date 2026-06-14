@@ -5,7 +5,7 @@ allowed-tools: Glob, Grep, Read, Write, Edit, Bash(python3:*)
 ---
 
 You are running `/llm-wiki:capture`. Turn a finding from the current session into **one** conformant
-OKF concept at the **bundle root** (Phase 1 does not create subdirectories). Use the `okf` skill for
+OKF concept at the **bundle root** (Phase 1 does not create subdirectories). Use the `wiki` skill for
 format rules and `references/concept-template.md` for the skeleton. **Confirm-first: write nothing
 until the user approves the diff.**
 

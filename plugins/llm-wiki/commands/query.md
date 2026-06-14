@@ -5,7 +5,7 @@ allowed-tools: Glob, Grep, Read, Write
 ---
 
 You are running `/llm-wiki:query`. Answer the user's question **only** from concepts you actually read,
-with citations. Use the `okf` skill for the format. Read-only except an optional, confirm-gated
+with citations. Use the `wiki` skill for the format. Read-only except an optional, confirm-gated
 consultation-counter write.
 
 Arguments: `$ARGUMENTS` is the question (**required** — if empty, ask for it; never guess). It may also

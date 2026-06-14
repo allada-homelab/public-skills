@@ -4,7 +4,7 @@ argument-hint: "[target-path]"
 allowed-tools: Glob, Read, Write, Bash(python3:*)
 ---
 
-You are running `/llm-wiki:init`. Create a new, conformant OKF v0.1 bundle. Use the `okf` skill for
+You are running `/llm-wiki:init`. Create a new, conformant OKF v0.1 bundle. Use the `wiki` skill for
 the format rules. **Confirm-first: write nothing until the user approves the shown content.**
 
 Target directory: `$ARGUMENTS` if given, else `${CLAUDE_PROJECT_DIR}`.
@@ -31,4 +31,4 @@ Steps:
    (no partial-bundle cleanup magic — fail loud).
 6. Report the bundle path and suggest `/llm-wiki:capture` to add the first concept.
 
-Use relative `./` links throughout. Never invent OKF rules — defer to the `okf` skill and the Doctor.
+Use relative `./` links throughout. Never invent OKF rules — defer to the `wiki` skill and the Doctor.

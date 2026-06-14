@@ -5,7 +5,7 @@ allowed-tools: Glob, Read, Write
 ---
 
 You are running `/llm-wiki:explore`. Help the user navigate the bundle by **progressive disclosure** —
-read `index.md` listings, not every file. Use the `okf` skill for the format. Read-only except an
+read `index.md` listings, not every file. Use the `wiki` skill for the format. Read-only except an
 optional, confirm-gated consultation-counter write.
 
 Arguments: `$ARGUMENTS` may carry a start subpath (default: bundle root) and `--bundle <path>`.

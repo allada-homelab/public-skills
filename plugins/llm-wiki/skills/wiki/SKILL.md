@@ -1,13 +1,15 @@
 ---
-name: okf
+name: wiki
 description: >-
-  Knowledge of the Open Knowledge Format (OKF) v0.1 and the /llm-wiki workflow
-  for building and reading an OKF knowledge bundle. This skill should be used
-  when the user wants to capture a finding, schema, runbook, metric, or decision
-  into a wiki or knowledge bundle; initialize, explore, or query an OKF bundle;
-  or when the user mentions OKF, llm-wiki, a concept doc, index.md, or log.md.
-  It explains OKF's conformance rules and concept/frontmatter/linking conventions
-  so authored docs are near-conformant before the deterministic Doctor gate runs.
+  Build, maintain, and read a project knowledge wiki — a curated library of
+  markdown notes the agent consults to start each session smarter. This skill
+  should be used when the user wants to capture or save a finding, decision,
+  runbook, schema, or metric into a wiki or knowledge base; or to initialize,
+  explore, or query that wiki. The wiki follows the Open Knowledge Format
+  (OKF v0.1); this skill explains its conformance and concept/frontmatter/linking
+  rules so authored files are near-conformant before the deterministic Doctor
+  gate runs. Also relevant when the user mentions llm-wiki, OKF, a concept doc,
+  index.md, or log.md.
 ---
 
 # Open Knowledge Format (OKF) v0.1 — authoring & reading

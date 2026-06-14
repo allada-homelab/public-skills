@@ -47,7 +47,7 @@ public-skills/                                  (marketplace repo root)
 │       │   ├── query.md
 │       │   └── conform.md
 │       ├── skills/
-│       │   └── okf/                ← new       (one model-invocable Skill, auto-discovered)
+│       │   └── wiki/               ← new       (one model-invocable Skill, auto-discovered)
 │       │       ├── SKILL.md
 │       │       └── references/
 │       │           ├── frontmatter.md
@@ -67,9 +67,9 @@ public-skills/                                  (marketplace repo root)
   `.claude-plugin/`.
 - No `hooks/`, `.mcp.json`, `agents/`, `monitors/`, or `settings.json` anywhere — their absence is what
   structurally enforces the Phase 1 non-goals.
-- Five flat `commands/*.md` → five `/llm-wiki:<name>` commands. One `skills/okf/` dir → one
-  model-invocable skill, namespaced `llm-wiki:okf` (the namespace derives from the **directory name**
-  `okf/`, per the skills-doc name-derivation table — *not* from frontmatter `name`).
+- Five flat `commands/*.md` → five `/llm-wiki:<name>` commands. One `skills/wiki/` dir → one
+  model-invocable skill, namespaced `llm-wiki:wiki` (the namespace derives from the **directory name**
+  `wiki/`, per the skills-doc name-derivation table — *not* from frontmatter `name`).
 
 ### `plugins/llm-wiki/.claude-plugin/plugin.json`
 
@@ -131,28 +131,31 @@ a probabilistic model); **Doctor makes it guaranteed** (deterministic code, the 
 Skill and Doctor disagree, Doctor wins, and the Skill's own text says so. Changing the Skill never
 changes what conforms — only first-pass draft quality (fewer Doctor round-trips).
 
-### `skills/okf/SKILL.md` frontmatter
+### `skills/wiki/SKILL.md` frontmatter
 
 ```yaml
 ---
-name: okf
+name: wiki
 description: >-
-  Knowledge of the Open Knowledge Format (OKF) v0.1 and the /llm-wiki workflow
-  for building and reading an OKF knowledge bundle. This skill should be used
-  when the user wants to capture a finding, schema, runbook, metric, or decision
-  into a wiki or knowledge bundle; initialize, explore, or query an OKF bundle;
-  or when the user mentions OKF, llm-wiki, a concept doc, index.md, or log.md.
-  It explains OKF's conformance rules and concept/frontmatter/linking conventions
-  so authored docs are near-conformant before the deterministic Doctor gate runs.
+  Build, maintain, and read a project knowledge wiki — a curated library of
+  markdown notes the agent consults to start each session smarter. This skill
+  should be used when the user wants to capture or save a finding, decision,
+  runbook, schema, or metric into a wiki or knowledge base; or to initialize,
+  explore, or query that wiki. The wiki follows the Open Knowledge Format
+  (OKF v0.1); this skill explains its conformance and concept/frontmatter/linking
+  rules so authored files are near-conformant before the deterministic Doctor
+  gate runs. Also relevant when the user mentions llm-wiki, OKF, a concept doc,
+  index.md, or log.md.
 ---
 ```
 
 - **`description`** is the only auto-activation signal: third-person voice (required by the live skills
-  doc), triggers on *user intent and surface vocabulary* ("save this to the wiki") as well as OKF jargon
-  (`index.md`, `log.md`, concept), and its last clause states the Doctor boundary to bias retrieval away
-  from treating the Skill as the validator.
-- **`name: okf`** is the display label in skill listings. The invocation/namespace name `llm-wiki:okf`
-  derives from the **`skills/okf/` directory name**, not this field (renaming the directory *would*
+  doc), and **intent-first** — it leads with plain "build/read a project knowledge wiki" and "capture a
+  finding" so triggering never depends on the model recognizing the (new) "OKF" acronym; OKF jargon
+  (`index.md`, `log.md`, concept) is a secondary signal, and the Doctor-boundary clause biases retrieval
+  away from treating the Skill as the validator.
+- **`name: wiki`** is the display label in skill listings. The invocation/namespace name `llm-wiki:wiki`
+  derives from the **`skills/wiki/` directory name**, not this field (renaming the directory *would*
   change the command name regardless of `name`).
 - No `disable-model-invocation` (auto-activation is the point), no per-skill `tags`/`version` (unearned).
 
