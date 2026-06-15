@@ -1,7 +1,7 @@
 ---
 description: Refine an existing llm-wiki concept in place — edit its body/frontmatter, keeping indexes and the log correct.
 argument-hint: "[concept path or title] [--bundle <path>]"
-allowed-tools: Glob, Grep, Read, Write, Edit, Bash(python3:*), Bash(cp:*), Bash(rm:*), Bash(mktemp:*), Bash(diff:*)
+allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(cp:*), Bash(rm:*), Bash(mktemp:*), Bash(diff:*)
 ---
 
 You are running `/llm-wiki:refine`. Edit **one** existing concept in place (same path — renames/moves

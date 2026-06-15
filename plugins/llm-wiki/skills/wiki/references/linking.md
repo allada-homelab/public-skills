@@ -32,4 +32,5 @@ Joined with [customers](./customers.md) on `customer_id` (many orders → one cu
 
 When reading, a link whose target is missing must not stop navigation — note it and continue. When
 *writing*, `/llm-wiki:capture` runs a report-only link check and surfaces any dangling link in the
-confirm diff so you can fix it before committing. (The Doctor itself does not walk links in Phase 1.)
+confirm diff so you can fix it before committing. (The Doctor also reports broken links as `R4`
+link-health **warnings** — surfaced in its report, never blocking, since OKF tolerates dangling links.)

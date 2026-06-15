@@ -1,7 +1,7 @@
 ---
 description: Bootstrap an empty, OKF v0.1-conformant llm-wiki bundle (one-time).
 argument-hint: "[target-path]"
-allowed-tools: Glob, Read, Write, Bash(python3:*)
+allowed-tools: Glob, Read, Write, Bash(python3:*), Bash(mktemp:*), Bash(rm:*)
 ---
 
 You are running `/llm-wiki:init`. Create a new, conformant OKF v0.1 bundle. Use the `wiki` skill for

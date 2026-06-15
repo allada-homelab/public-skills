@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """PostToolUse pre-filter — a cheap, mostly-silent capture nudge after real-code edits.
 
-A secondary trigger to the UserPromptSubmit nudge: when a Write/Edit/MultiEdit touches a
+A secondary trigger to the UserPromptSubmit nudge: when a Write/Edit touches a
 file *outside* the bundle (i.e. real project code/docs, which often encodes a durable
 decision or convention) and the wiki is in an auto mode, drop a terse reminder to capture
 it, and drop the `.llm-wiki/capture-pending` marker that the **Stop** hook gates on (so the

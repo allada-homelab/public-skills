@@ -1,7 +1,7 @@
 ---
 description: Reorganize the llm-wiki — move/rename concepts (incl. into subdirectories), rewriting every link with zero breakage.
 argument-hint: "[what to reorganize] [--bundle <path>]"
-allowed-tools: Glob, Grep, Read, Write, Edit, Bash(python3:*), Bash(cp:*), Bash(rm:*), Bash(rmdir:*), Bash(mktemp:*), Bash(diff:*)
+allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(cp:*), Bash(rm:*), Bash(rmdir:*), Bash(mktemp:*), Bash(diff:*)
 ---
 
 You are running `/llm-wiki:reorganize`. Move and/or rename one or more concepts — including into **new

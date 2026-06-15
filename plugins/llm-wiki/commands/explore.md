@@ -1,5 +1,5 @@
 ---
-description: Navigate the llm-wiki via index.md progressive disclosure (read-only).
+description: Navigate the llm-wiki via index.md progressive disclosure. Read-only except an optional, confirm-gated consultation-counter update.
 argument-hint: "[start-subpath] [--bundle <path>]"
 allowed-tools: Glob, Read, Write
 ---

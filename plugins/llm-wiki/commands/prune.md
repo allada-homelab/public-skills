@@ -1,7 +1,7 @@
 ---
 description: Prune (remove) a concept from the llm-wiki, regenerating indexes and logging the removal.
 argument-hint: "[concept path or title] [--bundle <path>]"
-allowed-tools: Glob, Grep, Read, Write, Edit, Bash(python3:*), Bash(cp:*), Bash(rm:*), Bash(mktemp:*), Bash(diff:*)
+allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(cp:*), Bash(rm:*), Bash(mktemp:*), Bash(diff:*)
 ---
 
 You are running `/llm-wiki:prune`. Remove **one** concept and keep the bundle conformant. Per OKF spec

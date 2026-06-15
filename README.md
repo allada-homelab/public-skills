@@ -58,10 +58,11 @@ public-skills/
 
 No build step or external dependencies — the plugin scripts are Python 3 stdlib only.
 
-- **Run the test corpora** (Doctor conformance + the `bundle_ops` golden engine):
+- **Run the test corpora** (Doctor conformance, the `bundle_ops` golden engine, and the hooks):
   ```text
   bash plugins/llm-wiki/scripts/fixtures/run_fixtures.sh       # pass=15 fail=0 skip=0
   bash plugins/llm-wiki/scripts/ops_fixtures/run_ops.sh        # pass=13 fail=0
+  bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh     # pass=26 fail=0
   ```
 - **Validate any bundle** against OKF v0.1:
   ```text

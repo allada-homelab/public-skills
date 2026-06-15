@@ -1,7 +1,7 @@
 ---
 type: Architecture Decision
 title: Phase 3 autonomy — hook-driven, auto-default with a guard floor
-description: How llm-wiki autonomy works — five wired hook events, a proactive-by-default mode, and the always-on PreToolUse guard floor that makes the default safe.
+description: How llm-wiki autonomy works — six wired hook events, a proactive-by-default mode, and the always-on PreToolUse guard floor that makes the default safe.
 tags:
   - autonomy
   - hooks

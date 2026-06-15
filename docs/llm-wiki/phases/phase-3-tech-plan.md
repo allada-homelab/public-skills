@@ -53,8 +53,9 @@ structure) can land without per-write human review — mitigated, not eliminated
 |---|---|---|---|
 | **SessionStart** | command | If a bundle exists, inject root `index.md` + the active-mode notice via `additionalContext`; skip silently if none. | no (always preload) |
 | **PreToolUse** (`Write\|Edit\|MultiEdit`) | command | **Secret guard** + **Doctor guardrail**, scoped by a bundle-path check. Deny on hard violations; **redact secrets via `updatedInput`**. Runs on *every* write path regardless of mode. | no (always) |
-| **UserPromptSubmit** | command | Cheap signal that the turn may carry a capture-worthy finding; inject a capture nudge (Proactive) or a propose nudge (Curated). | yes |
-| **PostToolUse** | command | Cheap pre-filter; escalate to capture only on a hit. Never a per-tool model call. | yes |
+| **UserPromptSubmit** | command | A once-per-session **consult** nudge (gated by a `.llm-wiki/last-session` marker) — the read loop's forcing function, symmetric to capture. Not a per-turn line. | yes |
+| **PostToolUse** | command | Cheap pre-filter; nudge only after a non-bundle code edit, and drop the `.llm-wiki/capture-pending` marker the Stop hook gates on. Never a per-tool model call. | yes |
+| **Stop** | command | End-of-turn capture forcing function: in an auto mode, *only on a turn that changed real code* (marker-gated), block the stop **once** (`stop_hook_active`-guarded) so the model decides capture-or-stop. Silent on pure-chat turns. | yes |
 | **SessionEnd** | command | Emit a digest of what changed this session. | no (always digest) |
 
 All are **command** hooks (deterministic shell/python), never model-call hooks. Hook-config changes

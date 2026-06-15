@@ -1,7 +1,7 @@
 ---
 description: Capture a finding from the current work as one conformant OKF concept (the core loop).
 argument-hint: "[title or finding hint] [--into <subdir>] [--bundle <path>]"
-allowed-tools: Glob, Grep, Read, Write, Edit, Bash(python3:*), Bash(cp:*), Bash(rm:*), Bash(mktemp:*), Bash(diff:*)
+allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(cp:*), Bash(rm:*), Bash(mktemp:*), Bash(diff:*)
 ---
 
 You are running `/llm-wiki:capture`. Turn a finding from the current session into **one** conformant
