@@ -22,8 +22,9 @@ auto-digest + Max deferred). All user commands confirm-first, gated by a determi
 .claude-plugin/marketplace.json   # marketplace manifest
 plugins/llm-wiki/                  # the plugin
   .claude-plugin/plugin.json       # plugin manifest (note: inside .claude-plugin/, not plugin root)
-  commands/                        # /llm-wiki:{init,capture,explore,query,conform,refine,prune,reorganize,tend}
-  skills/wiki/                     # the llm-wiki:wiki skill (SKILL.md + references/)
+  commands/                        # /llm-wiki:{init,ingest,capture,explore,query,conform,refine,prune,reorganize,tend}
+  agents/                          # wiki-explorer.md — read-only Sonnet subagent the /ingest orchestrator fans out
+  skills/wiki/                     # the llm-wiki:wiki skill (SKILL.md + references/, incl. ingestion.md)
   hooks/hooks.json                 # Phase 3 hooks: SessionStart, PreToolUse, UserPromptSubmit, PostToolUse, Stop, SessionEnd
   scripts/                         # doctor.py, secret_scan.py, bundle_ops.py, mode.py;
                                    #   hooks: hook_session_start.py, secret_guard.py, doctor_guard.py,
@@ -74,7 +75,9 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   hand-editing indexes/links. `reorganize` gates on an R4 pre/post diff (`after ⊆ before` → zero
   newly-broken links).
 - **Confirm-first.** No command writes to a bundle without showing the exact content/diff and
-  getting explicit approval. `explore`/`query`/`conform` are read-only.
+  getting explicit approval. `explore`/`query`/`conform` are read-only. The one deliberate exception is
+  `ingest` (bulk repo bootstrap): autonomous once invoked, but every concept is still secret-scanned and
+  the whole batch is Doctor-gated before it lands, with `--dry-run` to preview and one git-reversible diff.
 - **Report-only secret scan.** `secret_scan.py` surfaces credentials in the capture diff (honoring
   `pragma: allowlist secret` and skipping obvious placeholders so documentation examples don't
   false-positive) but

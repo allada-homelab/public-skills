@@ -93,6 +93,7 @@ the bundle is rendered on GitHub. See `references/linking.md`.
 
 - Authoring a concept → read `references/concept-template.md` (and `frontmatter.md` / `linking.md` as needed).
 - Touching `index.md` / `log.md` → read `references/reserved-files.md`.
+- Bulk-ingesting a repo → read `references/ingestion.md` (the `/llm-wiki:ingest` orchestration playbook).
 - Reading/answering only → you need none of the authoring references.
 
 Never paste the raw OKF spec into context — these notes plus the on-demand references are enough.
@@ -100,6 +101,7 @@ Never paste the raw OKF spec into context — these notes plus the on-demand ref
 ## Command map (orientation)
 
 - `/llm-wiki:init` — bootstrap an empty conformant bundle (one-time).
+- `/llm-wiki:ingest` — bootstrap a whole wiki from an existing repo (orchestrated multi-agent ingestion).
 - `/llm-wiki:capture` — turn a finding into one conformant concept (the core loop).
 - `/llm-wiki:explore` — navigate via `index.md` progressive disclosure.
 - `/llm-wiki:query` — answer a question grounded in concepts, with citations and a gap flag.

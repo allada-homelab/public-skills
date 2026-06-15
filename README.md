@@ -18,6 +18,7 @@ script**, and every write is **confirm-first** (shown before it lands).
 | Command | Purpose |
 |---|---|
 | `/llm-wiki:init` | Bootstrap a conformant bundle (default location `./llm-wiki/`). |
+| `/llm-wiki:ingest` | Bootstrap a whole wiki from an existing repo — orchestrated multi-agent ingestion (`--scope min\|medium\|high`, `--dry-run`). |
 | `/llm-wiki:capture` | Turn a finding from the current session into one conformant concept. |
 | `/llm-wiki:explore` | Navigate the wiki via `index.md` progressive disclosure (read-only). |
 | `/llm-wiki:query` | Answer a question grounded in the wiki, with citations and a gap flag. |

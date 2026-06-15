@@ -2,6 +2,7 @@
 
 ## 2026-06-15
 
+* **Creation**: Added [Repo ingestion — orchestrated multi-agent bootstrap](./repo-ingestion-architecture.md).
 * **Creation**: Added [Plugin versioning — unpinned for git-SHA auto-update](./plugin-versioning.md).
 * **Update**: Corrected the autonomy concept's description ("five wired hook events" → "six") and regenerated the index.
 * **Update**: Refined [Phase 3 autonomy — hook-driven, auto-default with a guard floor](./phase-3-autonomy-architecture.md): UserPromptSubmit is now a once-per-session consult nudge (read-loop forcing function), not a per-turn capture nudge.

@@ -21,6 +21,7 @@ every write) and **confirm-first** (you see the exact content/diff before it lan
 | Command | What it does |
 |---|---|
 | `/llm-wiki:init [path]` | Bootstrap a conformant bundle. Default location `./llm-wiki/`. |
+| `/llm-wiki:ingest [repo] [--scope min\|medium\|high] [--dry-run]` | Bootstrap a whole wiki from an existing repo: an orchestrator fans out read-only Sonnet `wiki-explorer` subagents, then writes one Doctor-gated batch of concepts. |
 | `/llm-wiki:capture [hint] [--bundle <path>]` | Turn a finding from the session into one conformant concept (dedupe-checked, Doctor-gated, secret-scanned). |
 | `/llm-wiki:explore [subpath] [--bundle <path>]` | Navigate via `index.md` progressive disclosure (read-only). |
 | `/llm-wiki:query <question> [--bundle <path>]` | Answer from the wiki with citations; flags a gap if unanswerable. |
@@ -55,8 +56,14 @@ talk about capturing to a wiki or knowledge base.
   **SessionEnd** prints a digest pointing at `/tend`. Mode lives in
   `.claude/llm-wiki.local.md` (`mode.py`); **default is `proactive` (auto)**, made safe by that
   always-on floor. Curated (propose-only) and Max are opt-in.
-- **Confirm-first** — the user-invoked commands never write without explicit approval; proactive
-  auto-capture still passes the secret + Doctor guards and is logged + git-reversible.
+- **Repo ingestion (`/llm-wiki:ingest` + `agents/wiki-explorer.md`)** — bootstraps a whole wiki from an
+  existing repo: the command orchestrates read-only **Sonnet** `wiki-explorer` subagents that return
+  structured concept proposals, then synthesizes and writes one **Doctor-gated, secret-scanned** batch
+  (flat-first; `--scope min|medium|high`; `--dry-run` to preview). Autonomous once invoked, one
+  git-reversible diff. Playbook in `skills/wiki/references/ingestion.md`.
+- **Confirm-first** — the user-invoked commands never write without explicit approval (`ingest` is the
+  one deliberate exception: autonomous-but-Doctor-gated, with `--dry-run`); proactive auto-capture still
+  passes the secret + Doctor guards and is logged + git-reversible.
 
 Default bundle location: `${CLAUDE_PROJECT_DIR}/llm-wiki`. Cross-links use relative `./` form so
 they resolve on GitHub.
