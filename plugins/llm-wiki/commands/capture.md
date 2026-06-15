@@ -1,7 +1,7 @@
 ---
 description: Capture a finding from the current work as one conformant OKF concept (the core loop).
 argument-hint: "[title or finding hint] [--into <subdir>] [--bundle <path>]"
-allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(cp:*), Bash(rm:*), Bash(mktemp:*), Bash(diff:*)
+allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(date:*), Bash(cp:*), Bash(rm:*), Bash(mktemp:*), Bash(diff:*)
 ---
 
 You are running `/llm-wiki:capture`. Turn a finding from the current session into **one** conformant
@@ -39,9 +39,12 @@ Steps:
    cross-link and say so in the diff.
 6. **Stage in a mirror.** `mirror=$(mktemp -d)`; `cp -r "<bundle>/." "$mirror/"`. Write the new concept
    into the mirror at `<target-dir>/<slug>.md` (creating intermediate dirs), then regenerate indexes and
-   append the log (one UTC date, reused in step 9):
-   - `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" index "$mirror"`
-   - `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" log-append "$mirror" --kind Creation --message "Added [<title>](./<relpath>)." --date <today>`
+   append the log (capture the date once — `today=$(date -u +%F)` — and reuse `$today` in step 9 so a
+   midnight rollover can't target a different `## <date>` heading than the gate saw):
+   - `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" index "$mirror"` — rebuilds everything below
+     the first `## ` heading from concept frontmatter (the preamble above it is preserved); if the root
+     `index.md` carries a hand-written `## ` section, call it out in the diff as content that will be dropped.
+   - `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" log-append "$mirror" --kind Creation --message "Added [<title>](./<relpath>)." --date "$today"`
 7. **Doctor gate.** `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "$mirror" --mode strict --format json`.
    Exit ≠ 0 → show violations verbatim, `rm -rf "$mirror"`, write nothing. Surface any `R4` (link) or
    `R5` (lonely-subdir) **WARNINGs** — report-only, they never block; an R5 on your placement is a cue to
@@ -54,7 +57,7 @@ Steps:
 9. **Confirm & apply.** On approval, land *exactly the gated bytes* — copy the staged concept back
    (`cp "$mirror/<relpath>" "<bundle>/<relpath>"`, creating intermediate dirs); do **not** re-author it
    (re-authoring drifts from what the user approved). Then run the same `bundle_ops.py index` and
-   `bundle_ops.py log-append … --date <today>` against `<bundle>` (deterministic), and run the Doctor on
+   `bundle_ops.py log-append … --date "$today"` against `<bundle>` (deterministic, same `$today`), and run the Doctor on
    the real bundle to confirm PASS. If a write fails, report exactly what landed. On decline, do nothing
    (clean no-op). Clean up only a real mirror (`rm -rf "$mirror"` — never an unset path).
 

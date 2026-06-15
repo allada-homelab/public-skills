@@ -1,0 +1,1 @@
+log-append BUNDLE --kind Update --message $'line one\nline two' --date 2026-06-14

@@ -25,8 +25,12 @@ Steps:
    entry touching them, and any linked `resource`. If `<bundle>/.llm-wiki/consultations.json` exists,
    use it to prioritize: frequently-consulted concepts are worth keeping fresh; never-consulted + old
    concepts are prune/merge candidates. Treat a missing/corrupt counter file as empty — never fail on it.
-5. **Gaps.** Note any topics the wiki plausibly should cover but doesn't (from its own structure); if you
-   have recent `GAP:` flags from `/llm-wiki:query` in context, list them.
+   The counter is **not** maintained by `prune`/`reorganize`, so a key may be **orphaned** (point at a
+   moved or removed concept) — ignore any count whose key no longer maps to an existing concept rather
+   than reading it as "never consulted" signal.
+5. **Gaps.** Note any topics the wiki plausibly should cover but doesn't (from its own structure). `GAP:`
+   flags are **not persisted** — they exist only if `/llm-wiki:query` ran earlier in *this* session; list
+   any you can still see in context, but don't imply the wiki remembers gaps across sessions.
 6. **Digest.** Emit a single prioritized, **non-destructive** digest grouped by suggested action —
    `refine` (stale/incorrect), `prune` (orphaned/dead/superseded), `reorganize` (structure/links) — each
    item naming the concept and the one-line reason. End by offering to run the relevant confirm-first

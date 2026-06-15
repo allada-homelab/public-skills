@@ -1,1 +1,2 @@
-{ "exit_code": 0, "stdout_contains": ["llm-wiki", "2", "2026-06-14", "/llm-wiki:tend"] }
+{ "exit_code": 0,
+  "stdout_contains": ["\"systemMessage\"", "llm-wiki", "2", "2026-06-14", "/llm-wiki:tend"] }

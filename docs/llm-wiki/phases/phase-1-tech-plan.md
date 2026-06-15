@@ -88,10 +88,14 @@ public-skills/                                  (marketplace repo root)
 }
 ```
 
-`name` is the load-bearing field (kebab-case; becomes the `/llm-wiki:` namespace). `version: "0.1.0"`
-is the human-readable release marker. **No `commands`/`skills` keys** — that keeps plain auto-discovery
+`name` is the load-bearing field (kebab-case; becomes the `/llm-wiki:` namespace). **No `commands`/`skills` keys** — that keeps plain auto-discovery
 (setting `commands` would *replace* the default location; setting `skills` would *add* to it). No
 `hooks`/`mcpServers`/`monitors` — Phase 1 non-goals enforced by omission.
+
+> **Post-Phase-1 (don't scaffold the `version` line above):** the shipped manifest no longer pins
+> `version` — omitting it makes Claude Code fall back to the git commit SHA, so every commit
+> auto-updates installs — and adds the optional `$schema` field for editor validation. Rationale in the
+> [`plugin-versioning`](../../../llm-wiki/plugin-versioning.md) concept.
 
 ### `public-skills/.claude-plugin/marketplace.json`
 

@@ -31,6 +31,10 @@ SCHEMA = "okf-doctor/1"
 KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$")
 LIST_ITEM_RE = re.compile(r"^\s+-\s+(.*)$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+ATX_HEADING_RE = re.compile(r"^(#+)\s+(.*)$")
+# A heading body that *looks like* a date — used to catch date headings placed at the wrong
+# ATX level (H1/H3) where they'd otherwise skip the H2 date-section checks entirely.
+DATE_CANDIDATE_RE = re.compile(r"^\d{4}-\d{1,2}-\d{1,2}\b")
 LOG_PREFIXES = ("**Update**", "**Creation**", "**Initialization**")
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 EXTERNAL_SCHEMES = ("http://", "https://", "mailto:", "ftp://", "tel:", "//")
@@ -104,17 +108,38 @@ def classify(path, bundle_root):
     return "concept"
 
 
+def _has_flow_collection(text):
+    """True if the frontmatter block holds a `key: [...]`/`key: {...}` flow collection — the
+    one UNPARSEABLE cause worth a specific message (the restricted grammar wants block lists)."""
+    lines = text.split("\n")
+    if not lines or lines[0].rstrip() != "---":
+        return False
+    for line in lines[1:]:
+        if line.rstrip() == "---":
+            break
+        m = KEY_RE.match(line)
+        if m and m.group(2).strip()[:1] in ("[", "{"):
+            return True
+    return False
+
+
 def check_concept(text, relpath, findings):
     status, fm = parse_frontmatter(text)
     if status != OK:
-        why = "no frontmatter block" if status == NONE else "frontmatter is not parseable"
+        if status == NONE:
+            why = "no frontmatter block"
+        elif _has_flow_collection(text):
+            why = "flow collections `[...]`/`{...}` are not supported — use block-list form"
+        else:
+            why = "frontmatter is not parseable"
         findings.append(_f("ERROR", "R1", relpath, 1, "Concept must have parseable YAML frontmatter (%s)." % why))
         return
     val = fm.get("type")
-    empty = val is None or (isinstance(val, str) and val.strip() == "") or (isinstance(val, list) and not val)
-    if empty:
+    # OKF §3 requires `type` to be a non-empty *string*; a list (any length) is invalid.
+    invalid = val is None or (isinstance(val, str) and val.strip() == "") or isinstance(val, list)
+    if invalid:
         findings.append(_f("ERROR", "R2", relpath, _key_line(text, "type"),
-                           "Concept frontmatter must contain a non-empty `type` field."))
+                           "Concept frontmatter must contain a non-empty `type` field (a string, not a list)."))
 
 
 def check_root_index(text, relpath, findings):
@@ -128,9 +153,14 @@ def check_root_index(text, relpath, findings):
     if extra:
         findings.append(_f("ERROR", "R3b", relpath, 1,
                            "Root index.md frontmatter may only contain `okf_version`; found: %s." % ", ".join(extra)))
-    if "okf_version" in fm and fm["okf_version"] != "0.1":
-        findings.append(_f("ERROR", "R3b", relpath, _key_line(text, "okf_version"),
-                           'Root index.md `okf_version` must be "0.1" (got "%s").' % fm["okf_version"]))
+    if "okf_version" in fm:
+        # Spec §3/§6 mandate the *quoted* string form `okf_version: "0.1"`. The restricted
+        # parser does no YAML type coercion, so check the raw value verbatim (narrow: this one
+        # line only — no quote-tracking elsewhere). Both wrong-version and unquoted-0.1 fail here.
+        raw = _raw_value(text, "okf_version")
+        if raw != '"0.1"':
+            findings.append(_f("ERROR", "R3b", relpath, _key_line(text, "okf_version"),
+                               'Root index.md `okf_version` must be the quoted string "0.1" (got %s).' % raw))
 
 
 def check_subdir_index(text, relpath, findings):
@@ -142,8 +172,16 @@ def check_subdir_index(text, relpath, findings):
 def check_log(text, relpath, findings):
     lines = text.split("\n")
     valid_dates = []  # (lineno, date) in document order, for headings that parse
+    h2_count = 0
     for n, line in enumerate(lines, 1):
+        m = ATX_HEADING_RE.match(line)
+        if m and len(m.group(1)) != 2 and DATE_CANDIDATE_RE.match(m.group(2).strip()):
+            # A date heading at the wrong ATX level (H1/H3/…) — would skip the H2 checks.
+            findings.append(_f("ERROR", "R3c", relpath, n,
+                               "log.md date heading %r must be an H2 (`## YYYY-MM-DD`)." % m.group(2).strip()))
+            continue
         if line.startswith("## "):
+            h2_count += 1
             heading = line[3:].strip()
             if not DATE_RE.match(heading):
                 findings.append(_f("ERROR", "R3c", relpath, n,
@@ -156,7 +194,7 @@ def check_log(text, relpath, findings):
                                    "log.md date heading is not a real date (%r)." % heading))
                 continue
             valid_dates.append((n, d))
-        elif line.startswith("* "):
+        elif line.startswith("* ") or line.startswith("- "):
             bullet = line[2:].lstrip()
             if not bullet.startswith(LOG_PREFIXES):
                 findings.append(_f("ERROR", "R3c", relpath, n,
@@ -167,6 +205,9 @@ def check_log(text, relpath, findings):
             findings.append(_f("ERROR", "R3c", relpath, n2,
                                "log.md headings must be newest-first; %s appears after %s." % (d2, d1)))
             break
+    if h2_count == 0:
+        findings.append(_f("ERROR", "R3c", relpath, 1,
+                           "log.md has no `## YYYY-MM-DD` date section."))
 
 
 def check_links(text, abspath, bundle_root, relpath, findings):
@@ -234,6 +275,15 @@ def _key_line(text, key):
     return 1
 
 
+def _raw_value(text, key):
+    """The verbatim (un-unquoted) value of `key`'s first frontmatter line, or '' if absent."""
+    for line in text.split("\n"):
+        m = KEY_RE.match(line)
+        if m and m.group(1) == key:
+            return m.group(2).strip()
+    return ""
+
+
 def _f(severity, rule, file, line, message):
     return {"severity": severity, "rule": rule, "file": file, "line": line, "message": message}
 
@@ -262,8 +312,14 @@ def validate(target):
         try:
             with open(p, "r", encoding="utf-8") as fh:
                 text = fh.read()
+            if text.startswith("﻿"):
+                text = text[1:]  # strip a leading UTF-8 BOM so leading-`---` checks see line 1
         except OSError as e:
             raise ValueError("cannot read %s: %s" % (rel, e))
+        except UnicodeDecodeError:
+            # One bad file must not abort the whole bundle: flag it and keep validating the rest.
+            findings.append(_f("ERROR", "R1", rel, 1, "File is not valid UTF-8."))
+            continue
         kind = classify(p, bundle_root)
         if kind == "concept":
             check_concept(text, rel, findings)

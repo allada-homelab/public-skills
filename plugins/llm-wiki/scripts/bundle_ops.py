@@ -15,7 +15,8 @@ authority (run it after).
     bundle_ops.py log-append <bundle-root> --kind Creation|Update|Initialization
                   --message <markdown> [--date YYYY-MM-DD]
         Insert `* **<Kind>**: <message>` newest-first under the date heading
-        (creating today's heading at the top if needed).
+        (creating today's heading at the top if needed). `<message>` must be a
+        single line — a newline-bearing message is rejected (exit 2).
 
     bundle_ops.py move <bundle-root> --from <relpath> --to <relpath>
         Move a concept and rewrite every inbound link across the bundle in BOTH the
@@ -45,6 +46,8 @@ RESERVED = ("index.md", "log.md")
 def _parse_frontmatter(text):
     """Minimal reader: returns a dict of top-level `key: scalar` pairs (lists ignored).
     Mirrors doctor.py's restricted grammar enough to read title/description."""
+    if text.startswith("﻿"):
+        text = text[1:]  # strip a leading UTF-8 BOM (matches doctor.py)
     lines = text.split("\n")
     if not lines or lines[0].rstrip() != "---":
         return {}
@@ -179,8 +182,32 @@ def _dirs_with_content(bundle_root):
     return result
 
 
+def _dirs_with_index(bundle_root):
+    """Absolute paths of every directory that currently holds an index.md."""
+    out = []
+    for root, _dirs, files in os.walk(bundle_root):
+        if "index.md" in files:
+            out.append(os.path.abspath(root))
+    return out
+
+
 def cmd_index(bundle_root):
-    for d, (concepts, subdirs) in _dirs_with_content(bundle_root).items():
+    try:
+        live = _dirs_with_content(bundle_root)
+    except OSError as e:
+        sys.stderr.write("error: cannot read a concept file: %s\n" % e)
+        return 2
+    # Always (re)write the root index and any directory that currently HAS an index.md
+    # — even one that just dropped to zero concepts — so a removed concept's stale
+    # bullet disappears instead of lingering. (The dir itself is left for prune to rmdir.)
+    targets = dict(live)
+    for d in _dirs_with_index(bundle_root):
+        if d not in targets:
+            targets[d] = ([], [])  # has an index but no live content: emit an empty one
+    root_abs = os.path.abspath(bundle_root)
+    if root_abs not in targets:
+        targets[root_abs] = ([], [])
+    for d, (concepts, subdirs) in targets.items():
         content = _render_index(d, bundle_root, concepts, subdirs)
         with open(os.path.join(d, "index.md"), "w", encoding="utf-8") as fh:
             fh.write(content)
@@ -193,11 +220,15 @@ def cmd_log_append(bundle_root, kind, message, day):
     log_path = os.path.join(bundle_root, "log.md")
     bullet = "* **%s**: %s" % (kind, message)
     heading = "## %s" % day
-    if os.path.isfile(log_path):
-        with open(log_path, "r", encoding="utf-8") as fh:
-            lines = fh.read().split("\n")
-    else:
-        lines = ["# Directory Update Log", ""]
+    try:
+        if os.path.isfile(log_path):
+            with open(log_path, "r", encoding="utf-8") as fh:
+                lines = fh.read().split("\n")
+        else:
+            lines = ["# Directory Update Log", ""]
+    except OSError as e:
+        sys.stderr.write("error: cannot read log.md: %s\n" % e)
+        return 2
 
     # parse the existing date headings (line index + ISO date), in document order
     headings = []
@@ -224,8 +255,12 @@ def cmd_log_append(bundle_root, kind, message, day):
     text = "\n".join(lines)
     if not text.endswith("\n"):
         text += "\n"
-    with open(log_path, "w", encoding="utf-8") as fh:
-        fh.write(text)
+    try:
+        with open(log_path, "w", encoding="utf-8") as fh:
+            fh.write(text)
+    except OSError as e:
+        sys.stderr.write("error: cannot write log.md: %s\n" % e)
+        return 2
     return 0
 
 
@@ -316,11 +351,13 @@ def cmd_move(bundle_root, src_rel, dst_rel):
             fabs = os.path.normpath(os.path.join(root, fn))
             file_new = fabs
             file_old = old_abs if fabs == new_abs else fabs
-            with open(fabs, "r", encoding="utf-8") as fh:
+            # newline="" disables newline translation so only the link text changes;
+            # a CRLF referrer keeps its CRLFs instead of being collapsed to LF.
+            with open(fabs, "r", encoding="utf-8", newline="") as fh:
                 text = fh.read()
             updated = _rewrite_links(text, file_old, file_new, old_abs, new_abs, bundle_root)
             if updated != text:
-                with open(fabs, "w", encoding="utf-8") as fh:
+                with open(fabs, "w", encoding="utf-8", newline="") as fh:
                     fh.write(updated)
     return 0
 
@@ -369,6 +406,11 @@ def main(argv):
             return 2
         if not message:
             sys.stderr.write("error: --message is required\n")
+            return 2
+        if "\n" in message or "\r" in message:
+            # a single log bullet is one line; an embedded newline either orphans a
+            # paragraph (silent R3 corruption) or spawns a stray bullet (R3c fail).
+            sys.stderr.write("error: --message must be a single line (no newlines)\n")
             return 2
         if not day:
             day = datetime.now(timezone.utc).strftime("%Y-%m-%d")

@@ -6,7 +6,10 @@ file *outside* the bundle (i.e. real project code/docs, which often encodes a du
 decision or convention) and the wiki is in an auto mode, drop a terse reminder to capture
 it, and drop the `.llm-wiki/capture-pending` marker that the **Stop** hook gates on (so the
 end-of-turn capture check fires only on turns that actually changed real code, not on every
-turn). Stays silent — and writes no marker — for bundle writes (that IS the capture), for
+turn). The nudge is emitted only on the *first* real-code edit of a turn — gated on the marker
+not yet existing — so subsequent edits in the same batch stay silent (the marker is still
+ensured present); this is what keeps the hook "mostly-silent" instead of nudging every edit.
+Stays silent — and writes no marker — for bundle writes (that IS the capture), for
 curated mode, and when there is no bundle, so it never fires a model judgment on every tool call.
 
 Tunable: if this proves noisy, narrow the matcher or disable the hook in hooks.json.
@@ -26,11 +29,14 @@ def _under(path_abs, root_abs):
         return False
 
 
-def _mark_capture_pending(project):
+def _marker_path(project):
+    return os.path.join(project, "llm-wiki", ".llm-wiki", "capture-pending")
+
+
+def _mark_capture_pending(marker):
     """Drop the marker the Stop hook gates on, signalling 'real code changed this turn'.
     Best-effort: never break a real tool call over marker bookkeeping — if the write fails,
     the only consequence is the end-of-turn Stop nudge stays silent for this change."""
-    marker = os.path.join(project, "llm-wiki", ".llm-wiki", "capture-pending")
     try:
         os.makedirs(os.path.dirname(marker), exist_ok=True)
         open(marker, "w").close()
@@ -54,7 +60,12 @@ def main():
     if resolve_mode(project) not in ("proactive", "max"):
         return 0  # only auto-nudge in an auto mode
 
-    _mark_capture_pending(project)  # gate signal for the Stop hook: real code changed this turn
+    marker = _marker_path(project)
+    first_edit = not os.path.exists(marker)  # marker absent → first real-code edit of this turn
+    _mark_capture_pending(marker)  # gate signal for the Stop hook: real code changed this turn
+    if not first_edit:
+        return 0  # already nudged this turn — stay silent, just keep the marker fresh
+
     nudge = ("[llm-wiki] You just changed %s — if that established a durable decision, convention, "
              "or gotcha, capture it to the wiki now (it's secret-scanned, Doctor-gated, logged)."
              % os.path.basename(fp))

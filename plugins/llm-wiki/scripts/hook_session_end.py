@@ -1,9 +1,10 @@
 """SessionEnd digest — a brief, deterministic end-of-session summary of wiki activity.
 
 Counts the change entries under the newest date heading in the bundle's `log.md` and prints
-a one-line digest pointing at `/llm-wiki:tend` for a fuller review. Plain text (SessionEnd
-is observe-only — it cannot inject context, so this surfaces via the session transcript/log,
-not the model's context). Silent when there is no bundle or no logged changes.
+a one-line digest pointing at `/llm-wiki:tend` for a fuller review. SessionEnd is observe-only —
+it cannot inject context, and its stdout at exit 0 goes to the debug log, not the transcript; so
+the digest is surfaced to the user via the universal `systemMessage` JSON field (the documented
+user-facing channel), not a bare print. Silent when there is no bundle or no logged changes.
 
 Reads `$CLAUDE_PROJECT_DIR` (falls back to event `cwd`).
 """
@@ -44,8 +45,9 @@ def main():
     date, count = _newest_day_changes(log_text)
     if not date or count == 0:
         return 0
-    print("llm-wiki: %d change(s) logged on %s this session — run `/llm-wiki:tend` to review "
-          "(staleness, broken links, gaps)." % (count, date))
+    message = ("llm-wiki: %d change(s) logged on %s this session — run `/llm-wiki:tend` to review "
+               "(staleness, broken links, gaps)." % (count, date))
+    json.dump({"systemMessage": message}, sys.stdout)
     return 0
 
 

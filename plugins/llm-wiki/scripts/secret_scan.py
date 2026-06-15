@@ -32,18 +32,23 @@ SCHEMA = "okf-secret-scan/1"
 ENTROPY_MIN = 4.0          # bits/char — the one tunable knob (retuned in Phase 3)
 ENTROPY_MIN_LEN = 20
 
+# (category, regex, high_confidence). A high-confidence labeled key (format-specific cloud/API
+# token, PEM block) is a near-certain leak: it is NEVER placeholder-suppressed, only the per-line
+# `pragma: allowlist secret` opt-out can silence it. Low-confidence patterns are generic
+# `key=value` shapes that legitimately match documentation placeholders (CHANGEME, <your-…>),
+# so those stay placeholder-suppressed.
 PATTERNS = [
-    ("aws_access_key_id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
-    ("gcp_api_key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b")),
-    ("slack_token", re.compile(r"\bxox[baprs]-[0-9A-Za-z-]{10,}\b")),
-    ("github_token", re.compile(r"\bgh[pousr]_[0-9A-Za-z]{36,}\b")),
-    ("openai_key", re.compile(r"\bsk-(?:ant-)?[0-9A-Za-z_\-]{20,}\b")),
-    ("bearer_token", re.compile(r"(?i)\bauthorization:\s*bearer\s+([0-9A-Za-z._\-]{16,})")),
-    ("pem_private_key", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----")),
-    ("connection_string_creds", re.compile(r"\b[a-z][a-z0-9+.\-]*://[^\s:/@]+:([^\s:/@]+)@")),
-    ("jdbc_password", re.compile(r"(?i)\bpassword=([^\s;&]+)")),
+    ("aws_access_key_id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), True),
+    ("gcp_api_key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b"), True),
+    ("slack_token", re.compile(r"\bxox[baprs]-[0-9A-Za-z-]{10,}\b"), True),
+    ("github_token", re.compile(r"\bgh[pousr]_[0-9A-Za-z]{36,}\b"), True),
+    ("openai_key", re.compile(r"\bsk-(?:ant-)?[0-9A-Za-z_\-]{20,}\b"), True),
+    ("pem_private_key", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----"), True),
+    ("bearer_token", re.compile(r"(?i)\bauthorization:\s*bearer\s+([0-9A-Za-z._\-]{16,})"), False),
+    ("connection_string_creds", re.compile(r"\b[a-z][a-z0-9+.\-]*://[^\s:/@]+:([^\s:/@]+)@"), False),
+    ("jdbc_password", re.compile(r"(?i)\bpassword=([^\s;&]+)"), False),
     ("assigned_secret", re.compile(
-        r"(?i)\b(?:password|passwd|secret|token|api[_-]?key|access[_-]?key)\b\s*[:=]\s*[\"']?([^\s\"']{8,})")),
+        r"(?i)\b(?:password|passwd|secret|token|api[_-]?key|access[_-]?key)\b\s*[:=]\s*[\"']?([^\s\"']{8,})"), False),
 ]
 
 TOKEN_RE = re.compile(r"[A-Za-z0-9+/=_\-]{%d,}" % ENTROPY_MIN_LEN)
@@ -54,9 +59,12 @@ PRAGMA_RE = re.compile(r"(?i)pragma:\s*allowlist\s+secret")
 # Obvious human placeholders — a matched value containing one of these is documentation, not a
 # leak. Deliberately does NOT include bare "EXAMPLE": format-valid example keys (AKIA…EXAMPLE) stay
 # detected, and the pragma is their opt-out.
+# NB: no `x{4,}` rule — it vetoed real keys that merely contain `xxxx`/`XXXX`
+# (e.g. `ghp_…xxxx…`, `wJalrXXXX…`), silently dropping leaks. Placeholder suppression is
+# anchored on explicit human-placeholder words, never on a run of `x`.
 PLACEHOLDER_RE = re.compile(
     r"(?i)(?:change[_-]?me|replace[_-]?with|replace[_-]?me|placeholder|redacted|dummy|"
-    r"your[_-]|[_-]here\b|<[^>]+>|x{4,}|\btodo\b|\bfixme\b)")
+    r"your[_-]|[_-]here\b|<[^>]+>|\btodo\b|\bfixme\b)")
 
 
 def shannon_entropy(s):
@@ -94,14 +102,16 @@ def scan(text):
         if PRAGMA_RE.search(line):
             continue  # explicitly marked "not a real secret" — skip the whole line
         # Stage 1: labeled patterns.
-        for category, rx in PATTERNS:
+        for category, rx, high_confidence in PATTERNS:
             for m in rx.finditer(line):
                 value = m.group(m.lastindex) if m.lastindex else m.group(0)
                 key = (lineno, value)
                 if key in seen:
                     continue
                 seen.add(key)
-                if PLACEHOLDER_RE.search(value):
+                # High-confidence labeled keys are never placeholder-suppressed (only the
+                # per-line pragma can silence them); generic low-confidence shapes are.
+                if not high_confidence and PLACEHOLDER_RE.search(value):
                     continue  # an obvious placeholder, not a leaked credential
                 findings.append({"category": category, "detector": "pattern",
                                  "line": lineno, "preview": redact(value)})

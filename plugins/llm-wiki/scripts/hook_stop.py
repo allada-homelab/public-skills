@@ -7,21 +7,26 @@ fires when the turn is *finishing* — the non-disruptive moment to capture — 
 mode, blocks the stop once to make the model actually decide: capture a durable finding now,
 or explicitly stop.
 
-Mechanism (Claude Code Stop-hook contract): emit
-`{"decision": "block", "reason": ..., "hookSpecificOutput": {... "additionalContext": ...}}`
-at exit 0 to continue the turn with the instruction injected; emit nothing to allow the stop.
-`stop_hook_active` is true on the re-fire *after* a block, so we exit 0 then — the model is
-nudged at most once per turn (the loop guard). Gated by the `.llm-wiki/capture-pending` marker
-that the PostToolUse hook drops on a real-code edit: with no marker (a pure-chat turn that
-changed nothing) this hook stays silent, so it does not force a continuation on every turn.
-Also silent for curated mode and when no bundle exists. Reads `$CLAUDE_PROJECT_DIR` (falls back
-to the event JSON's `cwd`).
+Mechanism (Claude Code Stop-hook contract): emit `{"decision": "block", "reason": ...}` at exit
+0 to continue the turn with the reason injected; emit nothing to allow the stop. (The doc names
+`decision: "block"` + `reason` as the canonical Stop blocking channel, so we emit only that — no
+redundant `hookSpecificOutput.additionalContext` carrying the same text.) Gated by the
+`.llm-wiki/capture-pending` marker that the PostToolUse hook drops on a real-code edit: with no
+marker (a pure-chat turn that changed nothing) this hook stays silent, so it does not force a
+continuation on every turn. Also silent for curated mode and when no bundle exists. Reads
+`$CLAUDE_PROJECT_DIR` (falls back to the event JSON's `cwd`).
 
 The model is the judge: a deterministic hook cannot know whether a durable finding occurred,
-so the reason text gives a clean "nothing durable → just stop" out. Loop prevention leans on
-`stop_hook_active` (Claude Code issue #54360 tracked a past propagation bug); the worst case
-if that regresses is a repeated end-of-turn nudge — never an unsafe or non-conformant write,
-since every capture still passes the PreToolUse secret/Doctor guard floor.
+so the reason text gives a clean "nothing durable → just stop" out.
+
+Loop guard: the load-bearing guard is *marker consumption* — this hook removes the
+`capture-pending` marker before emitting `block`, so the forced re-fire finds no marker and
+allows the stop (one nudge per change-batch, regardless of whether `stop_hook_active` is
+delivered). `stop_hook_active` is a secondary fast-path: when present and true on the re-fire we
+exit 0 immediately, but it may not always be delivered (Claude Code issue #54360 tracked a past
+propagation bug), which is exactly why the marker — not `stop_hook_active` — is what makes the
+guard robust. The worst case if both regressed is a repeated end-of-turn nudge — never an unsafe
+or non-conformant write, since every capture still passes the PreToolUse secret/Doctor guard floor.
 """
 import json
 import os
@@ -62,11 +67,7 @@ def main():
     except OSError:
         pass
 
-    json.dump({
-        "decision": "block",
-        "reason": NUDGE,
-        "hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": NUDGE},
-    }, sys.stdout)
+    json.dump({"decision": "block", "reason": NUDGE}, sys.stdout)
     return 0
 
 

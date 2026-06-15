@@ -1,3 +1,4 @@
 { "exit_code": 0,
-  "stdout_contains": ["\"decision\": \"block\"", "\"hookEventName\": \"Stop\"", "additionalContext", "/llm-wiki:capture"],
+  "stdout_contains": ["\"decision\": \"block\"", "\"reason\"", "/llm-wiki:capture"],
+  "stdout_absent": ["hookSpecificOutput", "additionalContext", "hookEventName"],
   "files_absent": ["llm-wiki/.llm-wiki/capture-pending"] }
