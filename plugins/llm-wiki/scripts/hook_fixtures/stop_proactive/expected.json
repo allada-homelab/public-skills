@@ -1,0 +1,2 @@
+{ "exit_code": 0,
+  "stdout_contains": ["\"decision\": \"block\"", "\"hookEventName\": \"Stop\"", "additionalContext", "/llm-wiki:capture"] }

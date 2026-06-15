@@ -1,5 +1,9 @@
 # Directory Update Log
 
+## 2026-06-15
+
+* **Update**: Refined [Phase 3 autonomy — hook-driven, auto-default with a guard floor](./phase-3-autonomy-architecture.md) to add the Stop end-of-turn capture hook (six events).
+
 ## 2026-06-14
 
 * **Creation**: Added [Phase 3 autonomy — hook-driven, auto-default with a guard floor](./phase-3-autonomy-architecture.md).

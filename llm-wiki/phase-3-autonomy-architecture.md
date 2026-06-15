@@ -11,13 +11,16 @@ timestamp: 2026-06-14T00:00:00Z
 # Phase 3 autonomy — hook-driven, auto-default with a guard floor
 
 Autonomy is implemented entirely as deterministic command hooks in `hooks/hooks.json`
-(no model-call hooks). Five events are wired:
+(no model-call hooks). Six events are wired:
 
 - **SessionStart** — preload the root `index.md` plus a mode notice into context.
 - **PreToolUse** (matcher `Write|Edit|MultiEdit`, scoped to bundle paths) — `secret_guard.py`
   denies credential writes; `doctor_guard.py` denies non-conformant concept writes (R1/R2).
 - **UserPromptSubmit** — a terse per-turn capture nudge.
 - **PostToolUse** — a nudge after a non-bundle code edit when in an auto mode (mostly silent).
+- **Stop** — the end-of-turn capture forcing function: in an auto mode it blocks the stop
+  *once* per turn (`stop_hook_active`-guarded) so the model decides capture-or-stop when the
+  task is done, the non-disruptive moment the mid-turn nudges miss.
 - **SessionEnd** — a digest pointing at `/llm-wiki:tend`.
 
 ## Mode and the default

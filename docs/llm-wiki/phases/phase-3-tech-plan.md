@@ -4,10 +4,11 @@
 > the hooks cliff: from user-invoked-only to a wiki that preloads context, auto-captures, and
 > self-guards, with **auto (Proactive) as the default**. 3a: autonomy mode + SessionStart preload. 3b:
 > the PreToolUse safety floor (blocking secret guard + per-file Doctor guard). 3c: UserPromptSubmit +
-> PostToolUse capture nudges, the SessionEnd digest, and the `/tend` curation command. Five hook events
-> wired (SessionStart, PreToolUse, UserPromptSubmit, PostToolUse, SessionEnd); hook corpus green
-> (`pass=21 fail=0`). The loop is confirmed live (the UserPromptSubmit nudge surfaces in a reloaded
-> session). Deferred: the **Max** background-subagent tail (runtime spike, §6).
+> PostToolUse capture nudges, the SessionEnd digest, and the `/tend` curation command. 3c′ (dogfood
+> follow-up): a **Stop** hook (`hook_stop.py`) as the end-of-turn capture forcing function. Six hook
+> events wired (SessionStart, PreToolUse, UserPromptSubmit, PostToolUse, Stop, SessionEnd); hook corpus
+> green (`pass=25 fail=0`). The loop is confirmed live (UserPromptSubmit + the two PreToolUse guards
+> verified end-to-end in a real session). Deferred: the **Max** background-subagent tail (runtime spike, §6).
 >
 > Companion to [`PHASE_PLAN.md`](../planning/PHASE_PLAN.md) and the
 > [Phase 1](./phase-1-tech-plan.md) / [Phase 2](./phase-2-tech-plan.md) plans. Hook capabilities below
@@ -109,6 +110,15 @@ each explicit mode), SessionStart (bundle present → injects index + mode; abse
   isn't a per-call model call; tunable if noisy) + `hook_session_end.py` (SessionEnd plain-text digest of
   the newest log day, pointing at `/tend`; observe-only, surfaces via the transcript) + the `/tend`
   on-demand curation command.
+- **3c′** ✅ *(dogfood-driven follow-up)* — `hook_stop.py` (Stop, the end-of-turn capture **forcing
+  function**). Dogfooding in a real repo showed the 3c mid-turn nudges get deferred in favour of the
+  in-flight task, so durable findings slip by. The Stop hook fires when the turn is finishing — the
+  non-disruptive moment — and in an auto mode emits `{"decision":"block", reason, hookSpecificOutput.
+  additionalContext}` (exit 0) to continue *once*, making the model decide capture-or-stop. Loop-guarded
+  by `stop_hook_active` (true on the re-fire → allow stop); silent in curated / no-bundle. The model is
+  the judge (a deterministic hook can't know a finding occurred); the reason text gives a clean
+  "nothing durable → just stop" out. Tunable: a transcript-tail gate (fire only when files changed this
+  turn) is the first refinement if the per-turn continuation proves noisy.
 - **3d** *(out of this phase)* — Max tail, only after a passing runtime spike.
 
 ## 10. Exit criteria
