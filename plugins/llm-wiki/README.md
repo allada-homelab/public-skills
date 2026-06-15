@@ -47,8 +47,9 @@ talk about capturing to a wiki or knowledge base.
 - **Autonomy hooks (Phase 3, `hooks/hooks.json` + `scripts/`)** — six events: **SessionStart** preloads
   the root index + active-mode notice; a **PreToolUse** floor (`secret_guard.py` denies credential
   writes, `doctor_guard.py` denies non-conformant concept writes); **UserPromptSubmit** + **PostToolUse**
-  nudge during-work capture; **Stop** (`hook_stop.py`) is the end-of-turn forcing function — in an auto
-  mode it blocks the stop *once* per turn so the model decides capture-or-stop when the task is done;
+  nudge during-work capture (PostToolUse also drops a `.llm-wiki/capture-pending` marker); **Stop**
+  (`hook_stop.py`) is the end-of-turn forcing function — in an auto mode, *only on a turn that changed
+  real code* (gated by that marker), it blocks the stop once so the model decides capture-or-stop;
   **SessionEnd** prints a digest pointing at `/tend`. Mode lives in
   `.claude/llm-wiki.local.md` (`mode.py`); **default is `proactive` (auto)**, made safe by that
   always-on floor. Curated (propose-only) and Max are opt-in.
@@ -65,7 +66,7 @@ Python 3 **stdlib only**. Run both proof corpora:
 ```text
 bash scripts/fixtures/run_fixtures.sh        # Doctor — expect pass=12 fail=0 skip=0
 bash scripts/ops_fixtures/run_ops.sh         # bundle_ops golden — expect pass=12 fail=0
-bash scripts/hook_fixtures/run_hooks.sh      # hooks (mode/session/guards/nudges/stop/digest) — expect pass=25 fail=0
+bash scripts/hook_fixtures/run_hooks.sh      # hooks (mode/session/guards/nudges/stop/digest) — expect pass=26 fail=0
 ```
 
 Status: **Phases 1 & 2 shipped; Phase 3 autonomy core landed** (modes, SessionStart preload, PreToolUse

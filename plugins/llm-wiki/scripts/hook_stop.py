@@ -11,8 +11,11 @@ Mechanism (Claude Code Stop-hook contract): emit
 `{"decision": "block", "reason": ..., "hookSpecificOutput": {... "additionalContext": ...}}`
 at exit 0 to continue the turn with the instruction injected; emit nothing to allow the stop.
 `stop_hook_active` is true on the re-fire *after* a block, so we exit 0 then — the model is
-nudged at most once per turn (the loop guard). Silent for curated mode and when no bundle
-exists. Reads `$CLAUDE_PROJECT_DIR` (falls back to the event JSON's `cwd`).
+nudged at most once per turn (the loop guard). Gated by the `.llm-wiki/capture-pending` marker
+that the PostToolUse hook drops on a real-code edit: with no marker (a pure-chat turn that
+changed nothing) this hook stays silent, so it does not force a continuation on every turn.
+Also silent for curated mode and when no bundle exists. Reads `$CLAUDE_PROJECT_DIR` (falls back
+to the event JSON's `cwd`).
 
 The model is the judge: a deterministic hook cannot know whether a durable finding occurred,
 so the reason text gives a clean "nothing durable → just stop" out. Loop prevention leans on
@@ -50,6 +53,14 @@ def main():
         return 0  # no bundle here — contribute nothing
     if resolve_mode(project) not in ("proactive", "max"):
         return 0  # only force the end-of-turn check in an auto mode
+
+    marker = os.path.join(project, "llm-wiki", ".llm-wiki", "capture-pending")
+    if not os.path.exists(marker):
+        return 0  # no real-code edit this turn (PostToolUse drops the marker) — stay silent
+    try:
+        os.remove(marker)  # consume it — nudge at most once per change-batch
+    except OSError:
+        pass
 
     json.dump({
         "decision": "block",

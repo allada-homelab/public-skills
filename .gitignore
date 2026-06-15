@@ -4,6 +4,9 @@
 # llm-wiki per-project autonomy mode (local only)
 .claude/llm-wiki.local.md
 
+# llm-wiki bundle state dir (capture-pending marker, consultations counter — local only)
+llm-wiki/.llm-wiki/
+
 # Python
 __pycache__/
 *.py[cod]

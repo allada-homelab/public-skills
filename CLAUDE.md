@@ -57,7 +57,7 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   ```bash
   bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh
   ```
-  Expect `pass=25 fail=0`.
+  Expect `pass=26 fail=0`.
 - **Validate a bundle**:
   ```bash
   python3 plugins/llm-wiki/scripts/doctor.py <bundle-dir> --mode strict --format text
@@ -81,10 +81,12 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   SessionStart (preload root index + mode notice), PreToolUse (`secret_guard.py` denies credential
   writes, `doctor_guard.py` denies non-conformant concept writes — scoped to bundle
   `Write|Edit|MultiEdit`), UserPromptSubmit (`hook_user_prompt.py` — terse per-turn capture nudge),
-  PostToolUse (`hook_post_tool.py` — nudge after a non-bundle code edit in an auto mode; mostly silent),
-  Stop (`hook_stop.py` — the end-of-turn capture forcing function: in an auto mode it blocks the stop
-  *once* per turn, `stop_hook_active`-guarded, so the model decides capture-or-stop at the
-  non-disruptive moment), and SessionEnd (`hook_session_end.py` — a digest pointing at `/tend`). Mode (`mode.py`, from
+  PostToolUse (`hook_post_tool.py` — nudge after a non-bundle code edit in an auto mode; mostly silent;
+  also drops the `.llm-wiki/capture-pending` marker the Stop hook gates on),
+  Stop (`hook_stop.py` — the end-of-turn capture forcing function: in an auto mode, *only on a turn that
+  changed real code* (gated by that marker), it blocks the stop once — `stop_hook_active`-guarded — so the
+  model decides capture-or-stop at the non-disruptive moment; silent on pure-chat turns), and SessionEnd
+  (`hook_session_end.py` — a digest pointing at `/tend`). Mode (`mode.py`, from
   `.claude/llm-wiki.local.md`) defaults to **`proactive`** when absent; the floor is what makes that
   safe. Hooks are deterministic command scripts (no model-call hooks); changes need `/reload-plugins`.
 - **Tests are fixtures.** `scripts/fixtures/<name>/` is a minimal bundle with a planted defect and an

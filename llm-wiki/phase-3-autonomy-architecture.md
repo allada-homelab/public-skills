@@ -18,9 +18,10 @@ Autonomy is implemented entirely as deterministic command hooks in `hooks/hooks.
   denies credential writes; `doctor_guard.py` denies non-conformant concept writes (R1/R2).
 - **UserPromptSubmit** — a terse per-turn capture nudge.
 - **PostToolUse** — a nudge after a non-bundle code edit when in an auto mode (mostly silent).
-- **Stop** — the end-of-turn capture forcing function: in an auto mode it blocks the stop
-  *once* per turn (`stop_hook_active`-guarded) so the model decides capture-or-stop when the
-  task is done, the non-disruptive moment the mid-turn nudges miss.
+- **Stop** — the end-of-turn capture forcing function: in an auto mode, *only on a turn that
+  changed real code* (gated by a `.llm-wiki/capture-pending` marker the PostToolUse hook drops
+  and Stop consumes), it blocks the stop *once* (`stop_hook_active`-guarded) so the model decides
+  capture-or-stop at the non-disruptive moment the mid-turn nudges miss. Pure-chat turns stay silent.
 - **SessionEnd** — a digest pointing at `/llm-wiki:tend`.
 
 ## Mode and the default

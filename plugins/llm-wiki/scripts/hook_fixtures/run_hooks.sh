@@ -7,7 +7,9 @@
 #   expected.json: { "exit_code": N,
 #                    "stdout_equals": "…"          (exact match, optional),
 #                    "stdout_contains": ["…", …]    (all must appear, optional),
-#                    "stdout_absent":  ["…", …] }   (none may appear, optional)
+#                    "stdout_absent":  ["…", …]     (none may appear, optional),
+#                    "files_present":  ["…", …]     (paths under the bundle that must exist after, optional),
+#                    "files_absent":   ["…", …] }   (paths under the bundle that must NOT exist after, optional)
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,9 +33,9 @@ for dir in "$HERE"/*/; do
   # capture exact stdout to a file (command substitution would strip trailing newlines)
   ( cd "$PLUGIN" && CLAUDE_PROJECT_DIR="$tmp" python3 $args ) <"$stdin" >"$tmp/.out" 2>/dev/null; code=$?
 
-  verdict="$(python3 - "$exp" "$code" "$tmp/.out" <<'PY'
-import json, sys
-exp = json.load(open(sys.argv[1])); code = int(sys.argv[2]); out = open(sys.argv[3]).read()
+  verdict="$(python3 - "$exp" "$code" "$tmp/.out" "$tmp" <<'PY'
+import json, os, sys
+exp = json.load(open(sys.argv[1])); code = int(sys.argv[2]); out = open(sys.argv[3]).read(); tmp = sys.argv[4]
 probs = []
 if code != exp["exit_code"]:
     probs.append("exit %d != %d" % (code, exp["exit_code"]))
@@ -43,6 +45,10 @@ for s in exp.get("stdout_contains", []):
     if s not in out: probs.append("missing %r" % s)
 for s in exp.get("stdout_absent", []):
     if s in out: probs.append("unexpected %r" % s)
+for f in exp.get("files_present", []):
+    if not os.path.exists(os.path.join(tmp, f)): probs.append("missing file %r" % f)
+for f in exp.get("files_absent", []):
+    if os.path.exists(os.path.join(tmp, f)): probs.append("unexpected file %r" % f)
 print("FAIL: " + "; ".join(probs) if probs else "OK"); sys.exit(1 if probs else 0)
 PY
 )"; vcode=$?

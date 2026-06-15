@@ -7,7 +7,7 @@
 > PostToolUse capture nudges, the SessionEnd digest, and the `/tend` curation command. 3c′ (dogfood
 > follow-up): a **Stop** hook (`hook_stop.py`) as the end-of-turn capture forcing function. Six hook
 > events wired (SessionStart, PreToolUse, UserPromptSubmit, PostToolUse, Stop, SessionEnd); hook corpus
-> green (`pass=25 fail=0`). The loop is confirmed live (UserPromptSubmit + the two PreToolUse guards
+> green (`pass=26 fail=0`). The loop is confirmed live (UserPromptSubmit + the two PreToolUse guards
 > verified end-to-end in a real session). Deferred: the **Max** background-subagent tail (runtime spike, §6).
 >
 > Companion to [`PHASE_PLAN.md`](../planning/PHASE_PLAN.md) and the
@@ -117,8 +117,16 @@ each explicit mode), SessionStart (bundle present → injects index + mode; abse
   additionalContext}` (exit 0) to continue *once*, making the model decide capture-or-stop. Loop-guarded
   by `stop_hook_active` (true on the re-fire → allow stop); silent in curated / no-bundle. The model is
   the judge (a deterministic hook can't know a finding occurred); the reason text gives a clean
-  "nothing durable → just stop" out. Tunable: a transcript-tail gate (fire only when files changed this
-  turn) is the first refinement if the per-turn continuation proves noisy.
+  "nothing durable → just stop" out.
+- **3c″** ✅ *(dogfood-driven, marker gate)* — firing on *every* turn (including pure-chat) proved too
+  aggressive. Rather than a transcript-tail scan (couples to the undocumented transcript JSONL), the
+  Stop hook is gated by a `.llm-wiki/capture-pending` marker that `hook_post_tool.py` drops on a
+  *non-bundle* code edit and `hook_stop.py` consumes on fire. Net: the end-of-turn check fires only on
+  turns that actually changed real code; pure-chat turns stay silent. Marker lives in the established
+  `<bundle>/.llm-wiki/` state dir (gitignored); marker writes are best-effort so a real tool call never
+  breaks over bookkeeping. New fixture `stop_nomarker`; harness gains `files_present`/`files_absent`
+  assertions; hook corpus 25 → 26.
+- **3d** *(out of this phase)* — Max tail, only after a passing runtime spike.
 - **3d** *(out of this phase)* — Max tail, only after a passing runtime spike.
 
 ## 10. Exit criteria
