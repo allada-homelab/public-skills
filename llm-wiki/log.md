@@ -2,6 +2,7 @@
 
 ## 2026-06-15
 
+* **Update**: Refined [Phase 3 autonomy — hook-driven, auto-default with a guard floor](./phase-3-autonomy-architecture.md): UserPromptSubmit is now a once-per-session consult nudge (read-loop forcing function), not a per-turn capture nudge.
 * **Update**: Refined [OKF Doctor — strict-producer rule set](./doctor-rule-set.md) to document R5 (lonely-subdir) and the flat-first nesting policy.
 * **Update**: Refined [Phase 3 autonomy — hook-driven, auto-default with a guard floor](./phase-3-autonomy-architecture.md): the Stop hook now fires only on turns that changed real code (PostToolUse `.llm-wiki/capture-pending` marker gate), not every turn.
 * **Update**: Refined [Phase 3 autonomy — hook-driven, auto-default with a guard floor](./phase-3-autonomy-architecture.md) to add the Stop end-of-turn capture hook (six events).

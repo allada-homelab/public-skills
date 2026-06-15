@@ -1,3 +1,0 @@
-{ "exit_code": 0,
-  "stdout_contains": ["\"hookEventName\": \"UserPromptSubmit\"", "curated", "propose"],
-  "stdout_absent": ["without waiting"] }

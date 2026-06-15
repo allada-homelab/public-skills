@@ -1,6 +1,6 @@
 {
   "name": "llm-wiki",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "An autonomous OKF v0.1 knowledge wiki for Claude Code — author, read, and maintain a curated knowledge bundle so each session starts smarter. Confirm-first commands (init/capture/explore/query/conform/refine/prune/reorganize/tend) over a deterministic Doctor, plus Phase 3 hooks: SessionStart preload, blocking secret/Doctor guards, and proactive auto-capture.",
   "author": { "name": "David Allada", "email": "davidanilallada@gmail.com" },
   "license": "MIT",

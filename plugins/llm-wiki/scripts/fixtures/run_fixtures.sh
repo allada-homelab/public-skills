@@ -71,6 +71,9 @@ if has_secret:
             n = len(sdoc.get("findings", []))
             if n < smin:
                 problems.append("secret findings %d < %d" % (n, smin))
+            smax = exp.get("secret_max")
+            if smax is not None and n > smax:
+                problems.append("secret findings %d > %d (max)" % (n, smax))
         except Exception as e:
             problems.append("secret_scan invalid JSON (%s)" % e)
 

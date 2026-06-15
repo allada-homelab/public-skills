@@ -1,2 +1,2 @@
 { "exit_code": 0,
-  "stdout_contains": ["\"hookEventName\": \"SessionStart\"", "additionalContext", "okf_version", "# llm-wiki", "proactive"] }
+  "stdout_contains": ["\"hookEventName\": \"SessionStart\"", "additionalContext", "okf_version", "# llm-wiki", "proactive", "1 concept", "tags: demo"] }

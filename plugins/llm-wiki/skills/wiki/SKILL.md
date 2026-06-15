@@ -22,6 +22,22 @@ there is no separate ID field. Concepts cross-link with ordinary markdown links,
 than the directory tree. Two filenames are **reserved** and are never concepts: `index.md` (directory
 listing / progressive disclosure) and `log.md` (chronological change history).
 
+## Wiki vs. other docs — where knowledge goes
+
+A repo usually already has `CLAUDE.md`, READMEs, and ADRs. Don't default everything to one or
+guess silently — use the axis:
+
+- **`CLAUDE.md` / in-tree docs** — *always-on, file-local* rules and specifics to follow while
+  working in that directory (build/run commands, app conventions, local gotchas). Auto-loaded and
+  colocated with the code they govern.
+- **The wiki** — *consulted, reusable* knowledge you look **up** when relevant: findings, decisions
+  (the "why"), runbooks, schemas, metrics, cross-cutting gotchas. Queryable, cross-linked,
+  conformance-gated, and not auto-loaded in full — so it scales past what you'd keep always in context.
+
+Rule of thumb: "how to behave in *this* directory" → a `CLAUDE.md` line; "a durable fact or decision
+worth *retrieving later* across tasks" → a wiki concept. When a finding fits both, put the durable
+record in the wiki and leave a one-line pointer in the local doc. Make the call explicitly and say why.
+
 ## The three hard rules (authoring constraints)
 
 These are exactly what the Doctor enforces. Author to them:

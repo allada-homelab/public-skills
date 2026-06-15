@@ -1,2 +1,0 @@
-{ "exit_code": 0,
-  "stdout_contains": ["\"hookEventName\": \"UserPromptSubmit\"", "additionalContext", "proactive", "capture"] }

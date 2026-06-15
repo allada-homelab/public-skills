@@ -13,6 +13,14 @@ Two stages:
     1. Labeled high-precision regexes (cloud keys, API tokens, PEM blocks, conn strings).
     2. Entropy gate for unmatched long tokens (Shannon >= 4.0 bits/char, >= 2 charset classes).
 
+Documentation suppression (a knowledge base legitimately contains example credentials):
+    - A line carrying the `pragma: allowlist secret` inline marker (the detect-secrets
+      convention) is skipped entirely — the explicit, per-line opt-out, and the escape hatch
+      for format-valid example keys (`AKIA…EXAMPLE`) and illustrative ciphertext.
+    - A finding whose matched value is an obvious human placeholder (`CHANGEME`,
+      `REPLACE_WITH_…`, `<your-password-here>`, `…_HERE`, `XXXX`, `TODO`/`FIXME`) is dropped.
+      Format-valid example keys are NOT placeholder-suppressed — use the pragma for those.
+
 Previews are redacted (first 4 chars + ellipsis) — the full secret is never emitted.
 """
 import json
@@ -39,6 +47,16 @@ PATTERNS = [
 ]
 
 TOKEN_RE = re.compile(r"[A-Za-z0-9+/=_\-]{%d,}" % ENTROPY_MIN_LEN)
+
+# Inline "this is not a real secret" marker (detect-secrets convention) — skips the whole line.
+PRAGMA_RE = re.compile(r"(?i)pragma:\s*allowlist\s+secret")
+
+# Obvious human placeholders — a matched value containing one of these is documentation, not a
+# leak. Deliberately does NOT include bare "EXAMPLE": format-valid example keys (AKIA…EXAMPLE) stay
+# detected, and the pragma is their opt-out.
+PLACEHOLDER_RE = re.compile(
+    r"(?i)(?:change[_-]?me|replace[_-]?with|replace[_-]?me|placeholder|redacted|dummy|"
+    r"your[_-]|[_-]here\b|<[^>]+>|x{4,}|\btodo\b|\bfixme\b)")
 
 
 def shannon_entropy(s):
@@ -73,6 +91,8 @@ def scan(text):
     findings = []
     seen = set()  # (line, value) to avoid double-reporting across stages
     for lineno, line in enumerate(text.split("\n"), 1):
+        if PRAGMA_RE.search(line):
+            continue  # explicitly marked "not a real secret" — skip the whole line
         # Stage 1: labeled patterns.
         for category, rx in PATTERNS:
             for m in rx.finditer(line):
@@ -81,12 +101,16 @@ def scan(text):
                 if key in seen:
                     continue
                 seen.add(key)
+                if PLACEHOLDER_RE.search(value):
+                    continue  # an obvious placeholder, not a leaked credential
                 findings.append({"category": category, "detector": "pattern",
                                  "line": lineno, "preview": redact(value)})
         # Stage 2: entropy gate on unmatched long tokens.
         for m in TOKEN_RE.finditer(line):
             token = m.group(0)
             if (lineno, token) in seen:
+                continue
+            if PLACEHOLDER_RE.search(token):
                 continue
             if shannon_entropy(token) >= ENTROPY_MIN and charset_classes(token) >= 2:
                 seen.add((lineno, token))

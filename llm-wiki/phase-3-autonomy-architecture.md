@@ -16,7 +16,8 @@ Autonomy is implemented entirely as deterministic command hooks in `hooks/hooks.
 - **SessionStart** — preload the root `index.md` plus a mode notice into context.
 - **PreToolUse** (matcher `Write|Edit|MultiEdit`, scoped to bundle paths) — `secret_guard.py`
   denies credential writes; `doctor_guard.py` denies non-conformant concept writes (R1/R2).
-- **UserPromptSubmit** — a terse per-turn capture nudge.
+- **UserPromptSubmit** — a once-per-session *consult* nudge (session-marker-gated): the read loop's
+  forcing function, symmetric to capture, so "start smarter" actually happens. Not a per-turn line.
 - **PostToolUse** — a nudge after a non-bundle code edit when in an auto mode (mostly silent).
 - **Stop** — the end-of-turn capture forcing function: in an auto mode, *only on a turn that
   changed real code* (gated by a `.llm-wiki/capture-pending` marker the PostToolUse hook drops

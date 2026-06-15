@@ -126,7 +126,15 @@ each explicit mode), SessionStart (bundle present → injects index + mode; abse
   `<bundle>/.llm-wiki/` state dir (gitignored); marker writes are best-effort so a real tool call never
   breaks over bookkeeping. New fixture `stop_nomarker`; harness gains `files_present`/`files_absent`
   assertions; hook corpus 25 → 26.
-- **3d** *(out of this phase)* — Max tail, only after a passing runtime spike.
+- **3c‴** ✅ *(dogfood-driven, real-session feedback)* — a retrospective from another agent using the
+  plugin found the loop **asymmetric**: capture had several forcing functions, *consult* had none, so
+  the "start smarter" read loop never happened. Fixes: **UserPromptSubmit** is repurposed from a noisy
+  per-turn capture nudge into a **once-per-session consult nudge** (gated by a `.llm-wiki/last-session`
+  marker), **SessionStart** gains an *N concepts · tags* cold-start summary, the `wiki` skill states a
+  **CLAUDE.md-vs-wiki doctrine** (always-on-behavioral vs consulted-reference), and `secret_scan.py`
+  honors `pragma: allowlist secret` + skips obvious placeholders so documentation examples don't
+  false-positive (and don't get *blocked* by the secret guard). New fixtures `secret_placeholder`,
+  `user_prompt_consult`, `user_prompt_repeat`; Doctor corpus 14 → 15.
 - **3d** *(out of this phase)* — Max tail, only after a passing runtime spike.
 
 ## 10. Exit criteria

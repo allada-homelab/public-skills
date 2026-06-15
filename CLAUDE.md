@@ -12,7 +12,7 @@ It lets Claude author, read, and maintain a persistent OKF knowledge bundle for 
 **Phases 1 & 2 shipped; Phase 3 (autonomy) core landed** — Phase 1: init / capture / explore / query /
 conform; Phase 2: refine / prune / reorganize over the deterministic `bundle_ops` engine + Doctor R4
 link-health; Phase 3 core: autonomy mode (default `proactive`), SessionStart preload, a PreToolUse
-secret/Doctor guard floor, UserPromptSubmit auto-capture, and the `/tend` digest (PostToolUse +
+secret/Doctor guard floor, a once-per-session UserPromptSubmit consult nudge, and the `/tend` digest (PostToolUse +
 auto-digest + Max deferred). All user commands confirm-first, gated by a deterministic Doctor. See
 [docs/llm-wiki](./docs/llm-wiki/) for the product plan, phasing, and the per-phase technical plans.
 
@@ -45,7 +45,7 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   ```bash
   bash plugins/llm-wiki/scripts/fixtures/run_fixtures.sh
   ```
-  Expect `pass=14 fail=0 skip=0`.
+  Expect `pass=15 fail=0 skip=0`.
 - **Test the durability engine** (the `bundle_ops` golden corpus — run after any change to
   `bundle_ops.py`):
   ```bash
@@ -75,12 +75,15 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   newly-broken links).
 - **Confirm-first.** No command writes to a bundle without showing the exact content/diff and
   getting explicit approval. `explore`/`query`/`conform` are read-only.
-- **Report-only secret scan.** `secret_scan.py` surfaces credentials in the capture diff but
+- **Report-only secret scan.** `secret_scan.py` surfaces credentials in the capture diff (honoring
+  `pragma: allowlist secret` and skipping obvious placeholders so documentation examples don't
+  false-positive) but
   never blocks in Phase 1; in Phase 3 the same scanner backs a *blocking* PreToolUse hook.
 - **Autonomy is hook-driven (Phase 3), with a guard floor.** `hooks/hooks.json` wires six events:
   SessionStart (preload root index + mode notice), PreToolUse (`secret_guard.py` denies credential
   writes, `doctor_guard.py` denies non-conformant concept writes — scoped to bundle
-  `Write|Edit|MultiEdit`), UserPromptSubmit (`hook_user_prompt.py` — terse per-turn capture nudge),
+  `Write|Edit|MultiEdit`), UserPromptSubmit (`hook_user_prompt.py` — a once-per-session *consult* nudge
+  (session-marker-gated): the read loop's forcing function, symmetric to capture, not a per-turn line),
   PostToolUse (`hook_post_tool.py` — nudge after a non-bundle code edit in an auto mode; mostly silent;
   also drops the `.llm-wiki/capture-pending` marker the Stop hook gates on),
   Stop (`hook_stop.py` — the end-of-turn capture forcing function: in an auto mode, *only on a turn that
