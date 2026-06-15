@@ -19,6 +19,7 @@ Rules (see PHASE_1_TECH_PLAN.md §5):
     R3b  root index.md frontmatter keys ⊆ {okf_version}, and okf_version == "0.1"
     R3c  log.md: ISO YYYY-MM-DD headings, newest-first, bold **Update/Creation/Initialization** bullets
     R4   internal markdown links resolve (WARNING only — broken links are tolerated per OKF spec §5)
+    R5   subdirectory holds more than a single lonely concept (WARNING only — premature-foldering smell)
 """
 import json
 import os
@@ -200,6 +201,31 @@ def check_links(text, abspath, bundle_root, relpath, findings):
                                    "Link target does not resolve: %s" % target))
 
 
+def check_lonely_subdirs(bundle_root, paths, findings):
+    """R5 (report-only): flag a subdirectory that holds exactly one concept and has no
+    populated sub-section — a premature-foldering smell. Guides toward keeping a concept at
+    the parent level until a real cluster forms; never an error (broken structure is the
+    Doctor's job; taste is a warning). The bundle root is never 'lonely'."""
+    concepts_in = {}
+    for p in paths:
+        if classify(p, bundle_root) != "concept":
+            continue
+        rel = os.path.relpath(p, bundle_root).replace(os.sep, "/")
+        concepts_in.setdefault(os.path.dirname(rel), []).append(rel)
+
+    def has_concepts_strictly_below(d):
+        prefix = d + "/"
+        return any(rd.startswith(prefix) for rd in concepts_in)
+
+    for reldir, concepts in concepts_in.items():
+        if reldir == "":
+            continue  # root is never a lonely subdir
+        if len(concepts) == 1 and not has_concepts_strictly_below(reldir):
+            findings.append(_f("WARNING", "R5", concepts[0], 1,
+                              "Subdirectory '%s/' holds a single concept and no sub-section — premature "
+                              "foldering; keep it at the parent level until a cluster forms." % reldir))
+
+
 def _key_line(text, key):
     for n, line in enumerate(text.split("\n"), 1):
         m = KEY_RE.match(line)
@@ -248,6 +274,7 @@ def validate(target):
         elif kind == "log":
             check_log(text, rel, findings)
         check_links(text, p, bundle_root, rel, findings)
+    check_lonely_subdirs(bundle_root, paths, findings)
     findings.sort(key=lambda f: (f["file"], f["line"], f["rule"]))
     return bundle_root, len(paths), findings
 

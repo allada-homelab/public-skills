@@ -36,7 +36,7 @@ talk about capturing to a wiki or knowledge base.
 ## How it works
 
 - **Doctor (`scripts/doctor.py`)** — deterministic OKF v0.1 validator (rules R1/R2/R3a–c, plus
-  report-only **R4** link-health). It is the conformance authority: the skill makes drafts
+  report-only **R4** link-health and **R5** lonely-subdir). It is the conformance authority: the skill makes drafts
   *near*-conformant, the Doctor makes them *conformant*. Writes are staged to a temp bundle mirror and
   validated before anything is written.
 - **Durability engine (`scripts/bundle_ops.py`)** — deterministic index regeneration, `log.md` appends,
@@ -64,8 +64,8 @@ they resolve on GitHub.
 Python 3 **stdlib only**. Run both proof corpora:
 
 ```text
-bash scripts/fixtures/run_fixtures.sh        # Doctor — expect pass=12 fail=0 skip=0
-bash scripts/ops_fixtures/run_ops.sh         # bundle_ops golden — expect pass=12 fail=0
+bash scripts/fixtures/run_fixtures.sh        # Doctor — expect pass=14 fail=0 skip=0
+bash scripts/ops_fixtures/run_ops.sh         # bundle_ops golden — expect pass=13 fail=0
 bash scripts/hook_fixtures/run_hooks.sh      # hooks (mode/session/guards/nudges/stop/digest) — expect pass=26 fail=0
 ```
 

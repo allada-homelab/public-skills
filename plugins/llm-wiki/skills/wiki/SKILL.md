@@ -39,6 +39,21 @@ These are exactly what the Doctor enforces. Author to them:
 
 See `references/` for the full field list, exact reserved-file shapes, and a copy-paste concept template.
 
+## When to nest (subdirectories)
+
+Subdirectories are valid OKF (a subdir is a section with its own zero-frontmatter `index.md`), but
+**default to the bundle root** — flat-first. Premature foldering guesses the taxonomy wrong; structure
+should emerge from real clusters. Put a concept in a subdirectory only when you can name a reason:
+
+- ✅ it **joins an existing section** it clearly belongs to;
+- ✅ it **forms/joins a cluster** — ~3+ sibling concepts on one sub-topic that should become a section
+  (often paired with `/llm-wiki:reorganize` for the existing ones);
+- ✅ it is a **distinct domain/subsystem** with its own identity and expected growth.
+
+Avoid: a brand-new folder for a **single** concept (a "lonely folder"), foldering by type with thin
+contents, and speculative depth (prefer depth 1; rarely 2). The Doctor's **R5** warning flags a lonely
+single-concept subdir as the backstop. When in doubt, root — and `reorganize` into sections later.
+
 ## Doctor is the authority — these rules guide, they do not verify
 
 This skill makes your draft *near-conformant*; it does **not** make it conformant. Every file the plugin

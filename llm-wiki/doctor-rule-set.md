@@ -1,7 +1,7 @@
 ---
 type: Reference
 title: OKF Doctor — strict-producer rule set
-description: The conformance rules doctor.py enforces (R1/R2/R3a–c, R4 link-health), plus its modes and exit codes.
+description: The conformance rules doctor.py enforces (R1/R2/R3a–c, R4 link-health, R5 lonely-subdir), plus its modes and exit codes.
 tags:
   - doctor
   - conformance
@@ -26,6 +26,9 @@ pre-write gate for everything `/llm-wiki` authors; **lenient-consumer mode** is 
 - **R4 — Link health (WARNING only).** Internal markdown links (`/…` resolved from the bundle root, all
   others relative to the file) must resolve. Broken links are *tolerated* per spec §5, so R4 is a
   report-only WARNING that never changes the exit code — added in Phase 2.
+- **R5 — Lonely subdirectory (WARNING only).** A subdirectory holding a single concept with no populated
+  sub-section is flagged as a premature-foldering smell — keep it at the parent level until a cluster
+  forms. Report-only (never changes the exit code); the backstop for the flat-first placement policy.
 
 ## Modes & output
 
