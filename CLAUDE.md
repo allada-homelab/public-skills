@@ -58,7 +58,7 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   ```bash
   bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh
   ```
-  Expect `pass=26 fail=0`.
+  Expect `pass=30 fail=0`.
 - **Validate a bundle**:
   ```bash
   python3 plugins/llm-wiki/scripts/doctor.py <bundle-dir> --mode strict --format text

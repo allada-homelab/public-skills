@@ -1,5 +1,9 @@
 # Directory Update Log
 
+## 2026-06-17
+
+* **Creation**: Added [Secret-scan entropy gate excludes path/URL separators](./secret-scan-entropy-gate.md).
+
 ## 2026-06-15
 
 * **Creation**: Added [Repo ingestion — orchestrated multi-agent bootstrap](./repo-ingestion-architecture.md).

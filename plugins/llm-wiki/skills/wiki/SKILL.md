@@ -14,6 +14,14 @@ description: >-
 
 # Open Knowledge Format (OKF) v0.1 — authoring & reading
 
+> ## ⚠️ NEVER put secrets in the wiki
+> No API keys, access keys, auth tokens, passwords, SSH/PEM **private keys**, or connection
+> strings containing credentials — **not even as an "example"**. The bundle is committed to git
+> and reloaded every session, so a leaked secret is permanent and high-blast. Reference a secret
+> by its **name and location** ("the `DEPLOY_TOKEN` env var", "the key in Vault at `…`"), never by
+> value. A blocking secret guard backs this, but it is a backstop — do not rely on it; keep secrets
+> out by hand.
+
 ## Mental model
 
 An OKF bundle is a directory of markdown files. **One file = one concept** (a table, dataset,

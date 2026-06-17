@@ -51,7 +51,15 @@ PATTERNS = [
         r"(?i)\b(?:password|passwd|secret|token|api[_-]?key|access[_-]?key)\b\s*[:=]\s*[\"']?([^\s\"']{8,})"), False),
 ]
 
-TOKEN_RE = re.compile(r"[A-Za-z0-9+/=_\-]{%d,}" % ENTROPY_MIN_LEN)
+# Entropy candidates are *contiguous opaque runs* — deliberately excludes `/`, `-`, and `.`
+# (and `#`, never in the class) so the gate does NOT span path/URL separators or hyphen-delimited
+# slugs. A real unlabeled secret is one unbroken alnum(+`=`/`_`/`+`) run; a markdown link target
+# (`planning/PRODUCT_PLAN.md`), a URL (`github.com/org/repo/blob/main`), or a slug
+# (`future-ideas--backlog-not-committed`) is short word-pieces joined by separators, so each piece
+# falls under the length floor and never reaches the entropy check. Base64/url-safe secrets keep
+# `+`, `=`, `_`; only `-`/`/`-split base64 loses a contiguous run (acceptable on a backstop gate —
+# labeled Stage-1 patterns catch the named high-value keys).
+TOKEN_RE = re.compile(r"[A-Za-z0-9+=_]{%d,}" % ENTROPY_MIN_LEN)
 
 # Inline "this is not a real secret" marker (detect-secrets convention) — skips the whole line.
 PRAGMA_RE = re.compile(r"(?i)pragma:\s*allowlist\s+secret")

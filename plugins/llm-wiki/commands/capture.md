@@ -10,6 +10,11 @@ OKF concept — at the **bundle root by default**, or in a **subdirectory when t
 `references/concept-template.md` for the skeleton. **Confirm-first: write nothing to the real bundle
 until the user approves the diff.**
 
+> **⚠️ NEVER put a secret in a concept.** No API keys, access keys, tokens, passwords, SSH/PEM
+> private keys, or credential-bearing connection strings — **not even as an "example"**. The bundle
+> is committed to git; a leaked secret is permanent. Reference secrets by **name/location**, never by
+> value. The secret scan in step 8 is a backstop, not a license — keep them out by hand.
+
 Arguments: `$ARGUMENTS` may carry a title/finding hint, an optional `--into <subdir>` (force a target
 directory, creating it if needed), and an optional `--bundle <path>`.
 
