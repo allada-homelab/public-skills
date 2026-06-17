@@ -46,13 +46,13 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   ```bash
   bash plugins/llm-wiki/scripts/fixtures/run_fixtures.sh
   ```
-  Expect `pass=15 fail=0 skip=0`.
+  Expect `pass=24 fail=0 skip=0`.
 - **Test the durability engine** (the `bundle_ops` golden corpus — run after any change to
   `bundle_ops.py`):
   ```bash
   bash plugins/llm-wiki/scripts/ops_fixtures/run_ops.sh
   ```
-  Expect `pass=13 fail=0`.
+  Expect `pass=19 fail=0`.
 - **Test the hooks** (the `hook_fixtures` corpus — run after any change to `mode.py` or a `hook_*` /
   `*_guard.py` script):
   ```bash
