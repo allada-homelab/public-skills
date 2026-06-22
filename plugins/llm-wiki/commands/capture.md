@@ -33,10 +33,11 @@ Steps:
    if it holds a root `index.md` (`okf_version: "0.1"`); else walk up from the cwd for one. None found →
    stop: "No OKF bundle here. Run `/llm-wiki:init` first."
 2. **Decide the concept.** From the hint and session context, determine `type`, `title`, and a slug
-   (`<slug>.md`). If the subject is unclear, ask before proceeding. If the finding is a **failure→fix**
-   (an approach that failed and the one that worked), capture both sides using the gotcha shape in
-   `references/concept-template.md` — name the wrong approach, the right one, and *why* — so the mistake
-   is not repeated.
+   (`<slug>.md`). If the subject is unclear, ask before proceeding. If the finding is a **gotcha-class**
+   one (a failure→fix, a surprising root cause, a silent footgun, a verification gap, a hidden
+   precondition, stale knowledge, or a performance cliff — see `references/capture-triggers.md` for the
+   full list), use the gotcha shape in `references/concept-template.md`: name what fails, what works, and
+   *why*, so it is not repeated.
 3. **Decide placement (default root).** Choose the target directory for `<slug>.md`:
    - If `--into <subdir>` was given, use it — validate it stays inside the bundle (no `../` escape, no
      reserved names), creating intermediate dirs.

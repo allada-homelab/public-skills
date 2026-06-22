@@ -99,6 +99,7 @@ the bundle is rendered on GitHub. See `references/linking.md`.
 
 ## Load references on demand
 
+- Deciding whether/what to capture → skim `references/capture-triggers.md` (the high-value categories).
 - Authoring a concept → read `references/concept-template.md` (and `frontmatter.md` / `linking.md` as needed).
 - Touching `index.md` / `log.md` → read `references/reserved-files.md`.
 - Bulk-ingesting a repo → read `references/ingestion.md` (the `/llm-wiki:ingest` orchestration playbook).
