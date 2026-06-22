@@ -11,9 +11,10 @@ Lets Claude build and tend a persistent, portable knowledge base for a project, 
 session starts smarter than the last. The wiki is a directory of markdown "concept" files in
 Google's [Open Knowledge Format (OKF) v0.1](./docs/llm-wiki/reference/okf_spec.md) — just files, readable
 on GitHub, portable to any OKF consumer. Conformance is **guaranteed by a deterministic Doctor
-script**, and every write is **confirm-first** (shown before it lands).
+script**, and writes are **auto by default** (applied directly in an auto mode, the default) —
+**confirm-first only in `curated` mode** or when you explicitly ask.
 
-**Commands** (all confirm-first):
+**Commands:**
 
 | Command | Purpose |
 |---|---|

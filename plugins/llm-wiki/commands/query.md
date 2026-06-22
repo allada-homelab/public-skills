@@ -24,6 +24,8 @@ Steps:
    and emit a structured line:
    `GAP: <question> — no concept covers <topic>. Consider /llm-wiki:capture to add it.`
    A query can be partly answered and partly a gap — report both. Phase 1 only *reports* gaps.
-5. **Consultation counter (confirm-first).** As in `/llm-wiki:explore`: propose incrementing the
-   consulted concepts' counts in `<bundle-root>/.llm-wiki/consultations.json` and write only on
-   approval. Corrupt/missing file → treat as `{}`; never let counter bookkeeping break the answer.
+5. **Consultation counter (auto by default).** As in `/llm-wiki:explore`: increment the consulted
+   concepts' counts in `<bundle-root>/.llm-wiki/consultations.json` — silently in an auto mode (the
+   default; treat the mode as `curated` only if `.claude/llm-wiki.local.md` contains a `mode: curated`
+   line, read it directly), or proposed-then-written-on-approval in `curated`/on request.
+   Corrupt/missing file → treat as `{}`; never let counter bookkeeping break the answer.

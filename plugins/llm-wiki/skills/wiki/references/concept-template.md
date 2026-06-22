@@ -27,6 +27,29 @@ Rules to keep while editing:
 - Use relative `./name.md` links (see `linking.md`).
 - Omit any optional field you don't have rather than leaving an empty placeholder.
 
+Failure→fix (gotcha) shape — use this when the finding is a **wrong approach you tried and the right one
+that worked**, so the next session doesn't repeat the mistake:
+
+```markdown
+---
+type: Gotcha
+title: <Short name for the trap>
+description: <The wrong approach and the right one, in one line.>
+tags:
+  - gotcha
+timestamp: <YYYY-MM-DDThh:mm:ssZ>
+---
+# <Title>
+
+**Symptom / context.** <When this comes up.>
+
+**What does not work.** <The approach that was tried, and how it fails.>
+
+**What works.** <The correct approach.>
+
+**Why.** <The underlying reason — so the fix generalizes instead of being cargo-culted.>
+```
+
 Minimal valid concept (the floor):
 
 ```markdown

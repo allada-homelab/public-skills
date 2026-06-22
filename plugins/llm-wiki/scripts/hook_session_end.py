@@ -6,12 +6,19 @@ it cannot inject context, and its stdout at exit 0 goes to the debug log, not th
 the digest is surfaced to the user via the universal `systemMessage` JSON field (the documented
 user-facing channel), not a bare print. Silent when there is no bundle or no logged changes.
 
+Mode-gated: only emitted in **curated** mode. In an auto mode (`proactive`/`max`, the default)
+captures land silently by design, so an end-of-session "here's what I saved" digest is exactly the
+noise the user does not want — stay silent. Curated keeps it: there the user is hands-on, and the
+`/llm-wiki:tend` pointer is a useful nudge.
+
 Reads `$CLAUDE_PROJECT_DIR` (falls back to event `cwd`).
 """
 import json
 import os
 import re
 import sys
+
+from mode import resolve_mode
 
 DATE_HEADING = re.compile(r"^## (\d{4}-\d{2}-\d{2})\s*$")
 
@@ -37,6 +44,8 @@ def main():
     except ValueError:
         event = {}
     project = os.environ.get("CLAUDE_PROJECT_DIR") or event.get("cwd") or os.getcwd()
+    if resolve_mode(project) != "curated":
+        return 0  # auto modes capture silently — no end-of-session "what I saved" digest
     try:
         with open(os.path.join(project, "llm-wiki", "log.md"), "r", encoding="utf-8") as fh:
             log_text = fh.read()

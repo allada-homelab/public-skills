@@ -6,7 +6,16 @@ allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(date:*), Bash(cp:*
 
 You are running `/llm-wiki:refine`. Edit **one** existing concept in place (same path — renames/moves
 go through `/llm-wiki:reorganize`, removals through `/llm-wiki:prune`). Use the `wiki` skill for format
-rules. **Confirm-first: write nothing to the real bundle until the user approves the diff.**
+rules.
+
+**Apply policy — auto by default.** Resolve the mode once with `python3
+"${CLAUDE_PLUGIN_ROOT}/scripts/mode.py"`. In an **auto** mode (`proactive`/`max` — the default) apply
+the gated edit directly: **no confirmation prompt and no prose recap**. Show the diff and wait for
+approval **only** when the mode is `curated`, or when the user explicitly asks to review this edit. The
+safety net on this path is the staged Doctor gate (blocking), the secret scan, and git-reversibility —
+the apply lands via `cp`, so the PreToolUse guard floor (which covers *direct* bundle Write/Edit) does
+**not** fire here. Auto-mode secret rule: if the secret scan flags a potential secret, **abort** — delete
+the mirror, write nothing, and report the finding (auto mode has no human prompt to fall back on).
 
 Arguments: `$ARGUMENTS` may carry a concept path/title and an optional `--bundle <path>`.
 
@@ -31,13 +40,19 @@ Steps:
 5. **Doctor gate.** `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "$mirror" --mode strict --format json`.
    Exit ≠ 0 → show violations verbatim, `rm -rf "$mirror"`, write nothing. Surface any `R4` link
    WARNINGs (report-only).
-6. **Secret scan + diff.** Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/secret_scan.py" "$mirror/<relpath>"
-   --format json`; render hits as a prominent "⚠ Potential secrets — review before confirming" block
-   (never block). Show `diff -ru "<bundle>" "$mirror"`.
-7. **Confirm & apply.** On approval, land *exactly the gated bytes* — copy the staged concept back
-   (`cp "$mirror/<relpath>" "<bundle>/<relpath>"`); do **not** re-author it (LLM re-authoring drifts from
-   what the user approved). Then run the same `bundle_ops.py index` and `bundle_ops.py log-append …
-   --date "$today"` against `<bundle>` (deterministic, same `$today`), and run the Doctor on the real bundle to confirm
-   PASS. On decline, do nothing. Clean up only a real mirror (`rm -rf "$mirror"` — never an unset path).
+6. **Secret scan (always) + diff (when confirming).** Run `python3
+   "${CLAUDE_PLUGIN_ROOT}/scripts/secret_scan.py" "$mirror/<relpath>" --format json` — **always**, since a
+   hit halts an auto-apply (see the apply policy). When confirming (`curated`/on request), render hits as a
+   prominent "⚠ Potential secrets — review before applying" block (never block) and show `diff -ru
+   "<bundle>" "$mirror"`. In an auto mode skip the diff render and apply silently — but if a secret was
+   flagged, **abort**: `rm -rf "$mirror"`, write nothing, and report the finding (no human prompt exists
+   in auto mode).
+7. **Apply.** In an auto mode, apply now without asking and **without a prose recap**. In `curated`/on
+   request, apply only on approval; on decline, do nothing. Either way land *exactly the gated bytes* —
+   copy the staged concept back (`cp "$mirror/<relpath>" "<bundle>/<relpath>"`); do **not** re-author it
+   (LLM re-authoring drifts from what the gate approved). Then run the same `bundle_ops.py index` and
+   `bundle_ops.py log-append … --date "$today"` against `<bundle>` (deterministic, same `$today`), and run
+   the Doctor on the real bundle to confirm PASS. Clean up only a real mirror (`rm -rf "$mirror"` — never
+   an unset path).
 
 Defer all conformance judgments to the Doctor — if your draft and the Doctor disagree, the Doctor wins.

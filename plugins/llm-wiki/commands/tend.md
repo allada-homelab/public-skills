@@ -6,8 +6,8 @@ allowed-tools: Glob, Grep, Read, Bash(python3:*)
 
 You are running `/llm-wiki:tend`. Produce a **reviewable curation digest** of the wiki and propose
 maintenance — **read-only: never write, edit, move, or delete anything here.** All changes happen through
-the confirm-first `/llm-wiki:refine` / `:prune` / `:reorganize` commands, which the user runs after
-reviewing your digest. Use the `wiki` skill for format.
+the `/llm-wiki:refine` / `:prune` / `:reorganize` commands (auto by default; confirm-first only in
+`curated`), which the user runs after reviewing your digest. Use the `wiki` skill for format.
 
 Arguments: `$ARGUMENTS` may carry `--bundle <path>`.
 
@@ -33,5 +33,5 @@ Steps:
    any you can still see in context, but don't imply the wiki remembers gaps across sessions.
 6. **Digest.** Emit a single prioritized, **non-destructive** digest grouped by suggested action —
    `refine` (stale/incorrect), `prune` (orphaned/dead/superseded), `reorganize` (structure/links) — each
-   item naming the concept and the one-line reason. End by offering to run the relevant confirm-first
-   command for any item the user picks. Propose nothing destructive without their go-ahead.
+   item naming the concept and the one-line reason. End by offering to run the relevant command for any
+   item the user picks. Propose nothing destructive without their go-ahead.

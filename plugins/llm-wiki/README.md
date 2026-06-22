@@ -6,7 +6,8 @@ knowledge base for your project — a directory of markdown "concept" files in G
 smarter than the last.
 
 Everything the plugin writes is **OKF-conformant by construction** (a deterministic Doctor gates
-every write) and **confirm-first** (you see the exact content/diff before it lands).
+every write). Writes are **auto by default** — applied directly in an auto mode (the default); you see
+the exact content/diff and approve it only in **`curated`** mode or when you explicitly ask.
 
 ## Install
 
@@ -61,9 +62,10 @@ talk about capturing to a wiki or knowledge base.
   structured concept proposals, then synthesizes and writes one **Doctor-gated, secret-scanned** batch
   (flat-first; `--scope min|medium|high`; `--dry-run` to preview). Autonomous once invoked, one
   git-reversible diff. Playbook in `skills/wiki/references/ingestion.md`.
-- **Confirm-first** — the user-invoked commands never write without explicit approval (`ingest` is the
-  one deliberate exception: autonomous-but-Doctor-gated, with `--dry-run`); proactive auto-capture still
-  passes the secret + Doctor guards and is logged + git-reversible.
+- **Auto by default; confirm only on request** — in an auto mode (the default) the write commands apply
+  directly with no prompt and no prose recap; they confirm-first only in `curated` mode or when you
+  explicitly ask. Every write — autonomous or not — still passes a secret scan and the Doctor gate, and is
+  logged + git-reversible (`ingest` is autonomous regardless of mode, with `--dry-run` to preview).
 
 Default bundle location: `${CLAUDE_PROJECT_DIR}/llm-wiki`. Cross-links use relative `./` form so
 they resolve on GitHub.

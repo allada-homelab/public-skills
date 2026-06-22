@@ -32,8 +32,9 @@ subagent (Sonnet) is the unit it fans out.
 
 - **Command, not an auto-skill.** Ingestion is an expensive, deliberate, one-time action — explicit
   invocation (consistent with the other commands), so it never auto-fires mid-task.
-- **Autonomous once invoked** (no per-concept confirm gate) — the single deliberate exception to the
-  confirm-first rule. The floor still holds: every concept is **secret-scanned** in the mirror (a hit is
+- **Autonomous once invoked** (no per-concept confirm gate) — like the other write commands in an auto
+  mode, but autonomous *regardless* of mode, since it is an explicit bulk action. The floor still holds:
+  every concept is **secret-scanned** in the mirror (a hit is
   redacted, since the `cp`-back bypasses the PreToolUse `secret_guard`), the whole batch is
   **Doctor-gated** before it lands, and the result is one **git-reversible** diff. `--dry-run` previews
   the plan without writing.

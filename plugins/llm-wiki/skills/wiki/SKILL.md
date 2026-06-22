@@ -81,8 +81,8 @@ single-concept subdir as the backstop. When in doubt, root — and `reorganize` 
 ## Doctor is the authority — these rules guide, they do not verify
 
 This skill makes your draft *near-conformant*; it does **not** make it conformant. Every file the plugin
-writes is checked by the deterministic Doctor (`scripts/doctor.py`, strict-producer mode) in the
-confirm-first diff. **If your draft and Doctor disagree, Doctor is right.** Never claim a bundle is
+writes is checked by the deterministic Doctor (`scripts/doctor.py`, strict-producer mode) at the staged
+gate before the write lands. **If your draft and Doctor disagree, Doctor is right.** Never claim a bundle is
 conformant on the basis of these instructions alone — run the Doctor.
 
 ## Reading is permissive

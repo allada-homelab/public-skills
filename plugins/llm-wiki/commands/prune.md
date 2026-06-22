@@ -6,8 +6,16 @@ allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(date:*), Bash(cp:*
 
 You are running `/llm-wiki:prune`. Remove **one** concept and keep the bundle conformant. Per OKF spec
 §5 broken links are *tolerated*: inbound links to the removed concept are **reported, never silently
-rewritten or deleted**. Use the `wiki` skill for format rules. **Confirm-first: write nothing to the
-real bundle until the user approves the diff.**
+rewritten or deleted**. Use the `wiki` skill for format rules.
+
+**Apply policy — auto by default.** Resolve the mode once with `python3
+"${CLAUDE_PLUGIN_ROOT}/scripts/mode.py"`. In an **auto** mode (`proactive`/`max` — the default) apply
+the removal directly: **no confirmation prompt and no prose recap**. Show the diff and wait for approval
+**only** when the mode is `curated`, or when the user explicitly asks. The inbound-link warning (step 3)
+is surfaced regardless of mode. The safety net on this path is the staged Doctor gate (blocking) and
+git-reversibility — the apply lands via `bundle_ops remove`/`cp` (Bash), so the PreToolUse guard floor
+(which covers *direct* bundle Write/Edit) does not fire here; prune only removes content, so no secret
+scan applies.
 
 Arguments: `$ARGUMENTS` may carry a concept path/title and an optional `--bundle <path>`.
 
@@ -32,11 +40,15 @@ Steps:
 5. **Doctor gate.** `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "$mirror" --mode strict --format json`.
    Exit ≠ 0 → show violations, `rm -rf "$mirror"`, write nothing. The now-dangling inbound links appear
    as `R4` WARNINGs (report-only, expected) — surface them so the user can `refine`/`reorganize` later.
-6. **Diff & confirm.** Show `diff -ru "<bundle>" "$mirror"` (the deleted file, regenerated indexes, log
-   append). No secret scan is needed — prune only removes content. On approval, reproduce on the real
-   bundle (the steps are deterministic: same `remove` → emptied-subdir cleanup → `index` → `log-append …
-   --date "$today"`), then run the Doctor on the real bundle to confirm PASS — and verify the regenerated
-   `index.md` no longer lists the removed concept (a lingering `R4` to it means the index didn't refresh).
-   On decline, do nothing. Clean up only a real mirror (`rm -rf "$mirror"` — never an unset path).
+6. **Apply.** No secret scan is needed — prune only removes content. In an auto mode, apply now without
+   asking and **without a prose recap**; in `curated`/on request, first show `diff -ru "<bundle>"
+   "$mirror"` (the deleted file, regenerated indexes, log append) and apply only on approval (on decline,
+   do nothing). Either way reproduce on the real bundle (the steps are deterministic: same `remove` →
+   emptied-subdir cleanup → `index` → `log-append … --date "$today"`), then run the Doctor on the real
+   bundle to confirm PASS — and verify the regenerated `index.md` no longer lists the removed concept (a
+   lingering `R4` to it means the index didn't refresh). Clean up only a real mirror (`rm -rf "$mirror"` —
+   never an unset path).
 
-The deletion is recoverable from git history — name that as the rollback when you confirm.
+Rollback: the deletion is recoverable from git history **only if the concept was previously committed**
+(a never-committed concept is not) — in an auto mode, the inbound-link report in step 3 is your cue to
+slow down if the concept looks load-bearing.

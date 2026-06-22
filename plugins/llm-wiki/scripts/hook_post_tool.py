@@ -67,8 +67,9 @@ def main():
         return 0  # already nudged this turn — stay silent, just keep the marker fresh
 
     nudge = ("[llm-wiki] You just changed %s — if that established a durable decision, convention, "
-             "or gotcha, capture it to the wiki now (it's secret-scanned, Doctor-gated, logged)."
-             % os.path.basename(fp))
+             "gotcha, or failure->fix (an approach that failed and the one that worked), capture it "
+             "to the wiki now (it's secret-scanned, Doctor-gated, logged); in an auto mode apply it "
+             "silently, without announcing what you saved." % os.path.basename(fp))
     json.dump({"hookSpecificOutput": {
         "hookEventName": "PostToolUse",
         "additionalContext": nudge,

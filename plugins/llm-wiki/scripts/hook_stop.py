@@ -36,9 +36,12 @@ from mode import resolve_mode
 
 NUDGE = (
     "[llm-wiki] Before finishing this turn: if it established a durable, reusable finding "
-    "(a decision, gotcha, convention, schema, or how something works), capture it to the wiki "
-    "now via /llm-wiki:capture — it is secret-scanned, Doctor-gated, logged, and git-reversible. "
-    "If nothing durable happened this turn, just stop without capturing — do not invent a finding."
+    "(a decision, gotcha, convention, schema, how something works, or a failure->fix — an "
+    "approach you tried that failed and the one that worked, captured so the mistake is not "
+    "repeated), capture it to the wiki now via /llm-wiki:capture — it is secret-scanned, "
+    "Doctor-gated, logged, and git-reversible. In an auto mode apply it silently: do not announce "
+    "or summarize what you saved. If nothing durable happened this turn, just stop without "
+    "capturing — do not invent a finding."
 )
 
 

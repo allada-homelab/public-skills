@@ -13,7 +13,8 @@ It lets Claude author, read, and maintain a persistent OKF knowledge bundle for 
 conform; Phase 2: refine / prune / reorganize over the deterministic `bundle_ops` engine + Doctor R4
 link-health; Phase 3 core: autonomy mode (default `proactive`), SessionStart preload, a PreToolUse
 secret/Doctor guard floor, a once-per-session UserPromptSubmit consult nudge, and the `/tend` digest (PostToolUse +
-auto-digest + Max deferred). All user commands confirm-first, gated by a deterministic Doctor. See
+auto-digest + Max deferred). All writes are gated by a deterministic Doctor; commands apply autonomously
+in an auto mode (the default) and confirm-first only in `curated`. See
 [docs/llm-wiki](./docs/llm-wiki/) for the product plan, phasing, and the per-phase technical plans.
 
 ## Repository layout
@@ -58,7 +59,7 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   ```bash
   bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh
   ```
-  Expect `pass=30 fail=0`.
+  Expect `pass=31 fail=0`.
 - **Validate a bundle**:
   ```bash
   python3 plugins/llm-wiki/scripts/doctor.py <bundle-dir> --mode strict --format text
@@ -74,10 +75,14 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   link-preserving moves, guarded remove) is the engine the Phase 2 commands compose instead of
   hand-editing indexes/links. `reorganize` gates on an R4 pre/post diff (`after ⊆ before` → zero
   newly-broken links).
-- **Confirm-first.** No command writes to a bundle without showing the exact content/diff and
-  getting explicit approval. `explore`/`query`/`conform` are read-only. The one deliberate exception is
-  `ingest` (bulk repo bootstrap): autonomous once invoked, but every concept is still secret-scanned and
-  the whole batch is Doctor-gated before it lands, with `--dry-run` to preview and one git-reversible diff.
+- **Auto by default; confirm only on request.** In an **auto** mode (`proactive`/`max` — the default)
+  the write commands (`capture`/`refine`/`prune`/`reorganize`) apply directly with no per-write prompt and
+  no prose recap — the safety net is the in-command Doctor gate (blocking) and secret scan (a **hard
+  abort** on a hit in auto mode), plus git-reversibility. (The apply lands via `cp`, so the PreToolUse
+  guard floor backstops *direct* bundle Write/Edit, not the command path.) They show a diff and wait for
+  approval only in **`curated`** mode or when the user explicitly asks. `explore`/`query`/`conform` are read-only. `ingest` (bulk repo bootstrap) is autonomous
+  once invoked: every concept is still secret-scanned and the whole batch is Doctor-gated before it lands,
+  with `--dry-run` to preview and one git-reversible diff.
 - **Report-only secret scan.** `secret_scan.py` surfaces credentials in the capture diff (honoring
   `pragma: allowlist secret` and skipping obvious placeholders so documentation examples don't
   false-positive) but

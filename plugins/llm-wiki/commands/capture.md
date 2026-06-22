@@ -7,8 +7,17 @@ allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(date:*), Bash(cp:*
 You are running `/llm-wiki:capture`. Turn a finding from the current session into **one** conformant
 OKF concept — at the **bundle root by default**, or in a **subdirectory when there is a clear reason**
 (see "Decide placement" below). Use the `wiki` skill for format rules and
-`references/concept-template.md` for the skeleton. **Confirm-first: write nothing to the real bundle
-until the user approves the diff.**
+`references/concept-template.md` for the skeleton.
+
+**Apply policy — auto by default.** Resolve the mode once with `python3
+"${CLAUDE_PLUGIN_ROOT}/scripts/mode.py"`. In an **auto** mode (`proactive`/`max` — the default) apply
+the gated concept directly: **no confirmation prompt and no prose recap of what you saved**. Show the
+diff and wait for approval **only** when the mode is `curated`, or when the user explicitly asks to
+review this capture. The safety net on this path is the staged Doctor gate (blocking), the secret scan,
+and git-reversibility — the apply lands via `cp`, so the PreToolUse guard floor (which covers *direct*
+bundle Write/Edit) does **not** fire here. Auto-mode secret rule: if the secret scan flags a potential
+secret, **abort** — delete the mirror, write nothing, and report the finding (auto mode has no human
+prompt to fall back on).
 
 > **⚠️ NEVER put a secret in a concept.** No API keys, access keys, tokens, passwords, SSH/PEM
 > private keys, or credential-bearing connection strings — **not even as an "example"**. The bundle
@@ -24,7 +33,10 @@ Steps:
    if it holds a root `index.md` (`okf_version: "0.1"`); else walk up from the cwd for one. None found →
    stop: "No OKF bundle here. Run `/llm-wiki:init` first."
 2. **Decide the concept.** From the hint and session context, determine `type`, `title`, and a slug
-   (`<slug>.md`). If the subject is unclear, ask before proceeding.
+   (`<slug>.md`). If the subject is unclear, ask before proceeding. If the finding is a **failure→fix**
+   (an approach that failed and the one that worked), capture both sides using the gotcha shape in
+   `references/concept-template.md` — name the wrong approach, the right one, and *why* — so the mistake
+   is not repeated.
 3. **Decide placement (default root).** Choose the target directory for `<slug>.md`:
    - If `--into <subdir>` was given, use it — validate it stays inside the bundle (no `../` escape, no
      reserved names), creating intermediate dirs.
@@ -54,16 +66,21 @@ Steps:
    Exit ≠ 0 → show violations verbatim, `rm -rf "$mirror"`, write nothing. Surface any `R4` (link) or
    `R5` (lonely-subdir) **WARNINGs** — report-only, they never block; an R5 on your placement is a cue to
    reconsider nesting.
-8. **Secret scan + diff.** Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/secret_scan.py" "$mirror/<relpath>"
-   --format json` (and over the log bullet); render hits as a prominent "⚠ Potential secrets — review
-   before confirming" block (**never block** in Phase 1). Show `diff -ru "<bundle>" "$mirror"`, and state
-   the **placement + reason** (e.g. "→ `backend/` — joining the existing Backend section", or "→ root — no
-   section warrants it yet").
-9. **Confirm & apply.** On approval, land *exactly the gated bytes* — copy the staged concept back
-   (`cp "$mirror/<relpath>" "<bundle>/<relpath>"`, creating intermediate dirs); do **not** re-author it
-   (re-authoring drifts from what the user approved). Then run the same `bundle_ops.py index` and
-   `bundle_ops.py log-append … --date "$today"` against `<bundle>` (deterministic, same `$today`), and run the Doctor on
-   the real bundle to confirm PASS. If a write fails, report exactly what landed. On decline, do nothing
-   (clean no-op). Clean up only a real mirror (`rm -rf "$mirror"` — never an unset path).
+8. **Secret scan (always) + diff (when confirming).** Run `python3
+   "${CLAUDE_PLUGIN_ROOT}/scripts/secret_scan.py" "$mirror/<relpath>" --format json` (and over the log
+   bullet) — **always**, since a hit halts an auto-apply (see the apply policy). When confirming
+   (`curated`/on request), render hits as a prominent "⚠ Potential secrets — review before applying" block
+   (**never block** in Phase 1), show `diff -ru "<bundle>" "$mirror"`, and state the **placement + reason**
+   (e.g. "→ `backend/` — joining the existing Backend section", or "→ root — no section warrants it yet").
+   In an auto mode skip the diff render and apply silently — but if a secret was flagged, **abort**:
+   `rm -rf "$mirror"`, write nothing, and report the finding (no human prompt exists in auto mode).
+9. **Apply.** In an auto mode, apply now without asking and **without a prose recap** (the gate already
+   passed). In `curated`/on request, apply only on approval; on decline, do nothing (clean no-op). Either
+   way land *exactly the gated bytes* — copy the staged concept back (`cp "$mirror/<relpath>"
+   "<bundle>/<relpath>"`, creating intermediate dirs); do **not** re-author it (re-authoring drifts from
+   what the gate approved). Then run the same `bundle_ops.py index` and `bundle_ops.py log-append … --date
+   "$today"` against `<bundle>` (deterministic, same `$today`), and run the Doctor on the real bundle to
+   confirm PASS. If a write fails, report exactly what landed. Clean up only a real mirror (`rm -rf
+   "$mirror"` — never an unset path).
 
 Defer all conformance judgments to the Doctor — if your draft and the Doctor disagree, the Doctor wins.
