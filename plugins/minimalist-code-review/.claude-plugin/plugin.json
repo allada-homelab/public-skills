@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "minimalist-code-review",
+  "description": "Minimalist code-review skills for Claude Code. Ships pragmatic-code-review — a Socratic, anti-over-engineering reviewer that pushes on whether code needs to exist, prefers determinism and reuse over speculative flexibility, watches runtime/query cost, marks nits, and keeps a warm, concise tone.",
+  "author": { "name": "David Allada", "email": "davidanilallada@gmail.com" },
+  "license": "MIT",
+  "keywords": ["code-review", "pull-request", "pragmatic", "over-engineering", "simplicity"]
+}

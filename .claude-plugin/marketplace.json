@@ -9,6 +9,12 @@
       "description": "An autonomous OKF v0.1 knowledge wiki for Claude Code — author, read, and maintain a curated knowledge bundle so each session starts smarter.",
       "category": "knowledge",
       "source": "./plugins/llm-wiki"
+    },
+    {
+      "name": "minimalist-code-review",
+      "description": "Minimalist code-review skills for Claude Code — a pragmatic, anti-over-engineering pull-request reviewer with a warm, Socratic voice.",
+      "category": "development",
+      "source": "./plugins/minimalist-code-review"
     }
   ]
 }

@@ -1,5 +1,9 @@
 # Directory Update Log
 
+## 2026-06-25
+
+* **Creation**: Added [Registering a skill in the public-skills marketplace](./marketplace-skill-registration.md).
+
 ## 2026-06-17
 
 * **Creation**: Added [Secret-scan entropy gate excludes path/URL separators](./secret-scan-entropy-gate.md).

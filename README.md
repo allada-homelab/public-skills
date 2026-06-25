@@ -34,11 +34,22 @@ preload the wiki at session start, block credential/non-conformant writes (PreTo
 during-work capture; mode in `.claude/llm-wiki.local.md` defaults to `proactive` (auto). Status: **Phases 1 & 2 shipped; Phase 3 autonomy core landed**
 — see [docs/llm-wiki](./docs/llm-wiki/).
 
+### `minimalist-code-review` — pragmatic code-review skills for Claude Code
+
+A home for minimalist review-style skills. It ships **`pragmatic-code-review`**: a Socratic,
+anti-over-engineering reviewer that reads a PR, diff, or change and pushes hard on whether the
+code *needs to exist and needs to be this complicated* — preferring determinism and reuse over
+speculative flexibility, watching runtime/query cost, marking nits explicitly, and keeping a
+warm, concise tone. It approves readily when a change is genuinely sound and never manufactures
+objections to seem thorough. The skill activates whenever you ask for a pragmatic, simplicity-first,
+or Socratic review of a diff or PR.
+
 ## Install
 
 ```text
 /plugin marketplace add allada-homelab/public-skills
 /plugin install llm-wiki@public-skills
+/plugin install minimalist-code-review@public-skills
 /reload-plugins
 ```
 
@@ -51,7 +62,8 @@ Then run `/llm-wiki:init` to create a bundle and `/llm-wiki:capture` to add the 
 public-skills/
 ├── .claude-plugin/marketplace.json   # marketplace manifest (this repo is the marketplace)
 ├── plugins/
-│   └── llm-wiki/                      # the plugin (manifest, commands, skill, scripts)
+│   ├── llm-wiki/                      # the OKF knowledge-wiki plugin (manifest, commands, skill, scripts)
+│   └── minimalist-code-review/        # minimalist code-review skills (pragmatic-code-review)
 ├── llm-wiki/                          # this repo's own OKF bundle (dogfood + living example)
 └── docs/llm-wiki/                     # product/phasing/per-phase plans + reference/ (OKF spec/blog, CC plugin system)
 ```
