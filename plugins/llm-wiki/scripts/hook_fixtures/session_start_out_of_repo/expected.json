@@ -1,0 +1,1 @@
+{"exit_code": 0, "stdout_contains": ["not under a git work tree", "not reversible", "git init"]}

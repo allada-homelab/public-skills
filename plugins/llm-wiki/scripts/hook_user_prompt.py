@@ -19,6 +19,8 @@ import json
 import os
 import sys
 
+from bundle_path import bundle_root
+
 CONSULT = (
     "[llm-wiki] New session — the wiki is preloaded above. Before a non-trivial task, consult it "
     "first: `/llm-wiki:query <question>` or `/llm-wiki:explore`, and state what you found (or that "
@@ -38,9 +40,10 @@ def main():
     except ValueError:
         event = {}
     project = _project_dir(event)
-    if not os.path.isfile(os.path.join(project, "llm-wiki", "index.md")):
+    root = bundle_root(project)
+    if not os.path.isfile(os.path.join(root, "index.md")):
         return 0  # no bundle here — contribute nothing
-    marker = os.path.join(project, "llm-wiki", ".llm-wiki", "last-session")
+    marker = os.path.join(root, ".llm-wiki", "last-session")
     token = str(event.get("session_id") or "__nosession__")
     try:
         prev = open(marker, encoding="utf-8").read().strip()

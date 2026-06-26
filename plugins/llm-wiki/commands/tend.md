@@ -13,7 +13,9 @@ Arguments: `$ARGUMENTS` may carry `--bundle <path>`.
 
 Steps:
 
-1. **Resolve the bundle root** (`--bundle`; else `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk up). None →
+1. **Resolve the bundle root** (`--bundle`; else the configured bundle root — run `python3
+   "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_path.py" resolve`, which honors a `bundle_path:` line in
+   `.claude/llm-wiki(.local).md` else returns `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk up). None →
    "No OKF bundle here. Run `/llm-wiki:init` first."
 2. **Conformance.** Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "<bundle>" --mode strict
    --format json`. Summarize: errors (R1/R2/R3*) and **R4 broken-link WARNINGs** (report-only). Broken

@@ -46,7 +46,9 @@ caught by the always-on **PreToolUse guard floor**: `secret_guard` denies a cred
 `Write|Edit` matcher does not see — so those are gated *in-command* by a blocking `doctor.py` run plus a
 secret scan that **hard-aborts** the apply in an auto mode (where no human reviews the diff). Either way
 every write is Doctor-gated, secret-checked, logged, and git-reversible — the worst case of "auto" is a
-denied/aborted write, never a leaked secret or a non-conformant bundle.
+denied/aborted write, never a leaked secret or a non-conformant bundle. (Git-reversibility assumes the
+bundle is under a git work tree. A bundle relocated out-of-repo via `bundle_path` forfeits it; SessionStart
+warns in that case — see the configurable-bundle-location tech plan.)
 
 ## Related
 - See [OKF Doctor — strict-producer rule set](./doctor-rule-set.md) — the rules `doctor_guard` enforces at write time.

@@ -14,6 +14,7 @@ import json
 import os
 import sys
 
+from bundle_path import bundle_root
 from doctor import check_concept
 
 
@@ -36,7 +37,7 @@ def main():
     if not fp or not fp.endswith(".md") or os.path.basename(fp) in ("index.md", "log.md"):
         return 0  # not a concept file (reserved files are engine-owned)
     project = os.environ.get("CLAUDE_PROJECT_DIR") or event.get("cwd") or os.getcwd()
-    bundle = os.path.realpath(os.path.join(project, "llm-wiki"))
+    bundle = os.path.realpath(bundle_root(project))  # honor a configured relocation (resolver-gated)
     if not _under(os.path.realpath(fp), bundle):
         return 0
 

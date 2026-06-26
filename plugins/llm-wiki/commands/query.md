@@ -13,7 +13,9 @@ carry `--bundle <path>`.
 
 Steps:
 
-1. **Resolve the bundle root** (`--bundle`; else the default `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk
+1. **Resolve the bundle root** (`--bundle`; else the configured bundle root — run `python3
+   "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_path.py" resolve`, which honors a `bundle_path:` line in
+   `.claude/llm-wiki(.local).md` else returns `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk
    up from the cwd for a root `index.md`). None → "No OKF bundle here. Run `/llm-wiki:init` first."
 2. **Find entry points.** Grep key terms from the question and read the root `index.md`. Traverse
    minimally, following only cross-links that bear on the question. A concept "counts" only when you

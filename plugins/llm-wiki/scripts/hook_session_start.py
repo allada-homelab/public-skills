@@ -15,8 +15,10 @@ Reads `$CLAUDE_PROJECT_DIR` (falls back to the event JSON's `cwd`, else cwd).
 """
 import json
 import os
+import subprocess
 import sys
 
+from bundle_path import bundle_root, resolve_configured_bundle
 from mode import resolve_mode
 
 MODE_NOTE = {
@@ -59,24 +61,54 @@ def _event():
         return {}
 
 
+def _out_of_repo_warning(bundle_real):
+    """Warn when the bundle is not under a git work tree — auto-mode writes there are not
+    git-reversible (the safety property the autonomy default leans on). Runs on the realpath so a
+    symlink can't make an out-of-repo bundle look in-repo. git absent / errors → no nag."""
+    try:
+        r = subprocess.run(["git", "-C", bundle_real, "rev-parse", "--is-inside-work-tree"],
+                           capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if r.returncode == 0 and r.stdout.strip() == "true":
+        return None
+    return ("⚠ llm-wiki: bundle at `%s` is not under a git work tree — auto-mode writes are not "
+            "reversible; run `git init` there or switch to `mode: curated`." % bundle_real)
+
+
 def main():
     event = _event()
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or event.get("cwd") or os.getcwd()
-    index_path = os.path.join(project_dir, "llm-wiki", "index.md")
+    root = bundle_root(project_dir)  # honor a configured relocation (else the default)
+    index_path = os.path.join(root, "index.md")
     try:
         with open(index_path, "r", encoding="utf-8") as fh:
             index = fh.read()
     except OSError:
         return 0  # no bundle here — contribute nothing
 
+    # display path: derived from the resolved root, not hardcoded "llm-wiki/…", so a relocated
+    # bundle prints its real path in its own preload.
+    try:
+        rel_index = os.path.relpath(index_path, project_dir)
+        if rel_index.startswith(".."):
+            rel_index = index_path  # out-of-repo bundle: show the absolute path
+    except ValueError:
+        rel_index = index_path
+
     mode = resolve_mode(project_dir)
-    count, tags = _bundle_summary(os.path.join(project_dir, "llm-wiki"))
+    count, tags = _bundle_summary(root)
     summary = "**%d concept%s**%s" % (
         count, "" if count == 1 else "s",
         (" · tags: " + ", ".join(tags)) if tags else "",
     )
+    # Only warn for a bundle the user explicitly RELOCATED off-repo — never for a default bundle in a
+    # non-git project (that user opted into nothing; nagging every session would be noise). The default
+    # path also skips the git subprocess entirely.
+    warning = _out_of_repo_warning(os.path.realpath(root)) if resolve_configured_bundle(project_dir) else None
     head = (
-        "# llm-wiki knowledge bundle (preloaded)\n\n"
+        ((warning + "\n\n") if warning else "")
+        + "# llm-wiki knowledge bundle (preloaded)\n\n"
         "Active mode: **%s** — %s\n\n"
         "%s — consult via `/llm-wiki:query` / `:explore` before non-trivial work; capture durable "
         "findings as you go.\n\n" % (mode, MODE_NOTE.get(mode, ""), summary)
@@ -84,9 +116,9 @@ def main():
     if event.get("source") == "compact":
         # post-compaction: the full index is (or just was) in context — inject only the pointer,
         # not the whole index body, so we don't grow with the bundle or partially undo compaction.
-        context = head + "Re-read `llm-wiki/index.md` if you need the full concept map."
+        context = head + "Re-read `%s` if you need the full concept map." % rel_index
     else:
-        context = head + "Root index (`llm-wiki/index.md`):\n\n" + index
+        context = head + "Root index (`%s`):\n\n" % rel_index + index
     json.dump({"hookSpecificOutput": {
         "hookEventName": "SessionStart",
         "additionalContext": context,

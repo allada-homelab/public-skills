@@ -27,7 +27,7 @@ plugins/llm-wiki/                  # the plugin
   agents/                          # wiki-explorer.md — read-only Sonnet subagent the /ingest orchestrator fans out
   skills/wiki/                     # the llm-wiki:wiki skill (SKILL.md + references/, incl. ingestion.md)
   hooks/hooks.json                 # Phase 3 hooks: SessionStart, PreToolUse, UserPromptSubmit, PostToolUse, Stop, SessionEnd
-  scripts/                         # doctor.py, secret_scan.py, bundle_ops.py, mode.py;
+  scripts/                         # doctor.py, secret_scan.py, bundle_ops.py, mode.py, bundle_path.py;
                                    #   hooks: hook_session_start.py, secret_guard.py, doctor_guard.py,
                                    #          hook_user_prompt.py, hook_post_tool.py, hook_stop.py, hook_session_end.py
                                    #   fixtures/ (Doctor) + ops_fixtures/ (bundle_ops) + hook_fixtures/ (hooks)
@@ -59,7 +59,7 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   ```bash
   bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh
   ```
-  Expect `pass=31 fail=0`.
+  Expect `pass=47 fail=0`.
 - **Validate a bundle**:
   ```bash
   python3 plugins/llm-wiki/scripts/doctor.py <bundle-dir> --mode strict --format text
@@ -103,7 +103,16 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
 - **Tests are fixtures.** `scripts/fixtures/<name>/` is a minimal bundle with a planted defect and an
   `expected/<name>.json` contract (Doctor); `scripts/ops_fixtures/<name>/` is an input→expected output
   tree for `bundle_ops`. Add a fixture *before* implementing any new rule or engine behavior (TDD).
-- **Default bundle location is `./llm-wiki/`** (`${CLAUDE_PROJECT_DIR}/llm-wiki`).
+- **Default bundle location is `./llm-wiki/`** (`${CLAUDE_PROJECT_DIR}/llm-wiki`), but it is
+  **configurable** via a `bundle_path:` line resolved by `bundle_path.py` — per-user in
+  `.claude/llm-wiki.local.md` or repo-shared (committed) in `.claude/llm-wiki.md` (per-user wins). The
+  resolver enforces two safety invariants (so a hand-edit/PR can't subvert the guard floor): a *committed*
+  value must be repo-relative + repo-contained (provenance), and no value may resolve to the project root
+  or an ancestor (root-collapse). Both PreToolUse guards and all six hooks route through `bundle_path.py`
+  so a relocation can't leave the floor scoping the wrong dir. `/llm-wiki:init` prompts for the location +
+  tracking and writes the config. Out-of-repo bundles (not under a git work tree) warn (not block) at
+  SessionStart — auto-mode writes there aren't git-reversible. See
+  [docs/llm-wiki/phases/configurable-bundle-location-tech-plan.md](./docs/llm-wiki/phases/configurable-bundle-location-tech-plan.md).
 - **Cross-links use the relative `./` form** (resolves on GitHub; OKF-valid).
 
 ## Naming

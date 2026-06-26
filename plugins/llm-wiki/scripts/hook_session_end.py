@@ -18,6 +18,7 @@ import os
 import re
 import sys
 
+from bundle_path import bundle_root
 from mode import resolve_mode
 
 DATE_HEADING = re.compile(r"^## (\d{4}-\d{2}-\d{2})\s*$")
@@ -47,7 +48,7 @@ def main():
     if resolve_mode(project) != "curated":
         return 0  # auto modes capture silently — no end-of-session "what I saved" digest
     try:
-        with open(os.path.join(project, "llm-wiki", "log.md"), "r", encoding="utf-8") as fh:
+        with open(os.path.join(bundle_root(project), "log.md"), "r", encoding="utf-8") as fh:
             log_text = fh.read()
     except OSError:
         return 0  # no bundle / no log — nothing to summarize

@@ -19,6 +19,7 @@ import json
 import os
 import sys
 
+from bundle_path import bundle_root
 from mode import resolve_mode
 
 
@@ -29,8 +30,8 @@ def _under(path_abs, root_abs):
         return False
 
 
-def _marker_path(project):
-    return os.path.join(project, "llm-wiki", ".llm-wiki", "capture-pending")
+def _marker_path(root):
+    return os.path.join(root, ".llm-wiki", "capture-pending")
 
 
 def _mark_capture_pending(marker):
@@ -53,14 +54,15 @@ def main():
     if not fp:
         return 0
     project = os.environ.get("CLAUDE_PROJECT_DIR") or event.get("cwd") or os.getcwd()
-    if not os.path.isfile(os.path.join(project, "llm-wiki", "index.md")):
+    root = bundle_root(project)
+    if not os.path.isfile(os.path.join(root, "index.md")):
         return 0  # no bundle — nothing to capture into
-    if _under(os.path.realpath(fp), os.path.realpath(os.path.join(project, "llm-wiki"))):
+    if _under(os.path.realpath(fp), os.path.realpath(root)):
         return 0  # the write IS into the bundle — not a trigger
     if resolve_mode(project) not in ("proactive", "max"):
         return 0  # only auto-nudge in an auto mode
 
-    marker = _marker_path(project)
+    marker = _marker_path(root)
     first_edit = not os.path.exists(marker)  # marker absent → first real-code edit of this turn
     _mark_capture_pending(marker)  # gate signal for the Stop hook: real code changed this turn
     if not first_edit:
