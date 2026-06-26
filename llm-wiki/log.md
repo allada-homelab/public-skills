@@ -2,6 +2,7 @@
 
 ## 2026-06-26
 
+* **Creation**: Added [Config that steers a security guard's scope is untrusted input — validate in the resolver, not the UI](./guard-scope-config-is-untrusted-input.md).
 * **Creation**: Added [PreToolUse guards each recompute the bundle path — relocate one, the floor fails open](./guard-bundle-path-coupling.md).
 
 ## 2026-06-25
