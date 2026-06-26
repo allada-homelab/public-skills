@@ -23,10 +23,10 @@ from bundle_path import bundle_root
 
 CONSULT = (
     "[llm-wiki] New session — the wiki is preloaded above. Before a non-trivial task, consult it "
-    "first: `/llm-wiki:query <question>` or `/llm-wiki:explore`, and state what you found (or that "
-    "nothing was relevant). Treat it as a first-class source alongside CLAUDE.md and READMEs — the "
-    "wiki holds consulted, reusable knowledge (findings, decisions, runbooks, schemas); in-tree docs "
-    "hold always-on, file-local specifics. Capture durable findings to it as you work."
+    "first: `/llm-wiki:query <question>` or `/llm-wiki:explore`. Trust it as a curated summary, but "
+    "quickly verify a load-bearing claim against current state before acting on it — the concept says "
+    "where to look, so it's quick. Treat it as a first-class source alongside CLAUDE.md and READMEs; "
+    "capture durable findings to it as you work."
 )
 
 

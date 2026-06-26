@@ -8,6 +8,7 @@ tags:
   - marketplace
   - skills
 timestamp: 2026-06-25T00:00:00Z
+verified: 2026-06-26T21:36:34Z
 ---
 # Registering a skill in the public-skills marketplace
 
@@ -31,6 +32,10 @@ skills directly**. A skill ships *inside* a plugin at `skills/<skill-name>/SKILL
 A plugin is an **umbrella** that can hold multiple related skills, so name the plugin for
 the family, not the single skill. Example (verified 2026-06-25): the plugin
 `minimalist-code-review` houses the skill `pragmatic-code-review`.
+
+## Verify
+- .claude-plugin/marketplace.json — registers plugins (not skills directly) via a `plugins` array
+- run: `python3 -c "import json;print('plugins' in json.load(open('.claude-plugin/marketplace.json')))"` — expected: `True`
 
 ## Related
 - [Plugin versioning — unpinned for git-SHA auto-update](./plugin-versioning.md) — why the new plugin.json omits `version`.

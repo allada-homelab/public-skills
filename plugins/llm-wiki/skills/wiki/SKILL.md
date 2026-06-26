@@ -91,6 +91,37 @@ When *reading* a bundle (explore/query), be a tolerant consumer: missing optiona
 `type`, unknown frontmatter keys, a missing `index.md`, or a broken link must **never** stop you from
 reading.
 
+## Reading is trust-but-verify
+
+The wiki is a **somewhat-trusted summary** — curated, Doctor-gated, cross-linked: a good starting point,
+not a guess, and **not** an unproven hypothesis to re-derive. The posture is **high prior, cheap check**:
+lean on a finding and use it now, but before *acting* on a load-bearing one, cheaply confirm it still
+holds against current state (usually the code) at the spot the concept points to. Trust the summary;
+verify the spot — don't re-investigate from scratch (that defeats the point).
+
+The mechanism (owned by `/llm-wiki:query`): a concept records a **`## Verify`** anchor (below) and a
+`verified:` stamp; on read, a cheap freshness check (did the anchored file change since `verified:`?)
+decides whether confirmation is even needed. When it is, confirmation runs in the **background on a
+cheaper model** so the main loop is never blocked, and self-heals the concept only on an *objective*
+(executable) divergence — never on a guess.
+
+## Verify anchors — make a concept cheap to confirm
+
+A code-grounded concept should carry a `## Verify` section: **where a reader confirms it in current
+state**, so confirmation is a targeted glance, not a re-investigation.
+
+- A **good** anchor is *checkable*: a resolvable `file:symbol`, or a runnable
+  `run: <grep/one-liner> — expected: <result>`. **Never** prose-only ("see the code"); **never** a bare
+  `file:line` (line numbers rot on the first edit above them → false verdicts).
+- **Free-form text, NOT a markdown link.** Write `scripts/doctor.py:parse_frontmatter`, not a `[./…]`
+  link — a real link into repo code would trip the Doctor's R4 link-health with false broken-link
+  warnings. (Inter-*concept* links still use the `./` form in the body; anchors are not links.)
+- **Repo-root-relative paths** (`scripts/doctor.py`), resolved against `${CLAUDE_PROJECT_DIR}`.
+- Pair it with a **`verified:`** frontmatter stamp (ISO-8601) — when the anchor was last confirmed against
+  current state; the freshness gate compares the anchored file's last change to it.
+- If a fact is genuinely **not** code-checkable (a decision's rationale, an external dashboard), say so
+  ("not code-verifiable; confirm via …") rather than writing a hollow anchor — these are confirm-exempt.
+
 ## Links use the relative `./` form
 
 Cross-links are written as **relative** markdown links (`[Customers](./customers.md)`), in concepts,

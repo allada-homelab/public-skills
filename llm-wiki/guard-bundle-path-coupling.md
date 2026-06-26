@@ -9,6 +9,7 @@ tags:
   - doctor
   - autonomy
 timestamp: 2026-06-26T14:42:19Z
+verified: 2026-06-26T21:36:34Z
 ---
 # PreToolUse guards each recompute the bundle path — relocate one, the floor fails open
 
@@ -37,6 +38,11 @@ doesn't error — it just never matches, and the deny never fires. Two copies of
 derivation is the footgun; one resolver is the fix. Guard-side realpath keeps symlink semantics
 identical across path forms (`~/wiki`, repo-relative, absolute) and preserves the trick where
 realpath leaves a not-yet-created tail intact.
+
+## Verify
+- plugins/llm-wiki/scripts/secret_guard.py:_bundle_root — wraps the shared `bundle_root()` call from bundle_path.py
+- plugins/llm-wiki/scripts/doctor_guard.py — also calls `bundle_root` from bundle_path.py
+- run: `grep -n "bundle_root" plugins/llm-wiki/scripts/secret_guard.py plugins/llm-wiki/scripts/doctor_guard.py` — expected: matches in both files
 
 ## Related
 - See [Phase 3 autonomy — hook-driven, auto-default with a guard floor](./phase-3-autonomy-architecture.md) — the floor this gotcha can silently disarm.

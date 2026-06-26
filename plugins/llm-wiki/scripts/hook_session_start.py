@@ -110,8 +110,9 @@ def main():
         ((warning + "\n\n") if warning else "")
         + "# llm-wiki knowledge bundle (preloaded)\n\n"
         "Active mode: **%s** — %s\n\n"
-        "%s — consult via `/llm-wiki:query` / `:explore` before non-trivial work; capture durable "
-        "findings as you go.\n\n" % (mode, MODE_NOTE.get(mode, ""), summary)
+        "%s — consult via `/llm-wiki:query` / `:explore` before non-trivial work; trust it, then "
+        "verify a load-bearing claim against current state before acting (the concept says where, so "
+        "it's quick); capture durable findings as you go.\n\n" % (mode, MODE_NOTE.get(mode, ""), summary)
     )
     if event.get("source") == "compact":
         # post-compaction: the full index is (or just was) in context — inject only the pointer,

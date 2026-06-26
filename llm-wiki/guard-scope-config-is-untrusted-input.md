@@ -9,6 +9,7 @@ tags:
   - hooks
   - autonomy
 timestamp: 2026-06-26T16:07:02Z
+verified: 2026-06-26T21:36:34Z
 ---
 # Config that steers a security guard's scope is untrusted input — validate in the resolver, not the UI
 
@@ -38,6 +39,10 @@ root never errors — it just stops matching, and the deny silently never fires.
 defend a value the UI never saw. The control has to sit at the single point of truth the guards actually
 read; that is also what makes the out-of-repo warn-don't-block policy sound (every off-repo bundle is
 then provably self-chosen).
+
+## Verify
+- plugins/llm-wiki/scripts/bundle_path.py:_resolve_one — contains provenance checks and root-collapse guard using `commonpath`
+- run: `grep -n "commonpath" plugins/llm-wiki/scripts/bundle_path.py` — expected: matches showing containment and root-collapse checks
 
 ## Related
 - See [PreToolUse guards each recompute the bundle path — relocate one, the floor fails open](./guard-bundle-path-coupling.md) — why both guards must share this one resolver in the first place.

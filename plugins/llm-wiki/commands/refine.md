@@ -30,7 +30,9 @@ Steps:
    and ask. None found → suggest `/llm-wiki:capture`. Never guess.
 3. **Compose the edit.** Read the concept and produce its full revised content: apply the user's change
    to body and/or frontmatter, **preserve a non-empty `type`**, keep links in the relative `./` form. Do
-   not rename the file here.
+   not rename the file here. If the change alters a fact that the concept's `## Verify` anchor covers,
+   update the anchor too and **re-stamp `verified:`** to now (a refine that re-confirms a fact is the
+   point at which it was last verified). A `wiki-verifier` self-heal routes through this same gated apply.
 4. **Stage in a mirror.** `mirror=$(mktemp -d)`; `cp -r "<bundle>/." "$mirror/"`. Write the revised
    concept into the mirror at its path, then regenerate indexes and append the log (capture the date
    once — `today=$(date -u +%F)` — and reuse `$today` in step 7 so a midnight rollover can't divert the
