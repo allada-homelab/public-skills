@@ -12,7 +12,7 @@ Exit codes:
     1  one or more ERRORs
     2  usage / operational error (bad path, bare index.md, --mode lenient, bad flag)
 
-Rules (see PHASE_1_TECH_PLAN.md §5):
+Rules (see docs/llm-wiki/phases/phase-1-tech-plan.md §5):
     R1   concept has parseable YAML frontmatter
     R2   concept frontmatter has a non-empty `type`
     R3a  subdirectory index.md has zero frontmatter
@@ -29,7 +29,7 @@ from datetime import date
 
 SCHEMA = "okf-doctor/1"
 KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$")
-LIST_ITEM_RE = re.compile(r"^\s+-\s+(.*)$")
+LIST_ITEM_RE = re.compile(r"^(\s*)-\s+(.*)$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 ATX_HEADING_RE = re.compile(r"^(#+)\s+(.*)$")
 # A heading body that *looks like* a date — used to catch date headings placed at the wrong
@@ -38,6 +38,10 @@ DATE_CANDIDATE_RE = re.compile(r"^\d{4}-\d{1,2}-\d{1,2}\b")
 LOG_PREFIXES = ("**Update**", "**Creation**", "**Initialization**")
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 EXTERNAL_SCHEMES = ("http://", "https://", "mailto:", "ftp://", "tel:", "//")
+# A line opening/closing a fenced code block (``` or ~~~). Toggled per-line so log/link
+# scanners skip example content inside fences (a date heading or link in a ```markdown
+# example is documentation, not a real entry).
+FENCE_RE = re.compile(r"^(```|~~~)")
 
 # Frontmatter parse outcomes.
 NONE = "none"          # no frontmatter block at all
@@ -70,6 +74,7 @@ def parse_frontmatter(text):
             continue
         if "\t" in line:
             return (UNPARSEABLE, None)
+        key_indent = len(line) - len(line.lstrip())
         m = KEY_RE.match(line)
         if not m:
             return (UNPARSEABLE, None)
@@ -78,11 +83,16 @@ def parse_frontmatter(text):
         if raw[:1] in ("{", "["):
             return (UNPARSEABLE, None)
         if raw == "":
-            # may be a block list: consume following indented '- item' lines
+            # may be a block list: consume following '- item' lines. A YAML block sequence may
+            # sit at the same indent as its key (zero-indent is valid), so accept any item whose
+            # dash indent is >= the owning key's indent.
             items = []
             j = i + 1
-            while j < len(body) and LIST_ITEM_RE.match(body[j]):
-                items.append(_unquote(LIST_ITEM_RE.match(body[j]).group(1).strip()))
+            while j < len(body):
+                lm = LIST_ITEM_RE.match(body[j])
+                if not lm or len(lm.group(1)) < key_indent:
+                    break
+                items.append(_unquote(lm.group(2).strip()))
                 j += 1
             data[key] = items if items else ""
             i = j
@@ -164,7 +174,10 @@ def check_root_index(text, relpath, findings):
 
 
 def check_subdir_index(text, relpath, findings):
-    if text.split("\n")[0].rstrip() == "---":
+    lines = text.split("\n")
+    # Only a real frontmatter block counts: a leading `---` with a matching closing `---`.
+    # A body that merely opens with a `---` thematic break (no closing) is not frontmatter.
+    if lines and lines[0].rstrip() == "---" and any(l.rstrip() == "---" for l in lines[1:]):
         findings.append(_f("ERROR", "R3a", relpath, 1,
                            "Subdirectory index.md must have zero frontmatter."))
 
@@ -173,7 +186,13 @@ def check_log(text, relpath, findings):
     lines = text.split("\n")
     valid_dates = []  # (lineno, date) in document order, for headings that parse
     h2_count = 0
+    in_fence = False
     for n, line in enumerate(lines, 1):
+        if FENCE_RE.match(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue  # date headings / bullets inside a ``` example are not real log entries
         m = ATX_HEADING_RE.match(line)
         if m and len(m.group(1)) != 2 and DATE_CANDIDATE_RE.match(m.group(2).strip()):
             # A date heading at the wrong ATX level (H1/H3/…) — would skip the H2 checks.
@@ -216,8 +235,17 @@ def check_links(text, abspath, bundle_root, relpath, findings):
     directory; skips external schemes and bare `#anchor` links. Per spec §5 broken
     links are *tolerated*, so these are WARNINGs that never affect the exit code."""
     base = os.path.dirname(abspath)
+    in_fence = False
     for n, line in enumerate(text.split("\n"), 1):
+        if FENCE_RE.match(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue  # links inside a ``` example are documentation, not real cross-links
         for m in LINK_RE.finditer(line):
+            # `![alt](src)` is an image embed, not a concept link — skip the image tail.
+            if m.start() > 0 and line[m.start() - 1] == "!":
+                continue
             raw = m.group(1).strip()
             # markdown allows `(<url> "title")`; take the URL part only
             if raw.startswith("<") and ">" in raw:

@@ -37,8 +37,15 @@ import sys
 from datetime import date, datetime, timezone
 
 LINK_RE = re.compile(r"(\[[^\]]*\]\()([^)]+)(\))")
+# A line opening/closing a fenced code block (``` or ~~~), toggled per-line so the
+# link rewriter never mutates link-shaped text inside a fenced example (mirrors doctor.py).
+FENCE_RE = re.compile(r"^(```|~~~)")
+# A run of backticks delimiting an inline-code span; an opener is closed by the next
+# run of EQUAL length (CommonMark), so link-shaped text inside `…` is left verbatim.
+BACKTICK_RUN_RE = re.compile(r"`+")
 EXTERNAL_SCHEMES = ("http://", "https://", "mailto:", "ftp://", "tel:", "//")
 RESERVED = ("index.md", "log.md")
+MANAGED_HEADINGS = ("Concepts", "Sections")
 
 
 # ---------------------------------------------------------------- frontmatter
@@ -94,7 +101,7 @@ def _bullet(title, url, description):
 
 
 def _split_preamble(text):
-    """Return (preamble, ) — everything up to but excluding the first `## ` heading.
+    """Return the preamble string — everything up to but excluding the first `## ` heading.
     That managed tail is discarded and rebuilt by the generator."""
     out = []
     for line in text.split("\n"):
@@ -122,13 +129,29 @@ def _strip_leading_frontmatter(text):
     return text
 
 
+def _dropped_headings(text):
+    """Non-managed `## ` headings in an existing index.md whose content the regen
+    discards (the managed Concepts/Sections tail is rebuilt, so it isn't a loss)."""
+    out = []
+    for line in _strip_leading_frontmatter(text).split("\n"):
+        if line.startswith("## ") and line[3:].strip() not in MANAGED_HEADINGS:
+            out.append(line[3:].strip())
+    return out
+
+
 def _render_index(dir_abs, bundle_root, concepts, subdirs):
     is_root = os.path.abspath(dir_abs) == os.path.abspath(bundle_root)
     title = _humanize(os.path.basename(os.path.abspath(dir_abs)))
     existing = os.path.join(dir_abs, "index.md")
     if os.path.isfile(existing):
         with open(existing, "r", encoding="utf-8") as fh:
-            body = _strip_leading_frontmatter(_split_preamble(fh.read())).strip("\n")
+            raw = fh.read()
+        rel = os.path.relpath(existing, bundle_root).replace(os.sep, "/")
+        for h in _dropped_headings(raw):
+            sys.stderr.write(
+                "warning: index regen drops hand-written section '## %s' in %s "
+                "(move it above the first `## ` heading to keep it)\n" % (h, rel))
+        body = _strip_leading_frontmatter(_split_preamble(raw)).strip("\n")
         if not body.strip():
             body = "# %s" % title
     else:
@@ -291,36 +314,72 @@ def _split_url(raw):
     return parts[0], (" " + parts[1] if len(parts) > 1 else ""), False
 
 
+def _inline_code_spans(line):
+    """Return (start, end) char ranges covered by inline-code backtick spans on a line.
+    A run of N backticks opens a span closed by the next run of exactly N (CommonMark);
+    link-shaped text inside such a span must not be rewritten."""
+    runs = [(m.start(), m.end()) for m in BACKTICK_RUN_RE.finditer(line)]
+    spans, k = [], 0
+    while k < len(runs):
+        o_start, o_end = runs[k]
+        n = o_end - o_start
+        j = k + 1
+        while j < len(runs) and (runs[j][1] - runs[j][0]) != n:
+            j += 1
+        if j < len(runs):
+            spans.append((o_start, runs[j][1]))
+            k = j + 1
+        else:
+            k += 1
+    return spans
+
+
 def _rewrite_links(text, file_old_abs, file_new_abs, old_abs, new_abs, bundle_root):
     """Rewrite links in one file's text. `old_abs`/`new_abs` are the moved concept's
     pre/post paths; `file_old_abs`/`file_new_abs` are this file's own pre/post paths
-    (equal unless this file is the one being moved)."""
+    (equal unless this file is the one being moved). Link-shaped text inside fenced
+    (```/~~~) code blocks or inline-code (`…`) spans is documentation, not a real link,
+    so it is left verbatim. Processed line-by-line (splitting on "\\n" preserves any
+    CRLFs, which ride along as a trailing "\\r" on each segment)."""
     moved_self = file_old_abs != file_new_abs
     old_dir, new_dir = os.path.dirname(file_old_abs), os.path.dirname(file_new_abs)
 
-    def repl(m):
-        pre, raw, post = m.group(1), m.group(2), m.group(3)
-        url, suffix, bracketed = _split_url(raw)
-        base, _, frag = url.partition("#")
-        if (not base or base.startswith("#")
-                or base.lower().startswith(EXTERNAL_SCHEMES)):
-            return m.group(0)
-        is_bundle = base.startswith("/")
-        resolved = _resolve(base, old_dir, bundle_root)
-        if resolved == old_abs:
-            target_abs = new_abs           # link points at the moved concept
-        elif moved_self:
-            target_abs = resolved          # link rides along inside the moved file
-        else:
-            return m.group(0)              # unaffected
-        new_url = ("/" + os.path.relpath(target_abs, bundle_root).replace(os.sep, "/")
-                   if is_bundle else _rellink(target_abs, new_dir))
-        if frag:
-            new_url += "#" + frag
-        payload = ("<%s>" % new_url if bracketed else new_url) + suffix
-        return pre + payload + post
+    def repl_line(line, code_spans):
+        def repl(m):
+            if any(s <= m.start() < e for s, e in code_spans):
+                return m.group(0)          # inside an inline-code span — leave verbatim
+            pre, raw, post = m.group(1), m.group(2), m.group(3)
+            url, suffix, bracketed = _split_url(raw)
+            base, _, frag = url.partition("#")
+            if (not base or base.startswith("#")
+                    or base.lower().startswith(EXTERNAL_SCHEMES)):
+                return m.group(0)
+            is_bundle = base.startswith("/")
+            resolved = _resolve(base, old_dir, bundle_root)
+            if resolved == old_abs:
+                target_abs = new_abs       # link points at the moved concept
+            elif moved_self:
+                target_abs = resolved      # link rides along inside the moved file
+            else:
+                return m.group(0)          # unaffected
+            new_url = ("/" + os.path.relpath(target_abs, bundle_root).replace(os.sep, "/")
+                       if is_bundle else _rellink(target_abs, new_dir))
+            if frag:
+                new_url += "#" + frag
+            payload = ("<%s>" % new_url if bracketed else new_url) + suffix
+            return pre + payload + post
+        return LINK_RE.sub(repl, line)
 
-    return LINK_RE.sub(repl, text)
+    out, in_fence = [], False
+    for line in text.split("\n"):
+        if FENCE_RE.match(line):
+            in_fence = not in_fence
+            out.append(line)               # fence delimiter — never rewritten
+        elif in_fence:
+            out.append(line)               # inside a fenced block — leave verbatim
+        else:
+            out.append(repl_line(line, _inline_code_spans(line)))
+    return "\n".join(out)
 
 
 def cmd_move(bundle_root, src_rel, dst_rel):
