@@ -6,7 +6,7 @@ tags:
   - doctor
   - conformance
   - okf
-verified: 2026-06-26T21:36:34Z
+verified: 2026-06-27T21:40:18Z
 ---
 # OKF Doctor — strict-producer rule set
 
@@ -46,4 +46,4 @@ move to guarantee it introduces zero newly-broken links.
 
 ## Verify
 - plugins/llm-wiki/scripts/doctor.py — contains R1/R2/R3/R4/R5 check implementations
-- run: `bash plugins/llm-wiki/scripts/fixtures/run_fixtures.sh | grep -E "pass=|fail="` — expected: `pass=24 fail=0 skip=0`
+- run: `bash plugins/llm-wiki/scripts/fixtures/run_fixtures.sh | grep -E "pass=|fail="` — expected: `pass=31 fail=0 skip=0`

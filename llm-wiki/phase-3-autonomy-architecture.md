@@ -7,7 +7,7 @@ tags:
   - hooks
   - phase-3
 timestamp: 2026-06-14T00:00:00Z
-verified: 2026-06-26T21:36:34Z
+verified: 2026-06-27T21:40:18Z
 ---
 # Phase 3 autonomy — hook-driven, auto-default with a guard floor
 
@@ -51,7 +51,7 @@ denied/aborted write, never a leaked secret or a non-conformant bundle.
 
 ## Verify
 - plugins/llm-wiki/hooks/hooks.json — six wired events: SessionStart, PreToolUse, UserPromptSubmit, PostToolUse, Stop, SessionEnd
-- run: `bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh | tail -1` — expected: `pass=34 fail=0`
+- run: `bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh | grep '^pass='` — expected: `pass=38 fail=0`
 
 ## Related
 - See [OKF Doctor — strict-producer rule set](./doctor-rule-set.md) — the rules `doctor_guard` enforces at write time.
