@@ -21,18 +21,14 @@ Arguments: `$ARGUMENTS` may carry a concept path/title and an optional `--bundle
 
 Steps:
 
-1. **Resolve the bundle root.** `--bundle` if given; else the configured bundle root — run `python3
-   "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_path.py" resolve` (it honors a `bundle_path:` line in
-   `.claude/llm-wiki(.local).md` else returns `${CLAUDE_PROJECT_DIR}/llm-wiki`) — if it holds a root
-   `index.md` (`okf_version: "0.1"`); else walk up from the cwd. None → stop:
+1. **Resolve the bundle root.** `--bundle` if given; else the default `${CLAUDE_PROJECT_DIR}/llm-wiki`
+   if it holds a root `index.md` (`okf_version: "0.1"`); else walk up from the cwd. None → stop:
    "No OKF bundle here. Run `/llm-wiki:init` first."
 2. **Identify the target concept.** From the hint, Grep/Glob the bundle; on ambiguity, list candidates
    and ask. None found → suggest `/llm-wiki:capture`. Never guess.
 3. **Compose the edit.** Read the concept and produce its full revised content: apply the user's change
    to body and/or frontmatter, **preserve a non-empty `type`**, keep links in the relative `./` form. Do
-   not rename the file here. If the change alters a fact that the concept's `## Verify` anchor covers,
-   update the anchor too and **re-stamp `verified:`** to now (a refine that re-confirms a fact is the
-   point at which it was last verified). A `wiki-verifier` self-heal routes through this same gated apply.
+   not rename the file here.
 4. **Stage in a mirror.** `mirror=$(mktemp -d)`; `cp -r "<bundle>/." "$mirror/"`. Write the revised
    concept into the mirror at its path, then regenerate indexes and append the log (capture the date
    once — `today=$(date -u +%F)` — and reuse `$today` in step 7 so a midnight rollover can't divert the

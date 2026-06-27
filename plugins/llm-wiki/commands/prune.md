@@ -21,9 +21,7 @@ Arguments: `$ARGUMENTS` may carry a concept path/title and an optional `--bundle
 
 Steps:
 
-1. **Resolve the bundle root** (`--bundle`; else the configured bundle root — run `python3
-   "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_path.py" resolve`, which honors a `bundle_path:` line in
-   `.claude/llm-wiki(.local).md` else returns `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk up).
+1. **Resolve the bundle root** (`--bundle`; else default `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk up).
    None → stop: "No OKF bundle here. Run `/llm-wiki:init` first."
 2. **Identify the target concept.** Grep/Glob from the hint; on ambiguity, list candidates and ask;
    none found → say so and stop. Never guess which concept to delete.

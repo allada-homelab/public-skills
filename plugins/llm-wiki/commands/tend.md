@@ -1,7 +1,7 @@
 ---
 description: Tend the llm-wiki — emit a curation digest (conformance, broken links, staleness, gaps, orphans) and propose maintenance. Read-only.
 argument-hint: "[--bundle <path>]"
-allowed-tools: Glob, Grep, Read, Bash(python3:*), Bash(git:*)
+allowed-tools: Glob, Grep, Read, Bash(python3:*)
 ---
 
 You are running `/llm-wiki:tend`. Produce a **reviewable curation digest** of the wiki and propose
@@ -13,9 +13,7 @@ Arguments: `$ARGUMENTS` may carry `--bundle <path>`.
 
 Steps:
 
-1. **Resolve the bundle root** (`--bundle`; else the configured bundle root — run `python3
-   "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_path.py" resolve`, which honors a `bundle_path:` line in
-   `.claude/llm-wiki(.local).md` else returns `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk up). None →
+1. **Resolve the bundle root** (`--bundle`; else `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk up). None →
    "No OKF bundle here. Run `/llm-wiki:init` first."
 2. **Conformance.** Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "<bundle>" --mode strict
    --format json`. Summarize: errors (R1/R2/R3*) and **R4 broken-link WARNINGs** (report-only). Broken
@@ -30,20 +28,10 @@ Steps:
    The counter is **not** maintained by `prune`/`reorganize`, so a key may be **orphaned** (point at a
    moved or removed concept) — ignore any count whose key no longer maps to an existing concept rather
    than reading it as "never consulted" signal.
-4a. **Anchor freshness sweep** (the proactive complement to `/llm-wiki:query`'s lazy per-read verify).
-   For each concept with a `## Verify` anchor + `verified:` stamp, run the cheap git gate against its
-   anchored file(s): `git -C "${CLAUDE_PROJECT_DIR}" log --since="<verified>" -1 --format=%H --
-   <anchor-file>`. **Non-empty (or the file no longer resolves)** → the anchored code changed since last
-   verified → list as **needs re-verification** (a `refine` candidate; or offer to dispatch a
-   `wiki-verifier`). Empty → fresh, skip. Also flag **anchor quality**: a *code-grounded* concept with no
-   `## Verify`, or a weak one (prose-only "see the code", a bare `file:line`), is a curation gap to
-   backfill — **skip** concepts explicitly marked not-code-verifiable (they're confirm-exempt). All
-   read-only/`git`-only; never write here.
 5. **Gaps.** Note any topics the wiki plausibly should cover but doesn't (from its own structure). `GAP:`
    flags are **not persisted** — they exist only if `/llm-wiki:query` ran earlier in *this* session; list
    any you can still see in context, but don't imply the wiki remembers gaps across sessions.
 6. **Digest.** Emit a single prioritized, **non-destructive** digest grouped by suggested action —
-   `refine` (stale/incorrect, incl. **needs-re-verification** and weak/missing anchors from 4a),
-   `prune` (orphaned/dead/superseded), `reorganize` (structure/links) — each item naming the concept and
-   the one-line reason. End by offering to run the relevant command for any
+   `refine` (stale/incorrect), `prune` (orphaned/dead/superseded), `reorganize` (structure/links) — each
+   item naming the concept and the one-line reason. End by offering to run the relevant command for any
    item the user picks. Propose nothing destructive without their go-ahead.

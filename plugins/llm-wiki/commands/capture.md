@@ -29,10 +29,8 @@ directory, creating it if needed), and an optional `--bundle <path>`.
 
 Steps:
 
-1. **Resolve the bundle root.** Use `--bundle` if given; else the configured bundle root — run `python3
-   "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_path.py" resolve` (it honors a `bundle_path:` line in
-   `.claude/llm-wiki(.local).md` else returns `${CLAUDE_PROJECT_DIR}/llm-wiki`) — if it holds a root
-   `index.md` (`okf_version: "0.1"`); else walk up from the cwd for one. None found →
+1. **Resolve the bundle root.** Use `--bundle` if given; else the default `${CLAUDE_PROJECT_DIR}/llm-wiki`
+   if it holds a root `index.md` (`okf_version: "0.1"`); else walk up from the cwd for one. None found →
    stop: "No OKF bundle here. Run `/llm-wiki:init` first."
 2. **Decide the concept.** From the hint and session context, determine `type`, `title`, and a slug
    (`<slug>.md`). If the subject is unclear, ask before proceeding. If the finding is a **gotcha-class**

@@ -20,9 +20,7 @@ Arguments: `$ARGUMENTS` may carry a `[repo-path]` to ingest (default `${CLAUDE_P
 Steps:
 
 1. **Resolve repo + bundle + flags.** Repo to ingest = `[repo-path]` if given, else `${CLAUDE_PROJECT_DIR}`.
-   Bundle = `--bundle` if given; else the configured bundle root — run `python3
-   "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_path.py" resolve` (it honors a `bundle_path:` line in
-   `.claude/llm-wiki(.local).md` else returns `${CLAUDE_PROJECT_DIR}/llm-wiki`) — if it holds a root
+   Bundle = `--bundle` if given; else the default `${CLAUDE_PROJECT_DIR}/llm-wiki` if it holds a root
    `index.md` (`okf_version: "0.1"`); else walk up from the cwd. **No bundle → stop:** "No OKF bundle
    here. Run `/llm-wiki:init` first, then `/llm-wiki:ingest`." Parse `--scope` (default `medium`) and
    `--dry-run`.
@@ -47,10 +45,6 @@ Steps:
    final `<dir>/<slug>.md` path and frontmatter (non-empty `type`, `title`, `description`, `tags`,
    `timestamp`); **resolve cross-links** to real `./` paths (drop danglers). Enforce the scope cap and
    **record anything dropped** (no silent truncation).
-   **Verify anchors:** for each proposal carrying a non-empty `verify` array, append a `## Verify` section
-   (its anchor lines, before `## Related`) and stamp `verified: <today>` in frontmatter — the explorer
-   already confirmed it against the code it read. A proposal with an empty `verify` is confirm-exempt:
-   no `## Verify`, no `verified:`. (See SKILL.md "Verify anchors": free-form text, not links.)
 
 6. **`--dry-run` → stop here.** Print the plan: each concept as `path · type · title — one-line desc`,
    the proposed sections, the cross-link graph, and anything the cap dropped. Write nothing.

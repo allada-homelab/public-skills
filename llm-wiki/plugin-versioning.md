@@ -7,7 +7,6 @@ tags:
   - distribution
   - plugin
 timestamp: 2026-06-15T00:00:00Z
-verified: 2026-06-26T21:36:34Z
 ---
 # Plugin versioning — unpinned for git-SHA auto-update
 
@@ -33,10 +32,6 @@ and no risk of silently stranding users on an old build because a release was fo
 Re-introduce an explicit `version` (and pair it with a CHANGELOG / release checklist) once
 the plugin stabilizes and updates should land on a deliberate cadence rather than per commit
 — i.e. when "every commit ships to users" stops being desirable.
-
-## Verify
-- plugins/llm-wiki/.claude-plugin/plugin.json — no `version` field present (omitted deliberately for git-SHA auto-update)
-- run: `grep -c '"version"' plugins/llm-wiki/.claude-plugin/plugin.json` — expected: `0`
 
 ## Related
 - [Phase 3 autonomy — hook-driven, auto-default with a guard floor](./phase-3-autonomy-architecture.md) — another plugin-architecture decision recorded for its "why".

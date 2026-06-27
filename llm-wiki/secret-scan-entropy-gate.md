@@ -6,7 +6,6 @@ tags:
   - secrets
   - hooks
   - false-positives
-verified: 2026-06-26T21:36:34Z
 ---
 # Secret-scan entropy gate excludes path/URL separators
 
@@ -38,10 +37,6 @@ recall cost is narrow: a base64url secret split by `-` or `/` with no remaining 
 contiguous run could slip the entropy gate. That is acceptable because Stage 1's labeled
 patterns catch the named high-value keys (AWS, GCP, Slack, GitHub, OpenAI/Anthropic, PEM,
 connection strings) — the entropy gate is only a backstop.
-
-## Verify
-- plugins/llm-wiki/scripts/secret_scan.py — TOKEN_RE / entropy gate matching contiguous alnum runs, excluding path/URL separators
-- run: `grep -n TOKEN_RE plugins/llm-wiki/scripts/secret_scan.py` — expected: a match showing TOKEN_RE definition and usage
 
 ## Related
 - See [Phase 3 autonomy — hook-driven, auto-default with a guard floor](./phase-3-autonomy-architecture.md) — the PreToolUse secret guard this scanner backs.

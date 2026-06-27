@@ -19,14 +19,12 @@ import json
 import os
 import sys
 
-from bundle_path import bundle_root
-
 CONSULT = (
     "[llm-wiki] New session — the wiki is preloaded above. Before a non-trivial task, consult it "
-    "first: `/llm-wiki:query <question>` or `/llm-wiki:explore`. Trust it as a curated summary, but "
-    "quickly verify a load-bearing claim against current state before acting on it — the concept says "
-    "where to look, so it's quick. Treat it as a first-class source alongside CLAUDE.md and READMEs; "
-    "capture durable findings to it as you work."
+    "first: `/llm-wiki:query <question>` or `/llm-wiki:explore`, and state what you found (or that "
+    "nothing was relevant). Treat it as a first-class source alongside CLAUDE.md and READMEs — the "
+    "wiki holds consulted, reusable knowledge (findings, decisions, runbooks, schemas); in-tree docs "
+    "hold always-on, file-local specifics. Capture durable findings to it as you work."
 )
 
 
@@ -40,10 +38,9 @@ def main():
     except ValueError:
         event = {}
     project = _project_dir(event)
-    root = bundle_root(project)
-    if not os.path.isfile(os.path.join(root, "index.md")):
+    if not os.path.isfile(os.path.join(project, "llm-wiki", "index.md")):
         return 0  # no bundle here — contribute nothing
-    marker = os.path.join(root, ".llm-wiki", "last-session")
+    marker = os.path.join(project, "llm-wiki", ".llm-wiki", "last-session")
     token = str(event.get("session_id") or "__nosession__")
     try:
         prev = open(marker, encoding="utf-8").read().strip()

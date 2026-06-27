@@ -1,13 +1,11 @@
 # Session/handoff state (local only)
 .remember/
 
-# llm-wiki per-project config (local only): autonomy mode + a per-user bundle_path override.
-# NOTE: .claude/llm-wiki.md (no .local) is the COMMITTED repo-shared config — do NOT ignore it.
+# llm-wiki per-project autonomy mode (local only)
 .claude/llm-wiki.local.md
 
-# llm-wiki bundle state dir (capture-pending marker, consultations counter — local only).
-# Glob (not the literal llm-wiki/.llm-wiki/) so it still matches a relocated bundle (bundle_path).
-**/.llm-wiki/
+# llm-wiki bundle state dir (capture-pending marker, consultations counter — local only)
+llm-wiki/.llm-wiki/
 
 # Python
 __pycache__/

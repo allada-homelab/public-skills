@@ -22,18 +22,14 @@ import json
 import os
 import sys
 
-from bundle_path import bundle_root
 from secret_scan import scan
 
 
 def _bundle_root(event):
     project = os.environ.get("CLAUDE_PROJECT_DIR") or event.get("cwd") or os.getcwd()
-    # bundle_root honors a configured relocation (else the default); realpath resolves symlinks
-    # so a write reaching the bundle via a symlinked path can't slip past the under-bundle check
-    # (it leaves a non-existent tail intact). MUST route through the resolver — if this kept the
-    # old hardcoded join while the bundle relocated, the guard would scope the wrong dir and fail
-    # open, silently un-protecting the real bundle.
-    return os.path.realpath(bundle_root(project))
+    # realpath resolves symlinks so a write reaching the bundle via a symlinked path
+    # can't slip past the under-bundle check (it leaves a non-existent tail intact)
+    return os.path.realpath(os.path.join(project, "llm-wiki"))
 
 
 def _introduced_text(tool_name, tool_input):

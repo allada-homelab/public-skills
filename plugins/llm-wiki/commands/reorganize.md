@@ -23,9 +23,7 @@ Arguments: `$ARGUMENTS` may describe the reorganization and carry `--bundle <pat
 
 Steps:
 
-1. **Resolve the bundle root** (`--bundle`; else the configured bundle root — run `python3
-   "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_path.py" resolve`, which honors a `bundle_path:` line in
-   `.claude/llm-wiki(.local).md` else returns `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk up).
+1. **Resolve the bundle root** (`--bundle`; else default `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk up).
    None → stop: "No OKF bundle here. Run `/llm-wiki:init` first."
 2. **Plan the moves.** From the request, produce an explicit list of `from → to` bundle-relative paths
    (a rename is a move within the same directory; a new subdirectory is created by its `to` path). In

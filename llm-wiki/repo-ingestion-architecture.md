@@ -7,7 +7,6 @@ tags:
   - orchestration
   - subagents
 timestamp: 2026-06-15T00:00:00Z
-verified: 2026-06-26T21:36:34Z
 ---
 # Repo ingestion — orchestrated multi-agent bootstrap
 
@@ -43,10 +42,6 @@ subagent (Sonnet) is the unit it fans out.
   (exhaustive, hard-capped, drops logged — never truncate silently).
 - **No new deterministic code.** Ingest composes the already-tested `bundle_ops` / `doctor` /
   `secret_scan` primitives, so it adds no fixtures of its own.
-
-## Verify
-- plugins/llm-wiki/commands/ingest.md — orchestrator command that fans out wiki-explorer subagents
-- plugins/llm-wiki/agents/wiki-explorer.md — read-only Sonnet subagent that proposes concepts per work unit
 
 ## Related
 - [Phase 3 autonomy — hook-driven, auto-default with a guard floor](./phase-3-autonomy-architecture.md) — the same guard-floor reasoning that makes an autonomous ingest safe.

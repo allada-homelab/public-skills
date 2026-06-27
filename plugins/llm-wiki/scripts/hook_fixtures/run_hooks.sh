@@ -4,10 +4,7 @@
 #   cmd          : "<path-from-plugin-root> [args]"; the token BUNDLE -> the tmp bundle path
 #   bundle/      : (optional) copied to a tmp dir, exported as CLAUDE_PROJECT_DIR
 #   stdin.json   : (optional) piped to the script on stdin
-#   env          : (optional) shell sourced AFTER the default CLAUDE_PROJECT_DIR export — may
-#                  `export HOME=BUNDLE/home` or `unset CLAUDE_PROJECT_DIR` to exercise the fallbacks
-#                  (BUNDLE token substituted here too)
-#   expected.json: { "exit_code": N,         (BUNDLE token substituted in all string fields)
+#   expected.json: { "exit_code": N,
 #                    "stdout_equals": "…"          (exact match, optional),
 #                    "stdout_contains": ["…", …]    (all must appear, optional),
 #                    "stdout_absent":  ["…", …]     (none may appear, optional),
@@ -31,18 +28,14 @@ for dir in "$HERE"/*/; do
   # event JSON (stdin) may reference the bundle via the BUNDLE token → substitute it too
   stdin=/dev/null
   if [ -f "$dir/stdin.json" ]; then sed "s#BUNDLE#$tmp#g" "$dir/stdin.json" >"$tmp/.stdin"; stdin="$tmp/.stdin"; fi
-  envfile=""
-  if [ -f "$dir/env" ]; then sed "s#BUNDLE#$tmp#g" "$dir/env" >"$tmp/.env"; envfile="$tmp/.env"; fi
 
   # run from the plugin root so relative script paths + sibling imports resolve;
-  # capture exact stdout to a file (command substitution would strip trailing newlines).
-  # default CLAUDE_PROJECT_DIR=tmp, then source the optional per-case env so it can override/unset.
-  ( cd "$PLUGIN" && export CLAUDE_PROJECT_DIR="$tmp"; [ -n "$envfile" ] && . "$envfile"; python3 $args ) <"$stdin" >"$tmp/.out" 2>/dev/null; code=$?
+  # capture exact stdout to a file (command substitution would strip trailing newlines)
+  ( cd "$PLUGIN" && CLAUDE_PROJECT_DIR="$tmp" python3 $args ) <"$stdin" >"$tmp/.out" 2>/dev/null; code=$?
 
   verdict="$(python3 - "$exp" "$code" "$tmp/.out" "$tmp" <<'PY'
 import json, os, sys
-code = int(sys.argv[2]); out = open(sys.argv[3]).read(); tmp = sys.argv[4]
-exp = json.loads(open(sys.argv[1]).read().replace("BUNDLE", tmp))  # BUNDLE token in expectations
+exp = json.load(open(sys.argv[1])); code = int(sys.argv[2]); out = open(sys.argv[3]).read(); tmp = sys.argv[4]
 probs = []
 if code != exp["exit_code"]:
     probs.append("exit %d != %d" % (code, exp["exit_code"]))

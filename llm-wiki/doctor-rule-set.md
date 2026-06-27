@@ -6,7 +6,6 @@ tags:
   - doctor
   - conformance
   - okf
-verified: 2026-06-26T21:36:34Z
 ---
 # OKF Doctor — strict-producer rule set
 
@@ -43,7 +42,3 @@ The Doctor is validation-only — it never writes. The Phase 2 maintenance comma
 shared `scripts/bundle_ops.py` engine (index regeneration, `log.md` appends, and link-preserving
 moves), then run this Doctor as the pre-write gate. `reorganize` additionally diffs R4 before/after a
 move to guarantee it introduces zero newly-broken links.
-
-## Verify
-- plugins/llm-wiki/scripts/doctor.py — contains R1/R2/R3/R4/R5 check implementations
-- run: `bash plugins/llm-wiki/scripts/fixtures/run_fixtures.sh | grep -E "pass=|fail="` — expected: `pass=24 fail=0 skip=0`

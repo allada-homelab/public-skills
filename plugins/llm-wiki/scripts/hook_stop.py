@@ -32,7 +32,6 @@ import json
 import os
 import sys
 
-from bundle_path import bundle_root
 from mode import resolve_mode
 
 NUDGE = (
@@ -57,13 +56,12 @@ def main():
     if event.get("stop_hook_active"):
         return 0  # already nudged once this turn — allow the stop (loop guard)
     project = _project_dir(event)
-    root = bundle_root(project)
-    if not os.path.isfile(os.path.join(root, "index.md")):
+    if not os.path.isfile(os.path.join(project, "llm-wiki", "index.md")):
         return 0  # no bundle here — contribute nothing
     if resolve_mode(project) not in ("proactive", "max"):
         return 0  # only force the end-of-turn check in an auto mode
 
-    marker = os.path.join(root, ".llm-wiki", "capture-pending")
+    marker = os.path.join(project, "llm-wiki", ".llm-wiki", "capture-pending")
     if not os.path.exists(marker):
         return 0  # no real-code edit this turn (PostToolUse drops the marker) — stay silent
     try:

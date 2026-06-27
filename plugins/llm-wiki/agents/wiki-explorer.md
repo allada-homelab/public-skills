@@ -56,21 +56,12 @@ Return **only** a single fenced ```json block with this shape, then stop:
       "tags": ["area", "topic"],
       "links": ["other-concept-slug"],
       "sources": ["path/in/repo.py", "docs/x.md"],
-      "verify": ["src/auth/token.py:verify_jwt — rejects expired tokens", "run: grep -n ALGO src/auth/token.py — expected: HS256"],
       "body_markdown": "The concept body (NO frontmatter — orchestrator adds it). Use relative ./slug.md links."
     }
   ],
   "notes": "Overlaps with other scopes, uncertainty, gaps, or anything the orchestrator should know."
 }
 ```
-
-The **`verify`** array is the concept's confirmation anchor (see SKILL.md "Verify anchors") — you read the
-code to write this concept, so record *where a future reader confirms it cheaply*: a resolvable
-`file:symbol` or a runnable `run: <grep/one-liner> — expected: <result>`. **Free-form text, not a markdown
-link; repo-root-relative; never prose-only ("see the code"); never a bare `file:line`.** Omit `verify`
-(empty array) only for a concept that is genuinely not code-verifiable (a pure rationale/decision) — the
-orchestrator then records it as confirm-exempt. The orchestrator turns `verify` into a `## Verify` section
-and stamps `verified:`.
 
 Constraints: stay within your concept budget (the orchestrator may cut surplus); never exceed it by
 more than necessary. `type` must be a non-empty string. Do not include secrets/credentials in any

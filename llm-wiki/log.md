@@ -1,11 +1,5 @@
 # Directory Update Log
 
-## 2026-06-26
-
-* **Creation**: Added [Reading is trust-but-verify — the consult-then-confirm loop](./trust-but-verify-loop.md).
-* **Creation**: Added [Config that steers a security guard's scope is untrusted input — validate in the resolver, not the UI](./guard-scope-config-is-untrusted-input.md).
-* **Creation**: Added [PreToolUse guards each recompute the bundle path — relocate one, the floor fails open](./guard-bundle-path-coupling.md).
-
 ## 2026-06-25
 
 * **Creation**: Added [Registering a skill in the public-skills marketplace](./marketplace-skill-registration.md).
