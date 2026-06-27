@@ -148,7 +148,7 @@ def check_concept(text, relpath, findings):
     # OKF §3 requires `type` to be a non-empty *string*; a list (any length) is invalid.
     invalid = val is None or (isinstance(val, str) and val.strip() == "") or isinstance(val, list)
     if invalid:
-        findings.append(_f("ERROR", "R2", relpath, _key_line(text, "type"),
+        findings.append(_f("ERROR", "R2", relpath, _key_lookup(text, "type")[0],
                            "Concept frontmatter must contain a non-empty `type` field (a string, not a list)."))
 
 
@@ -167,9 +167,9 @@ def check_root_index(text, relpath, findings):
         # Spec §3/§6 mandate the *quoted* string form `okf_version: "0.1"`. The restricted
         # parser does no YAML type coercion, so check the raw value verbatim (narrow: this one
         # line only — no quote-tracking elsewhere). Both wrong-version and unquoted-0.1 fail here.
-        raw = _raw_value(text, "okf_version")
+        line, raw = _key_lookup(text, "okf_version")
         if raw != '"0.1"':
-            findings.append(_f("ERROR", "R3b", relpath, _key_line(text, "okf_version"),
+            findings.append(_f("ERROR", "R3b", relpath, line,
                                'Root index.md `okf_version` must be the quoted string "0.1" (got %s).' % raw))
 
 
@@ -295,21 +295,14 @@ def check_lonely_subdirs(bundle_root, paths, findings):
                               "foldering; keep it at the parent level until a cluster forms." % reldir))
 
 
-def _key_line(text, key):
+def _key_lookup(text, key):
+    """Return (lineno, raw_value) for `key`'s first frontmatter line — (1, '') if absent.
+    `raw_value` is verbatim (not unquoted)."""
     for n, line in enumerate(text.split("\n"), 1):
         m = KEY_RE.match(line)
         if m and m.group(1) == key:
-            return n
-    return 1
-
-
-def _raw_value(text, key):
-    """The verbatim (un-unquoted) value of `key`'s first frontmatter line, or '' if absent."""
-    for line in text.split("\n"):
-        m = KEY_RE.match(line)
-        if m and m.group(1) == key:
-            return m.group(2).strip()
-    return ""
+            return n, m.group(2).strip()
+    return 1, ""
 
 
 def _f(severity, rule, file, line, message):

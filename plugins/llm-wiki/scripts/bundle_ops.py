@@ -397,8 +397,14 @@ def cmd_move(bundle_root, src_rel, dst_rel):
         sys.stderr.write("error: move operates on concepts, not reserved files\n")
         return 2
     if os.path.exists(new_abs):
-        sys.stderr.write("error: destination already exists: %s\n" % dst_rel)
-        return 2
+        # A pure case-only rename (Foo.md -> foo.md) resolves to the same inode on a
+        # case-insensitive FS (macOS APFS default), so the existence check fires on the
+        # source itself; allow it when src/dst differ only by case and are the same file.
+        case_only = (old_abs.lower() == new_abs.lower() and old_abs != new_abs
+                     and os.path.samefile(old_abs, new_abs))
+        if not case_only:
+            sys.stderr.write("error: destination already exists: %s\n" % dst_rel)
+            return 2
 
     os.makedirs(os.path.dirname(new_abs), exist_ok=True)
     os.rename(old_abs, new_abs)
