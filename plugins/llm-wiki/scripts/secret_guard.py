@@ -5,7 +5,7 @@ Reads the PreToolUse event JSON on stdin. If the target file is inside the llm-w
 bundle (`$CLAUDE_PROJECT_DIR/llm-wiki`, symlinks resolved) and the text the tool would
 introduce contains a likely secret (per `secret_scan.py`), **deny** the write with the
 redacted findings as the reason. Writes outside the bundle pass through untouched. Runs on
-every text-write path (Write/Edit), regardless of autonomy mode — this is the
+every text-write path (Write/Edit/MultiEdit), regardless of autonomy mode — this is the
 floor that makes auto-capture safe.
 
 Scope (deliberate): `Bash` redirection and `NotebookEdit` (`.ipynb`) are NOT covered — the
@@ -38,6 +38,9 @@ def _introduced_text(tool_name, tool_input):
         return tool_input.get("content", "")
     if tool_name == "Edit":
         return tool_input.get("new_string", "")
+    if tool_name == "MultiEdit":
+        # every edit's replacement lands in the file — scan them all
+        return "\n".join(e.get("new_string", "") for e in tool_input.get("edits", []))
     return ""
 
 

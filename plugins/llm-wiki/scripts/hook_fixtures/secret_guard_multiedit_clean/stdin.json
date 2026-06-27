@@ -1,0 +1,1 @@
+{"tool_name": "MultiEdit", "tool_input": {"file_path": "BUNDLE/llm-wiki/api.md", "edits": [{"old_string": "a", "new_string": "Plain concept text, nothing secret."}, {"old_string": "b", "new_string": "Another harmless line."}]}}

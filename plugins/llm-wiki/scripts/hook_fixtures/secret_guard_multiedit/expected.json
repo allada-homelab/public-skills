@@ -1,0 +1,1 @@
+{ "exit_code": 0, "stdout_contains": ["\"permissionDecision\": \"deny\"", "aws_access_key_id"] }
