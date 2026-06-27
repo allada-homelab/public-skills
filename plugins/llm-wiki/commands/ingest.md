@@ -45,6 +45,10 @@ Steps:
    final `<dir>/<slug>.md` path and frontmatter (non-empty `type`, `title`, `description`, `tags`,
    `timestamp`); **resolve cross-links** to real `./` paths (drop danglers). Enforce the scope cap and
    **record anything dropped** (no silent truncation).
+   **Verify anchors:** for each proposal carrying a non-empty `verify` array, append a `## Verify` section
+   (its anchor lines, before `## Related`) and stamp `verified: <today>` in frontmatter — the explorer
+   already confirmed it against the code it read. A proposal with an empty `verify` is confirm-exempt:
+   no `## Verify`, no `verified:`. (See SKILL.md "Verify anchors": free-form text, not links.)
 
 6. **`--dry-run` → stop here.** Print the plan: each concept as `path · type · title — one-line desc`,
    the proposed sections, the cross-link graph, and anything the cap dropped. Write nothing.

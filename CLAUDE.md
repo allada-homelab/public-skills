@@ -24,7 +24,7 @@ in an auto mode (the default) and confirm-first only in `curated`. See
 plugins/llm-wiki/                  # the plugin
   .claude-plugin/plugin.json       # plugin manifest (note: inside .claude-plugin/, not plugin root)
   commands/                        # /llm-wiki:{init,ingest,capture,explore,query,conform,refine,prune,reorganize,tend}
-  agents/                          # wiki-explorer.md — read-only Sonnet subagent the /ingest orchestrator fans out
+  agents/                          # wiki-explorer.md (/ingest fan-out) + wiki-verifier.md (/query background trust-but-verify); both Sonnet
   skills/wiki/                     # the llm-wiki:wiki skill (SKILL.md + references/, incl. ingestion.md)
   hooks/hooks.json                 # Phase 3 hooks: SessionStart, PreToolUse, UserPromptSubmit, PostToolUse, Stop, SessionEnd
   scripts/                         # doctor.py, secret_scan.py, bundle_ops.py, mode.py;

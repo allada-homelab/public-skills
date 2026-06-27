@@ -17,6 +17,7 @@ Every concept file opens with a YAML frontmatter block delimited by `---`, then 
 | `resource` | string (URL/URI) | Link to the thing the concept describes (console, repo, dashboard). Use an **external URI**, not a relative path to another concept: only **body** markdown links are rewritten by `/llm-wiki:reorganize` and checked by the Doctor's R4 — a `resource:` pointing at a sibling concept would silently break on a move. Inter-concept links belong in the body. |
 | `tags` | list of strings | Free-form labels. Written as a simple block list (see below). |
 | `timestamp` | string (ISO-8601) | When the concept was last meaningfully updated, e.g. `2026-06-14T14:30:00Z`. |
+| `verified` | string (ISO-8601) | When the concept's `## Verify` anchor was last confirmed against current state. The read-side freshness gate compares the anchored file's last change to this; stale → re-verify. Re-stamp on every refine that re-confirms the fact. |
 
 Custom keys are allowed; unknown keys are preserved by consumers, never stripped.
 

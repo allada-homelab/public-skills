@@ -1,5 +1,9 @@
 # Directory Update Log
 
+## 2026-06-27
+
+* **Creation**: Added [Reading is trust-but-verify — the consult-then-confirm loop](./trust-but-verify-loop.md).
+
 ## 2026-06-25
 
 * **Creation**: Added [Registering a skill in the public-skills marketplace](./marketplace-skill-registration.md).
