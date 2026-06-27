@@ -1,5 +1,5 @@
 ---
-description: Capture a finding from the current work as one conformant OKF concept (the core loop).
+description: Capture a finding as one conformant OKF concept (the core loop).
 argument-hint: "[title or finding hint] [--into <subdir>] [--bundle <path>]"
 allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(date:*), Bash(cp:*), Bash(rm:*), Bash(mktemp:*), Bash(diff:*)
 ---
@@ -54,7 +54,9 @@ Steps:
    strong match, **refuse**: name the existing concept and offer `/llm-wiki:refine`. Write nothing.
 5. **Compose the concept.** From the template; relative `./` links; a non-empty `type`. Cross-link to a
    related existing concept only if one exists; on the first capture into an empty bundle, add no
-   cross-link and say so in the diff.
+   cross-link and say so in the diff. For a **code-grounded** finding, include a `## Verify` anchor (a
+   `file:symbol` or a `run:` check) and stamp `verified: <today>` (the same UTC date captured in step 6);
+   omit both for a genuinely non-code-verifiable finding.
 6. **Stage in a mirror.** `mirror=$(mktemp -d)`; `cp -r "<bundle>/." "$mirror/"`. Write the new concept
    into the mirror at `<target-dir>/<slug>.md` (creating intermediate dirs), then regenerate indexes and
    append the log (capture the date once — `today=$(date -u +%F)` — and reuse `$today` in step 9 so a
@@ -69,7 +71,9 @@ Steps:
    reconsider nesting.
 8. **Secret scan (always) + diff (when confirming).** Run `python3
    "${CLAUDE_PLUGIN_ROOT}/scripts/secret_scan.py" "$mirror/<relpath>" --format json` (and over the log
-   bullet) — **always**, since a hit halts an auto-apply (see the apply policy). When confirming
+   bullet) — **always**, since a hit halts an auto-apply (see the apply policy). A **hit** is a non-zero
+   `summary.findings` in the JSON output; `secret_scan.py` always exits 0, so never wire the abort to
+   `$?`. When confirming
    (`curated`/on request), render hits as a prominent "⚠ Potential secrets — review before applying" block
    (**never block** in Phase 1), show `diff -ru "<bundle>" "$mirror"`, and state the **placement + reason**
    (e.g. "→ `backend/` — joining the existing Backend section", or "→ root — no section warrants it yet").

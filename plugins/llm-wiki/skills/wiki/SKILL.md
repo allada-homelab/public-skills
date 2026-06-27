@@ -38,9 +38,9 @@ guess silently — use the axis:
 - **`CLAUDE.md` / in-tree docs** — *always-on, file-local* rules and specifics to follow while
   working in that directory (build/run commands, app conventions, local gotchas). Auto-loaded and
   colocated with the code they govern.
-- **The wiki** — *consulted, reusable* knowledge you look **up** when relevant: findings, decisions
+- **The wiki** — *consulted, reusable* knowledge to look **up** when relevant: findings, decisions
   (the "why"), runbooks, schemas, metrics, cross-cutting gotchas. Queryable, cross-linked,
-  conformance-gated, and not auto-loaded in full — so it scales past what you'd keep always in context.
+  conformance-gated, and not auto-loaded in full — so it scales past always-in-context limits.
 
 Rule of thumb: "how to behave in *this* directory" → a `CLAUDE.md` line; "a durable fact or decision
 worth *retrieving later* across tasks" → a wiki concept. When a finding fits both, put the durable
@@ -53,7 +53,7 @@ These are exactly what the Doctor enforces. Author to them:
 - **R1 — Parseable frontmatter.** Every concept file opens with a `---` YAML frontmatter block that
   parses. Keep it simple: `key: value` scalars and simple `- item` lists.
 - **R2 — Non-empty `type`.** Every concept's frontmatter has a `type` field with a non-empty value.
-  `type` can be any string you choose (e.g. `Reference`, `Runbook`, `BigQuery Table`).
+  `type` is any label the producer defines (e.g. `Reference`, `Runbook`, `BigQuery Table`).
 - **R3 — Reserved-file structures.**
   - A **subdirectory** `index.md` has **zero frontmatter**.
   - The **root** `index.md` may carry **only** `okf_version: "0.1"` in frontmatter (nothing else), and
@@ -67,7 +67,7 @@ See `references/` for the full field list, exact reserved-file shapes, and a cop
 
 Subdirectories are valid OKF (a subdir is a section with its own zero-frontmatter `index.md`), but
 **default to the bundle root** — flat-first. Premature foldering guesses the taxonomy wrong; structure
-should emerge from real clusters. Put a concept in a subdirectory only when you can name a reason:
+should emerge from real clusters. Put a concept in a subdirectory only when there is a clear reason:
 
 - ✅ it **joins an existing section** it clearly belongs to;
 - ✅ it **forms/joins a cluster** — ~3+ sibling concepts on one sub-topic that should become a section
@@ -80,16 +80,15 @@ single-concept subdir as the backstop. When in doubt, root — and `reorganize` 
 
 ## Doctor is the authority — these rules guide, they do not verify
 
-This skill makes your draft *near-conformant*; it does **not** make it conformant. Every file the plugin
+This skill makes a draft *near-conformant*; it does **not** make it conformant. Every file the plugin
 writes is checked by the deterministic Doctor (`scripts/doctor.py`, strict-producer mode) at the staged
-gate before the write lands. **If your draft and Doctor disagree, Doctor is right.** Never claim a bundle is
+gate before the write lands. **If the draft and Doctor disagree, Doctor is right.** Never claim a bundle is
 conformant on the basis of these instructions alone — run the Doctor.
 
 ## Reading is permissive
 
 When *reading* a bundle (explore/query), be a tolerant consumer: missing optional fields, an unknown
-`type`, unknown frontmatter keys, a missing `index.md`, or a broken link must **never** stop you from
-reading.
+`type`, unknown frontmatter keys, a missing `index.md`, or a broken link must **never** stop navigation.
 
 ## Reading is trust-but-verify
 
@@ -99,28 +98,13 @@ lean on a finding and use it now, but before *acting* on a load-bearing one, che
 holds against current state (usually the code) at the spot the concept points to. Trust the summary;
 verify the spot — don't re-investigate from scratch (that defeats the point).
 
-The mechanism (owned by `/llm-wiki:query`): a concept records a **`## Verify`** anchor (below) and a
-`verified:` stamp; on read, a cheap freshness check (did the anchored file change since `verified:`?)
-decides whether confirmation is even needed. When it is, confirmation runs in the **background on a
-cheaper model** so the main loop is never blocked, and self-heals the concept only on an *objective*
-(executable) divergence — never on a guess.
+A concept records a **`## Verify`** anchor and a `verified:` stamp to make that spot-check cheap and
+targeted; the freshness gate and self-heal are owned by `/llm-wiki:query`.
 
-## Verify anchors — make a concept cheap to confirm
+## Verify anchors
 
-A code-grounded concept should carry a `## Verify` section: **where a reader confirms it in current
-state**, so confirmation is a targeted glance, not a re-investigation.
-
-- A **good** anchor is *checkable*: a resolvable `file:symbol`, or a runnable
-  `run: <grep/one-liner> — expected: <result>`. **Never** prose-only ("see the code"); **never** a bare
-  `file:line` (line numbers rot on the first edit above them → false verdicts).
-- **Free-form text, NOT a markdown link.** Write `scripts/doctor.py:parse_frontmatter`, not a `[./…]`
-  link — a real link into repo code would trip the Doctor's R4 link-health with false broken-link
-  warnings. (Inter-*concept* links still use the `./` form in the body; anchors are not links.)
-- **Repo-root-relative paths** (`scripts/doctor.py`), resolved against `${CLAUDE_PROJECT_DIR}`.
-- Pair it with a **`verified:`** frontmatter stamp (ISO-8601) — when the anchor was last confirmed against
-  current state; the freshness gate compares the anchored file's last change to it.
-- If a fact is genuinely **not** code-checkable (a decision's rationale, an external dashboard), say so
-  ("not code-verifiable; confirm via …") rather than writing a hollow anchor — these are confirm-exempt.
+Authoring rules — what makes a good anchor, the free-text-not-a-link constraint, repo-root-relative
+paths, `verified:` stamping, and when to omit — are in `references/concept-template.md`.
 
 ## Links use the relative `./` form
 
@@ -134,7 +118,7 @@ the bundle is rendered on GitHub. See `references/linking.md`.
 - Authoring a concept → read `references/concept-template.md` (and `frontmatter.md` / `linking.md` as needed).
 - Touching `index.md` / `log.md` → read `references/reserved-files.md`.
 - Bulk-ingesting a repo → read `references/ingestion.md` (the `/llm-wiki:ingest` orchestration playbook).
-- Reading/answering only → you need none of the authoring references.
+- Reading/answering only → no authoring references needed.
 
 Never paste the raw OKF spec into context — these notes plus the on-demand references are enough.
 
@@ -159,5 +143,5 @@ Each command owns its own arguments, allowed-tools, and Doctor wiring — this s
 regenerated by the shared `scripts/bundle_ops.py` engine: indexes are rebuilt from concept frontmatter
 (root keeps only `okf_version`; subdir `index.md` gets zero frontmatter), `log.md` entries are appended
 newest-first with the bold prefix, and a `move` rewrites every inbound link in **both** the `./` and `/`
-forms. Your job is to decide *what* changes; the engine makes the change conformant and the Doctor gates
+forms. Decide *what* changes; the engine makes the change conformant and the Doctor gates
 it (broken links are reported as `R4` warnings, never auto-deleted — broken links are tolerated per spec).

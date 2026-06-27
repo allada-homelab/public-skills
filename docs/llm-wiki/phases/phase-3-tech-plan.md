@@ -29,7 +29,7 @@ writes on a fresh checkout. **This phase reverses that to Proactive (auto), by o
 (2026-06-14).** The reversal is only safe *because Phase 3 ships the guards that contain it*, all in the
 same phase as the unattended writes:
 
-- every unattended write passes the **blocking secret guard** (redacts before disk) and the **per-file
+- every unattended write passes the **blocking secret guard** (denies the write on a hit) and the **per-file
   Doctor guardrail** (R1/R2);
 - every write routes through the Phase 2 engine (conformant indexes/log) and is **logged + git-reversible**;
 - a **SessionEnd / `/tend` digest** surfaces what landed for review.
@@ -52,7 +52,7 @@ structure) can land without per-write human review — mitigated, not eliminated
 | Event | Type | Behavior | Mode-gated? |
 |---|---|---|---|
 | **SessionStart** | command | If a bundle exists, inject root `index.md` + the active-mode notice via `additionalContext`; skip silently if none. | no (always preload) |
-| **PreToolUse** (`Write\|Edit\|MultiEdit`) | command | **Secret guard** + **Doctor guardrail**, scoped by a bundle-path check. Deny on hard violations; **redact secrets via `updatedInput`**. Runs on *every* write path regardless of mode. | no (always) |
+| **PreToolUse** (`Write\|Edit\|MultiEdit`) | command | **Secret guard** + **Doctor guardrail**, scoped by a bundle-path check. **Deny** on a secret hit or a hard conformance violation. Runs on *every* write path regardless of mode. | no (always) |
 | **UserPromptSubmit** | command | A once-per-session **consult** nudge (gated by a `.llm-wiki/last-session` marker) — the read loop's forcing function, symmetric to capture. Not a per-turn line. | yes |
 | **PostToolUse** | command | Cheap pre-filter; nudge only after a non-bundle code edit, and drop the `.llm-wiki/capture-pending` marker the Stop hook gates on. Never a per-tool model call. | yes |
 | **Stop** | command | End-of-turn capture forcing function: in an auto mode, *only on a turn that changed real code* (marker-gated), block the stop **once** (`stop_hook_active`-guarded) so the model decides capture-or-stop. Silent on pure-chat turns. | yes |
@@ -84,7 +84,8 @@ approach. `/loop` out-of-session curation stays deferred past Phase 4 (locked-de
 - SessionStart injects context via `{"hookSpecificOutput": {"hookEventName": "SessionStart",
   "additionalContext": "…"}}` on stdout. ✓
 - PreToolUse can **deny** (`permissionDecision: "deny"` + reason), sees full `tool_input`, scopes via a
-  `matcher` (e.g. `Write|Edit|MultiEdit`), and can **modify input via `updatedInput`** (→ redaction). ✓
+  `matcher` (e.g. `Write|Edit|MultiEdit`), and can **modify input via `updatedInput`** — though the
+  shipped secret guard **denies** a hit rather than redacting. ✓
 - Plugin hooks: `hooks/hooks.json` or `plugin.json`; `${CLAUDE_PLUGIN_ROOT}` substituted; changes need
   `/reload-plugins`/restart. ✓
 - Hook types: command / http / mcp_tool / prompt / agent; commands support `"async": true`. ✓

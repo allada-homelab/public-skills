@@ -45,6 +45,9 @@ truncate silently**: if the cap drops proposals, say so in the report and name w
   Doctor flags as **R5** — avoid it. Prefer depth 1; rarely 2.
 - **Assign final identity.** Give each concept its final `<dir>/<slug>.md` path. Compose frontmatter
   from the proposal: a non-empty `type`, `title`, `description`, `tags`, and a `timestamp`.
+- **Write the Verify anchor.** For each concept with a non-empty `verify` array, compose a `## Verify`
+  section from the array items and stamp `verified: <today>` in frontmatter. Omit both for an empty
+  `verify` (confirm-exempt).
 - **Resolve cross-links.** Map each proposed `links` slug to an actual concept's relative `./` path.
   Drop links to concepts that didn't make the cut (don't leave danglers); the Doctor's **R4** reports
   any that slip through (report-only).
@@ -59,6 +62,7 @@ truncate silently**: if the cap drops proposals, say so in the report and name w
       "type": "Subsystem",
       "title": "…", "slug": "kebab-case", "description": "one line",
       "tags": ["…"], "links": ["other-slug"], "sources": ["path"],
+      "verify": ["file:symbol — what to confirm", "run: <one-liner> — expected: <result>"],
       "body_markdown": "concept body, no frontmatter, relative ./ links"
     }
   ],

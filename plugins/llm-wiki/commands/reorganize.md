@@ -1,7 +1,7 @@
 ---
-description: Reorganize the llm-wiki — move/rename concepts (incl. into subdirectories), rewriting every link with zero breakage.
+description: Move/rename concepts, rewriting every link with zero breakage.
 argument-hint: "[what to reorganize] [--bundle <path>]"
-allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(date:*), Bash(cp:*), Bash(rm:*), Bash(rmdir:*), Bash(mktemp:*), Bash(diff:*)
+allowed-tools: Glob, Grep, Read, Bash(python3:*), Bash(date:*), Bash(cp:*), Bash(rm:*), Bash(rmdir:*), Bash(mktemp:*), Bash(diff:*)
 ---
 
 You are running `/llm-wiki:reorganize`. Move and/or rename one or more concepts — including into **new
@@ -36,7 +36,11 @@ Steps:
    Doctor's `R4` finding carries only the **raw link string and its containing `file:line`** (there is no
    resolved-target field in the output), so you must compute the target yourself —
    `normpath(join(dirname(file), rawlink))`, or from the bundle root for a leading-`/` link — and key
-   both `before` and `after` on that. A conformant bundle has an empty `before`.
+   both `before` and `after` on that. A bundle with no pre-existing broken links has an empty `before`;
+   conformance does **not** guarantee this, since R4 broken links are tolerated WARNINGs. If this baseline
+   Doctor reports **errors** (R1/R2/R3 — not R4 warnings), the bundle is non-conformant: stop and conform
+   it first (`/llm-wiki:conform`), since the step-5 gate would otherwise block on those same errors and
+   surface them as the blocker.
 4. **Stage in a mirror.** `mirror=$(mktemp -d)`; `cp -r "<bundle>/." "$mirror/"`. For each planned move,
    in order: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" move "$mirror" --from <a> --to <b>`
    (this rewrites inbound links in **both** the `./` and `/` forms and the moved file's own relative
@@ -55,7 +59,8 @@ Steps:
    link, `rm -rf "$mirror"`, write nothing.
 6. **Secret scan (always) + diff (when confirming).** Run `python3
    "${CLAUDE_PLUGIN_ROOT}/scripts/secret_scan.py" <path> --format json` over each concept whose content
-   changed — **always**, since a hit halts an auto-apply (see the apply policy). When confirming
+   changed (and over the staged log bullet) — **always**, since a hit halts an auto-apply (see the apply
+   policy). When confirming
    (`curated`/on request), render hits as a "⚠ Potential secrets" block (never block) and show `diff -ru
    "<bundle>" "$mirror"`. In an auto mode skip the diff render and apply silently — but if a secret was
    flagged, **abort**: `rm -rf "$mirror"`, write nothing, and report the finding (no human prompt exists
@@ -64,7 +69,8 @@ Steps:
    request, apply only on approval (on decline, do nothing). Either way reproduce on the real bundle — the
    moves are deterministic, so re-run the same `move`(s) in order → emptied-dir cleanup (step 4) → `index`
    → `log-append … --date "$today"` against `<bundle>`, then run the Doctor on the real bundle and re-check
-   `after ⊆ before`. Clean up only a real mirror (`rm -rf "$mirror"` — never an unset path).
+   `after ⊆ before`. If a write/step fails, report exactly what landed. Clean up only a real mirror (`rm
+   -rf "$mirror"` — never an unset path).
 
 Rollback: the whole reorganization is one reviewable diff, recoverable via git. Defer conformance to the
 Doctor; never hand-edit links the `move` engine owns.

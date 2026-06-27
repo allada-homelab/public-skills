@@ -19,12 +19,11 @@ import json
 import os
 import sys
 
+from hook_session_start import CONSULT_GUIDANCE  # single source of the consult guidance (no drift)
+
 CONSULT = (
-    "[llm-wiki] New session — the wiki is preloaded above. Before a non-trivial task, consult it "
-    "first: `/llm-wiki:query <question>` or `/llm-wiki:explore`. Trust it as a curated summary, but "
-    "quickly verify a load-bearing claim against current state before acting on it — the concept says "
-    "where to look, so it's quick. Treat it as a first-class source alongside CLAUDE.md and READMEs; "
-    "capture durable findings to it as you work."
+    "[llm-wiki] New session — the wiki is preloaded above; " + CONSULT_GUIDANCE +
+    " Treat it as a first-class source alongside CLAUDE.md and READMEs."
 )
 
 
@@ -43,7 +42,8 @@ def main():
     marker = os.path.join(project, "llm-wiki", ".llm-wiki", "last-session")
     token = str(event.get("session_id") or "__nosession__")
     try:
-        prev = open(marker, encoding="utf-8").read().strip()
+        with open(marker, encoding="utf-8") as fh:
+            prev = fh.read().strip()
     except OSError:
         prev = None
     if prev == token:

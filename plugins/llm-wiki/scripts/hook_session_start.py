@@ -24,8 +24,17 @@ MODE_NOTE = {
                  "confirmation (every write is secret-scanned, Doctor-gated, logged, and git-reversible). "
                  "Switch with `mode: curated` in .claude/llm-wiki.local.md.",
     "curated": "propose-only — captures are proposed, never written without your confirmation.",
-    "max": "auto + background curation (proactive plus the deferred Max tail).",
+    "max": "auto — currently identical to proactive; reserved for a future background-curation tail.",
 }
+
+# Shared start-of-session "consult the wiki" guidance, used here in the SessionStart preload and
+# re-used by the UserPromptSubmit nudge (hook_user_prompt.py imports it) so the two cannot drift.
+# Phrased to begin lower-case so it reads as a clause joined onto each hook's own lead-in.
+CONSULT_GUIDANCE = (
+    "consult it before non-trivial work via `/llm-wiki:query` or `/llm-wiki:explore`; trust it as a "
+    "curated summary, then verify a load-bearing claim against current state before acting (the "
+    "concept says where to look, so it's quick); capture durable findings as you go."
+)
 
 
 def _bundle_summary(bundle_dir):
@@ -43,8 +52,9 @@ def _bundle_summary(bundle_dir):
                 continue
             count += 1
             try:
-                _status, fm = parse_frontmatter(open(path, encoding="utf-8").read())
-            except OSError:
+                with open(path, encoding="utf-8") as fh:
+                    _status, fm = parse_frontmatter(fh.read())
+            except (OSError, UnicodeDecodeError):
                 continue
             if isinstance(fm, dict) and isinstance(fm.get("tags"), list):
                 tags.update(str(t) for t in fm["tags"])
@@ -78,9 +88,7 @@ def main():
     head = (
         "# llm-wiki knowledge bundle (preloaded)\n\n"
         "Active mode: **%s** — %s\n\n"
-        "%s — consult via `/llm-wiki:query` / `:explore` before non-trivial work; trust it, then "
-        "verify a load-bearing claim against current state before acting (the concept says where, so "
-        "it's quick); capture durable findings as you go.\n\n" % (mode, MODE_NOTE.get(mode, ""), summary)
+        "%s — %s\n\n" % (mode, MODE_NOTE.get(mode, ""), summary, CONSULT_GUIDANCE)
     )
     if event.get("source") == "compact":
         # post-compaction: the full index is (or just was) in context — inject only the pointer,

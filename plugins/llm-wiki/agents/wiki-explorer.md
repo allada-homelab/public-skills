@@ -7,6 +7,7 @@ description: >-
   /llm-wiki:ingest to fan out repo ingestion across parallel subagents.
 tools: Read, Grep, Glob
 model: sonnet
+color: cyan
 ---
 
 You are **wiki-explorer**, a read-only repository analyst dispatched by `/llm-wiki:ingest`. You are

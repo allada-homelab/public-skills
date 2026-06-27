@@ -1,5 +1,5 @@
 ---
-description: Refine an existing llm-wiki concept in place — edit its body/frontmatter, keeping indexes and the log correct.
+description: Refine a concept in place, keeping indexes and log correct.
 argument-hint: "[concept path or title] [--bundle <path>]"
 allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(date:*), Bash(cp:*), Bash(rm:*), Bash(mktemp:*), Bash(diff:*)
 ---
@@ -43,8 +43,8 @@ Steps:
    Exit ≠ 0 → show violations verbatim, `rm -rf "$mirror"`, write nothing. Surface any `R4` link
    WARNINGs (report-only).
 6. **Secret scan (always) + diff (when confirming).** Run `python3
-   "${CLAUDE_PLUGIN_ROOT}/scripts/secret_scan.py" "$mirror/<relpath>" --format json` — **always**, since a
-   hit halts an auto-apply (see the apply policy). When confirming (`curated`/on request), render hits as a
+   "${CLAUDE_PLUGIN_ROOT}/scripts/secret_scan.py" "$mirror/<relpath>" --format json` (and over the staged
+   log bullet) — **always**, since a hit halts an auto-apply (see the apply policy). When confirming (`curated`/on request), render hits as a
    prominent "⚠ Potential secrets — review before applying" block (never block) and show `diff -ru
    "<bundle>" "$mirror"`. In an auto mode skip the diff render and apply silently — but if a secret was
    flagged, **abort**: `rm -rf "$mirror"`, write nothing, and report the finding (no human prompt exists
@@ -54,7 +54,7 @@ Steps:
    copy the staged concept back (`cp "$mirror/<relpath>" "<bundle>/<relpath>"`); do **not** re-author it
    (LLM re-authoring drifts from what the gate approved). Then run the same `bundle_ops.py index` and
    `bundle_ops.py log-append … --date "$today"` against `<bundle>` (deterministic, same `$today`), and run
-   the Doctor on the real bundle to confirm PASS. Clean up only a real mirror (`rm -rf "$mirror"` — never
-   an unset path).
+   the Doctor on the real bundle to confirm PASS. If a write/step fails, report exactly what landed. Clean
+   up only a real mirror (`rm -rf "$mirror"` — never an unset path).
 
 Defer all conformance judgments to the Doctor — if your draft and the Doctor disagree, the Doctor wins.
