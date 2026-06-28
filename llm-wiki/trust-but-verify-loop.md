@@ -8,7 +8,7 @@ tags:
   - autonomy
   - convention
 timestamp: 2026-06-26T21:47:23Z
-verified: 2026-06-26T21:47:23Z
+verified: 2026-06-28T05:51:41Z
 ---
 # Reading is trust-but-verify — the consult-then-confirm loop
 
@@ -30,7 +30,7 @@ the concept points to. Trust the summary; verify the spot — don't re-investiga
   nothing. Changed → dispatch a background **`wiki-verifier`** subagent (Sonnet) so the main loop never
   blocks; escalate to an inline check only for an act-now-high-stakes claim or a quick `run:` anchor.
 - **Self-heal is guarded.** The verifier returns confirmed / stale (+why) / couldn't-verify, and rewrites
-  the concept (gated refine) **only on objective `run:` divergence** — never on a cheap model's prose
+  the concept (gated self-heal via `apply`) **only on objective `run:` divergence** — never on a cheap model's prose
   judgment, which it only *reports*. Self-heals surface one line; never silent.
 - **`/llm-wiki:tend`** adds the proactive bundle-wide freshness sweep (same git gate) + flags weak/missing
   anchors on code-grounded concepts.
@@ -50,4 +50,4 @@ trusted-on-face value isn't retro-protected (the inline escalation is the escape
 - run: `grep -c "Reading is trust-but-verify" plugins/llm-wiki/skills/wiki/SKILL.md` — expected: 1
 
 ## Related
-- See [Phase 3 autonomy — hook-driven, auto-default with a guard floor](./phase-3-autonomy-architecture.md) — the autonomy model this reading discipline sits inside.
+- See [llm-wiki autonomy — zero-config always-auto with a guard floor](./phase-3-autonomy-architecture.md) — the autonomy model this reading discipline sits inside.

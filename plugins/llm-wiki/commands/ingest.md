@@ -42,7 +42,7 @@ Steps:
 
 5. **Synthesize** (per `references/ingestion.md`): **dedupe** across subagents and against existing
    concepts; choose structure **flat-first** (a subdirectory section only for a real ~3+ cluster or a
-   distinct domain — never a lonely folder, which the Doctor flags as **R5**); assign each concept its
+   distinct domain — never a lonely folder); assign each concept its
    final `<dir>/<slug>.md` path and frontmatter (non-empty `type`, `title`, `description`, `tags`,
    `timestamp`); **resolve cross-links** to real `./` paths (drop danglers). Enforce the scope cap and
    **record anything dropped** (no silent truncation).
@@ -68,8 +68,8 @@ Steps:
 
 8. **Doctor gate.** `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "$mirror" --mode strict --format
    json`. Exit ≠ 0 → **fix the offending concept(s)** in the mirror and re-run `index` + the Doctor until
-   it passes (the Doctor wins — never land non-conformant content). Surface any `R4` (dangling link) or
-   `R5` (lonely-subdir) **WARNINGs**; they don't block, but an R5 is a cue to flatten a section.
+   it passes (the Doctor wins — never land non-conformant content). Surface any `R4` (dangling link)
+   **WARNINGs**; they don't block (broken links are tolerated per OKF spec §5).
 
 9. **Apply (autonomous).** Land *exactly the gated bytes*: for each staged concept, `mkdir -p` its target
    parent directory (this creates the bundle root and any new section dirs, since `cp` does not create

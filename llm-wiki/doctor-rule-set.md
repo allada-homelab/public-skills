@@ -1,12 +1,12 @@
 ---
 type: Reference
 title: OKF Doctor — strict-producer rule set
-description: The conformance rules doctor.py enforces (R1/R2/R3a–c, R4 link-health, R5 lonely-subdir), plus its modes and exit codes.
+description: The conformance rules doctor.py enforces (R1/R2/R3a–c plus R4 link-health), its strict/lenient modes, and exit codes.
 tags:
   - doctor
   - conformance
   - okf
-verified: 2026-06-27T21:40:18Z
+verified: 2026-06-28T05:51:41Z
 ---
 # OKF Doctor — strict-producer rule set
 
@@ -27,9 +27,6 @@ pre-write gate for everything `/llm-wiki` authors; **lenient-consumer mode** is 
 - **R4 — Link health (WARNING only).** Internal markdown links (`/…` resolved from the bundle root, all
   others relative to the file) must resolve. Broken links are *tolerated* per spec §5, so R4 is a
   report-only WARNING that never changes the exit code — added in Phase 2.
-- **R5 — Lonely subdirectory (WARNING only).** A subdirectory holding a single concept with no populated
-  sub-section is flagged as a premature-foldering smell — keep it at the parent level until a cluster
-  forms. Report-only (never changes the exit code); the backstop for the flat-first placement policy.
 
 ## Modes & output
 
@@ -38,12 +35,13 @@ pre-write gate for everything `/llm-wiki` authors; **lenient-consumer mode** is 
 - Exit codes: `0` = conformant (warnings allowed), `1` = one or more errors, `2` = operational error
   (bad path, a bare `index.md`, or `--mode lenient`).
 
-The Doctor is validation-only — it never writes. The Phase 2 maintenance commands
-(`/llm-wiki:refine` / `:prune` / `:reorganize`) make conformant changes deterministically via the
-shared `scripts/bundle_ops.py` engine (index regeneration, `log.md` appends, and link-preserving
-moves), then run this Doctor as the pre-write gate. `reorganize` additionally diffs R4 before/after a
-move to guarantee it introduces zero newly-broken links.
+The Doctor is validation-only — it never writes. The maintenance commands (`/llm-wiki:capture` /
+`:prune` / `:reorganize`) make conformant changes deterministically via the shared `scripts/bundle_ops.py`
+engine — including its consolidated **`apply`** gated-write subcommand (stage on a mirror → regenerate
+index → append log → Doctor-gate → secret-scan → commit), which `capture` and the background
+`wiki-capturer` agent both call. `reorganize` additionally diffs R4 before/after a move to guarantee it
+introduces zero newly-broken links.
 
 ## Verify
-- plugins/llm-wiki/scripts/doctor.py — contains R1/R2/R3/R4/R5 check implementations
-- run: `bash plugins/llm-wiki/scripts/fixtures/run_fixtures.sh | grep -E "pass=|fail="` — expected: `pass=31 fail=0 skip=0`
+- plugins/llm-wiki/scripts/doctor.py — contains R1/R2/R3/R4 check implementations
+- run: `bash plugins/llm-wiki/scripts/fixtures/run_fixtures.sh | grep -E "pass=|fail="` — expected: `pass=30 fail=0 skip=0`

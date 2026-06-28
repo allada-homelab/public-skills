@@ -5,8 +5,7 @@ Reads the PreToolUse event JSON on stdin. If the target file is inside the llm-w
 bundle (`$CLAUDE_PROJECT_DIR/llm-wiki`, symlinks resolved) and the text the tool would
 introduce contains a likely secret (per `secret_scan.py`), **deny** the write with the
 redacted findings as the reason. Writes outside the bundle pass through untouched. Runs on
-every text-write path (Write/Edit/MultiEdit), regardless of autonomy mode — this is the
-floor that makes auto-capture safe.
+every text-write path (Write/Edit/MultiEdit) — this is the floor that makes auto-capture safe.
 
 Scope (deliberate): `Bash` redirection and `NotebookEdit` (`.ipynb`) are NOT covered — the
 wiki is markdown concept files written via Write/Edit; scanning every Bash

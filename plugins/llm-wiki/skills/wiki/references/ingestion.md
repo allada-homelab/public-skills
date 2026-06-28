@@ -32,7 +32,7 @@ truncate silently**: if the cap drops proposals, say so in the report and name w
 4. **Synthesize** (see below).
 5. **Write the batch** through the Doctor-gated mirror protocol (the command body owns the exact
    commands), or — with `--dry-run` — print the plan and stop.
-6. **Report** what landed (or would land), plus any R4/R5 warnings and any redactions.
+6. **Report** what landed (or would land), plus any R4 link-health warnings and any redactions.
 
 ## Synthesis rules
 
@@ -41,8 +41,8 @@ truncate silently**: if the cap drops proposals, say so in the report and name w
   topic an existing concept already covers (refine later instead).
 - **Structure: flat-first.** Place concepts at the **bundle root** by default. Create a subdirectory
   **section** only for a real cluster — ~3+ sibling concepts on one sub-topic, or a distinct
-  domain/subsystem with its own identity. A lone concept in a new folder is a **lonely folder** the
-  Doctor flags as **R5** — avoid it. Prefer depth 1; rarely 2.
+  domain/subsystem with its own identity. Avoid a lone concept in a brand-new folder. Prefer depth 1;
+  rarely 2.
 - **Assign final identity.** Give each concept its final `<dir>/<slug>.md` path. Compose frontmatter
   from the proposal: a non-empty `type`, `title`, `description`, `tags`, and a `timestamp`.
 - **Write the Verify anchor.** For each concept with a non-empty `verify` array, compose a `## Verify`

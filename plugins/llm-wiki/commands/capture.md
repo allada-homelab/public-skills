@@ -49,9 +49,9 @@ Steps:
      - ✅ it **joins/forms a cluster** — there are already ~3+ sibling concepts on the same sub-topic that
        should become a section (consider `/llm-wiki:reorganize` for the existing ones);
      - ✅ it is a **distinct domain/subsystem** with its own identity and expected growth.
-   - Do **not** create a brand-new subdirectory for a single concept ("lonely folder"), fold by type with
-     thin contents, or nest speculatively (prefer depth 1; rarely 2). When in doubt, root. The Doctor
-     emits a **WARNING (R5)** for a subdir holding a single lonely concept — that is the backstop here.
+   - Do **not** create a brand-new subdirectory for a single concept, fold by type with thin contents,
+     or nest speculatively (prefer depth 1; rarely 2). When in doubt, root — and `/llm-wiki:reorganize`
+     into sections once a real cluster forms.
    (For an _update_, the path is fixed — the concept stays where it is; renames/moves go through
    `/llm-wiki:reorganize`.)
 4. **Compose the concept content** (full file bytes — `apply` lands exactly what you write, nothing more):
