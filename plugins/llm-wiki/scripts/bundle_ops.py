@@ -29,12 +29,31 @@ authority (run it after).
         bundle). Inbound links are intentionally left for the Doctor to report (R4) —
         per spec §5 broken links are tolerated, never silently rewritten away.
 
-Exit codes: 0 ok; 2 usage / operational error.
+    bundle_ops.py apply <bundle-root> --concept <relpath> --content-file <path>
+                  [--log-kind Creation|Update|Initialization] [--log-message <md>]
+                  [--date YYYY-MM-DD]
+        The consolidated gated write. Auto-initializes an absent bundle, stages the
+        concept on a /tmp mirror (index regen + log append), Doctor-gates (strict) and
+        secret-scans it, and only on a clean gate copies the result onto the LIVE bundle
+        (a block leaves it byte-for-byte untouched). Emits a one-line JSON status
+        (applied | blocked:doctor | blocked:secret). Exit 1 on a gate block.
+
+Exit codes: 0 ok; 1 gate block (apply); 2 usage / operational error.
 """
+import json
 import os
 import re
+import shutil
 import sys
+import tempfile
 from datetime import date, datetime, timezone
+
+# doctor.py / secret_scan.py live beside this script; when run directly Python puts
+# that dir on sys.path[0], but insert it explicitly so `apply` also resolves them when
+# bundle_ops is imported as a module.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import doctor as _doctor          # noqa: E402
+import secret_scan as _secret_scan  # noqa: E402
 
 LINK_RE = re.compile(r"(\[[^\]]*\]\()([^)]+)(\))")
 # A line opening/closing a fenced code block (``` or ~~~), toggled per-line so the
@@ -443,6 +462,130 @@ def cmd_remove(bundle_root, rel):
     return 0
 
 
+# ---------------------------------------------------------------- apply (gated write)
+
+# Deterministic seed title for an auto-initialized bundle. A constant (not the dir's
+# basename) keeps auto-init reproducible — _render_index falls back to the humanized
+# basename only when the index has no preamble body, which a random tmp dir would make
+# non-deterministic; cmd_index preserves this heading on every later regen.
+INIT_TITLE = "# Knowledge"
+
+
+def _init_empty_bundle(bundle_root, day):
+    """Create a conformant empty bundle in place if index.md/log.md are absent.
+    A bare `# Directory Update Log` fails Doctor R3c (no date section), so the log is
+    seeded with an Initialization entry via the engine — matching the
+    log-is-never-hand-authored convention. Idempotent: an existing file is left alone."""
+    idx = os.path.join(bundle_root, "index.md")
+    if not os.path.isfile(idx):
+        with open(idx, "w", encoding="utf-8") as fh:
+            fh.write('---\nokf_version: "0.1"\n---\n%s\n' % INIT_TITLE)
+    if not os.path.isfile(os.path.join(bundle_root, "log.md")):
+        cmd_log_append(bundle_root, "Initialization", "Bundle created.", day)
+
+
+def _build(bundle_root, concept_rel, content, kind, message, day):
+    """Write the concept bytes at <relpath>, regenerate the index, append the log entry.
+    The single place the three deterministic ops compose for one capture; run identically
+    against the throwaway mirror (gating) and the live bundle (commit)."""
+    dest = os.path.normpath(os.path.join(bundle_root, concept_rel))
+    parent = os.path.dirname(dest)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    with open(dest, "wb") as fh:
+        fh.write(content)
+    rc = cmd_index(bundle_root)
+    if rc != 0:
+        return rc
+    return cmd_log_append(bundle_root, kind, message, day)
+
+
+def cmd_apply(bundle_root, concept_rel, content_file, kind, message, day):
+    """Consolidated gated write: stage on a /tmp mirror, regenerate index + log,
+    Doctor-gate (strict) and secret-scan; only on a clean gate is the LIVE bundle
+    touched. A block leaves the live bundle byte-for-byte untouched. Emits a one-line
+    JSON status to stdout (applied | blocked:doctor | blocked:secret)."""
+    root_abs = os.path.abspath(bundle_root)
+    dest_abs = os.path.normpath(os.path.join(root_abs, concept_rel))
+    if os.path.basename(dest_abs) in RESERVED:
+        sys.stderr.write("error: apply operates on concepts, not reserved files\n")
+        return 2
+    if not dest_abs.endswith(".md"):
+        sys.stderr.write("error: --concept must be a .md path\n")
+        return 2
+    if os.path.commonpath([root_abs, dest_abs]) != root_abs:
+        sys.stderr.write("error: path escapes the bundle: %s\n" % concept_rel)
+        return 2
+    try:
+        with open(content_file, "rb") as fh:
+            content = fh.read()
+    except OSError as e:
+        sys.stderr.write("error: cannot read content file: %s\n" % e)
+        return 2
+
+    # Upsert: default the log kind by whether the concept already exists; callers
+    # (capture / wiki-capturer) normally pass an explicit kind + message.
+    if kind is None:
+        kind = "Update" if os.path.isfile(dest_abs) else "Creation"
+    if kind not in ("Creation", "Update", "Initialization"):
+        sys.stderr.write("error: --log-kind must be Creation|Update|Initialization\n")
+        return 2
+    if message is None:
+        message = "Captured `%s`." % concept_rel.replace(os.sep, "/")
+
+    mirror = tempfile.mkdtemp(prefix="llm-wiki-apply-")
+    try:
+        # --- stage on the throwaway mirror; the live bundle is NOT touched here ---
+        if os.path.isdir(root_abs):
+            shutil.copytree(root_abs, mirror, dirs_exist_ok=True)
+        _init_empty_bundle(mirror, day)
+        rc = _build(mirror, concept_rel, content, kind, message, day)
+        if rc != 0:
+            sys.stderr.write("error: staging failed (exit %d)\n" % rc)
+            return 2
+
+        _r, _n, findings = _doctor.validate(mirror)
+        errors = [f for f in findings if f["severity"] == "ERROR"]
+        if errors:
+            sys.stderr.write("doctor blocked apply (%d error(s)):\n" % len(errors))
+            for f in errors:
+                sys.stderr.write("ERROR %s %s:%d   %s\n"
+                                 % (f["rule"], f["file"], f["line"], f["message"]))
+            print(json.dumps({"status": "blocked:doctor", "concept": concept_rel,
+                              "errors": len(errors)}))
+            return 1
+
+        sfindings = _secret_scan.scan(content.decode("utf-8", "replace"))
+        if sfindings:
+            sys.stderr.write("secret scan blocked apply (%d finding(s)):\n" % len(sfindings))
+            for f in sfindings:
+                sys.stderr.write("SECRET %s line %d preview=%s\n"
+                                 % (f["category"], f["line"], f["preview"]))
+            print(json.dumps({"status": "blocked:secret", "concept": concept_rel,
+                              "findings": len(sfindings)}))
+            return 1
+
+        # --- commit: only now (gates clean) is the live bundle mutated ---
+        os.makedirs(root_abs, exist_ok=True)
+        _init_empty_bundle(root_abs, day)
+        rc = _build(root_abs, concept_rel, content, kind, message, day)
+        if rc != 0:
+            sys.stderr.write("error: commit failed (exit %d)\n" % rc)
+            return 2
+        _r2, _n2, lfind = _doctor.validate(root_abs)
+        lerr = [f for f in lfind if f["severity"] == "ERROR"]
+        if lerr:
+            sys.stderr.write("error: post-commit Doctor failed unexpectedly:\n")
+            for f in lerr:
+                sys.stderr.write("ERROR %s %s:%d   %s\n"
+                                 % (f["rule"], f["file"], f["line"], f["message"]))
+            return 1
+        print(json.dumps({"status": "applied", "concept": concept_rel}))
+        return 0
+    finally:
+        shutil.rmtree(mirror, ignore_errors=True)
+
+
 # ---------------------------------------------------------------- cli
 
 def _opt(argv, name):
@@ -458,9 +601,26 @@ def main(argv):
         sys.stderr.write("error: %s needs a bundle-root argument\n" % sub)
         return 2
     bundle_root = rest[0]
-    if not os.path.isdir(bundle_root):
+    # apply auto-initializes an absent bundle, so it tolerates a missing directory;
+    # every other subcommand operates in place and requires the bundle to exist.
+    if sub != "apply" and not os.path.isdir(bundle_root):
         sys.stderr.write("error: not a directory: %s\n" % bundle_root)
         return 2
+
+    if sub == "apply":
+        concept = _opt(rest, "--concept")
+        content_file = _opt(rest, "--content-file")
+        if not concept:
+            sys.stderr.write("error: apply requires --concept\n")
+            return 2
+        if not content_file:
+            sys.stderr.write("error: apply requires --content-file\n")
+            return 2
+        kind, message, day = (_opt(rest, "--log-kind"), _opt(rest, "--log-message"),
+                              _opt(rest, "--date"))
+        if not day:
+            day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        return cmd_apply(bundle_root, concept, content_file, kind, message, day)
 
     if sub == "index":
         return cmd_index(bundle_root)

@@ -1,5 +1,11 @@
 # Phase Plan — `/llm-wiki`: phasing & Claude Code primitive mapping
 
+> **Status (2026-06-28): partly superseded.** Phases 1–3 shipped, then the plugin was refactored to a
+> leaner **zero-config always-auto** design (no modes, 6 commands, the `bundle_ops apply` engine,
+> background Sonnet persist/validate). The roadmap and primitive mapping below reflect the original plan;
+> for the current surface see [`phases/lean-always-auto-tech-plan.md`](../phases/lean-always-auto-tech-plan.md)
+> and the repo `CLAUDE.md`.
+
 > Companion to [`PRODUCT_PLAN.md`](./PRODUCT_PLAN.md). That document defines *what* the plugin is
 > and how it behaves; this one decides **how many phases, what lands in each, and which Claude Code
 > primitive implements each part**. Still pre-implementation: a per-phase *technical* plan (manifest,

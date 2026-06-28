@@ -4,12 +4,12 @@ okf_version: "0.1"
 # llm-wiki
 
 Knowledge bundle for the `public-skills` repo. Concepts are added with `/llm-wiki:capture`
-and read back with `/llm-wiki:explore` / `/llm-wiki:query`.
+and read back with `/llm-wiki:query`.
 
 ## Concepts
 
-* [OKF Doctor — strict-producer rule set](./doctor-rule-set.md) — The conformance rules doctor.py enforces (R1/R2/R3a–c, R4 link-health, R5 lonely-subdir), plus its modes and exit codes.
-* [Phase 3 autonomy — hook-driven, auto-default with a guard floor](./phase-3-autonomy-architecture.md) — How llm-wiki autonomy works — six wired hook events, a proactive-by-default mode, and the always-on PreToolUse guard floor that makes the default safe.
+* [llm-wiki autonomy — zero-config always-auto with a guard floor](./phase-3-autonomy-architecture.md) — How llm-wiki autonomy works — five deterministic hook events, always-on auto (no modes), a PreToolUse guard floor, and background Sonnet subagents that persist and validate.
+* [OKF Doctor — strict-producer rule set](./doctor-rule-set.md) — The conformance rules doctor.py enforces (R1/R2/R3a–c plus R4 link-health), its strict/lenient modes, and exit codes.
 * [Plugin versioning — unpinned for git-SHA auto-update](./plugin-versioning.md) — Why plugin.json omits the version field — Claude Code falls back to the git commit SHA, so every commit auto-updates installed users during active development.
 * [Reading is trust-but-verify — the consult-then-confirm loop](./trust-but-verify-loop.md) — Trust a wiki finding on its face, but cheaply confirm load-bearing claims against current state via a ## Verify anchor + freshness gate, with background self-healing verification.
 * [Registering a skill in the public-skills marketplace](./marketplace-skill-registration.md) — How to add a standalone skill to this marketplace — the manifest registers plugins (not skills directly), so a skill ships inside a plugin under plugins/<name>/skills/.

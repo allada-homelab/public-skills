@@ -3,8 +3,10 @@ name: wiki-verifier
 description: >-
   Verify one llm-wiki concept against current state using its `## Verify` anchor, and report
   confirmed / stale / couldn't-verify. Dispatched in the background (on a cheaper model) by
-  /llm-wiki:query when a concept's anchored file changed since its `verified:` stamp, so the main
-  loop is never blocked. Self-heals the concept ONLY on an objective (executable) divergence.
+  /llm-wiki:query when a concept's anchored file changed since its `verified:` stamp, and also
+  dispatched proactively at end-of-turn by the main agent for any anchor naming a file changed this
+  turn, so the main loop is never blocked. Self-heals the concept ONLY on an objective (executable)
+  divergence.
 tools: Read, Grep, Glob, Bash, Write
 model: sonnet
 color: yellow
@@ -40,29 +42,28 @@ missing, fall back to the default `${CLAUDE_PROJECT_DIR}/llm-wiki`.
        then apply it through the gated pipeline (step 4). Surface one line: `STALE-AUTOREFINED: <concept>
        — was X; current state shows Y`.
      - **Judgment-only "looks stale" → report, do NOT write.** Return `STALE: <concept> — wiki says X;
-       current state appears to show Y` and recommend `/llm-wiki:refine <concept>`. A cheap model's
-       reading must never silently rewrite curated knowledge.
-4. **Gated apply (self-heal path only) — exactly the `/llm-wiki:refine` gated apply (its steps 4–7);
-   follow that contract, never hand-edit the live bundle.** Capture the date once
-   (`today=$(date -u +%F)`) and reuse `$today` for the `verified:` stamp and **both** log-appends, so a
-   midnight rollover can't divert the apply to a different `## <date>` heading than the gate saw.
-   - **Stage:** `mirror=$(mktemp -d); cp -r "<bundle>/." "$mirror/"`; write the revised concept (with
-     `verified: $today`) into the mirror via Write, then
-     `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" index "$mirror"` and
-     `... bundle_ops.py log-append "$mirror" --kind Update --message "Auto-refined [<title>](./<relpath>) after verification." --date "$today"`.
-   - **Gate (write nothing on failure):**
-     `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "$mirror" --mode strict --format json` — exit ≠ 0 →
-     `rm -rf "$mirror"`, write nothing, report the violations. Then
-     `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/secret_scan.py" "$mirror/<relpath>" --format json` — any hit →
-     **abort**, `rm -rf "$mirror"`, write nothing, report the finding.
-   - **Apply:** else land the gated bytes — `cp "$mirror/<relpath>" "<bundle>/<relpath>"` (don't
-     re-author) — then re-run `bundle_ops.py index` and `log-append … --date "$today"` against the real
-     bundle, run the Doctor on the real bundle to confirm PASS, `rm -rf "$mirror"`.
+       current state appears to show Y` and recommend `/llm-wiki:capture <concept>` (edit-in-place). A
+       cheap model's reading must never silently rewrite curated knowledge.
+4. **Gated self-heal (self-heal path only) — through `bundle_ops apply`; never hand-edit the live bundle.**
+   Capture the date once (`today=$(date -u +%F)`), write the revised concept (with `verified: $today`) to a
+   temp file outside the bundle, then run:
+
+   ```
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" apply "<bundle>" --concept "<relpath>" \
+     --content-file "$tmp" --log-kind Update \
+     --log-message "Auto-refined [<title>](./<relpath>) after verification." --date "$today" 2>&1
+   ```
+
+   `apply` stages on a throwaway mirror, regenerates the index, appends the log, **Doctor-gates** (strict)
+   and **secret-scans**, and only on a clean gate touches the live bundle — a block leaves it
+   byte-for-byte untouched. Branch on the JSON `status`: `applied` → self-healed; `blocked:doctor` or
+   `blocked:secret` → write nothing, report the block (never strip-and-guess a secret). Remove the temp
+   file.
 
 ## Output (your final message — this is the report, not a chat reply)
 
 One block: the **verdict** (confirmed / stale / couldn't-verify), the concept path, a one-line *why*, and
-what you did (nothing / self-healed / recommended `/refine`). Keep it terse — it's a status line the
+what you did (nothing / self-healed / recommended `/capture`). Keep it terse — it's a status line the
 dispatcher relays.
 
 ## Guardrails

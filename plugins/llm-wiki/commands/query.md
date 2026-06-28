@@ -1,33 +1,45 @@
 ---
-description: Answer a wiki question with cited sources (updates a consult counter).
-argument-hint: "<question> [--bundle <path>]"
-allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(git:*), Task
+description: Answer a wiki question with cited sources, or browse the wiki from a starting point (read-only).
+argument-hint: "<question | start-subpath> [--bundle <path>]"
+allowed-tools: Glob, Grep, Read, Bash(git:*), Task
 ---
 
-You are running `/llm-wiki:query`. Answer the user's question from concepts you actually read, with
-citations, and **trust-but-verify** what the answer relies on (step 5). Use the `wiki` skill for the
-format (see its "Reading is trust-but-verify" + "Verify anchors" sections). The bundle stays read-only
-here: query itself never writes a concept — it may run a read-only `git` freshness check and dispatch a
-background `wiki-verifier` (which owns any self-heal), plus the optional consultation-counter write.
+You are running `/llm-wiki:query`. This command **reads** the wiki two ways — pick by what the user asked:
 
-Arguments: `$ARGUMENTS` is the question (**required** — if empty, ask for it; never guess). It may also
-carry `--bundle <path>`.
+- **Answer mode** (a question): answer from concepts you actually read, with citations, and
+  **trust-but-verify** what the answer relies on (step 5).
+- **Browse mode** (a starting point, or "explore/browse the wiki"): navigate by **progressive
+  disclosure** — read `index.md` listings and follow links from a starting point, not every file.
+
+Use the `wiki` skill for the format (see its "Reading is trust-but-verify" + "Verify anchors" sections).
+The bundle stays **read-only** here: query never writes a concept — it may run a read-only `git` freshness
+check and dispatch a background `wiki-verifier` (which owns any self-heal).
+
+Arguments: `$ARGUMENTS` is the question or the start subpath. It may also carry `--bundle <path>`. If it
+is empty, default to **browse mode** from the bundle root.
 
 Steps:
 
 1. **Resolve the bundle root** (`--bundle`; else the default `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk
-   up from the cwd for a root `index.md`). None → "No OKF bundle here. Run `/llm-wiki:init` first."
-2. **Find entry points.** Grep key terms from the question and read the root `index.md`. Traverse
+   up from the cwd for a root `index.md`). **None → there is no wiki yet** (one is created automatically on
+   the first `/llm-wiki:capture`); say the wiki is empty and stop.
+
+2. **Pick the mode** from `$ARGUMENTS`: a natural-language question → **answer mode** (steps 3–5); a
+   start subpath, a directory, or an explicit browse/explore request (or empty) → **browse mode** (step 6).
+
+### Answer mode
+
+3. **Find entry points.** Grep key terms from the question and read the root `index.md`. Traverse
    minimally, following only cross-links that bear on the question. A concept "counts" only when you
    actually `Read` its body (index files don't count).
-3. **Answer from read content, trusted on its face.** Ground every claim in a concept; cite each by its
+4. **Answer from read content, trusted on its face.** Ground every claim in a concept; cite each by its
    bundle-relative path / title. End with a `Sources:` list. Do **not** fabricate or fill gaps from
    general knowledge. Trust concepts as a curated summary — a verification read against a concept's
    `## Verify` anchor (step 5) is the sanctioned confirm step, **not** "filling from general knowledge."
-4. **Gap flag (required).** If no concept answers, say "The wiki does not contain an answer to this,"
-   and emit a structured line:
+   **Gap flag (required).** If no concept answers, say "The wiki does not contain an answer to this," and
+   emit a structured line:
    `GAP: <question> — no concept covers <topic>. Consider /llm-wiki:capture to add it.`
-   A query can be partly answered and partly a gap — report both. Phase 1 only *reports* gaps.
+   A query can be partly answered and partly a gap — report both.
 5. **Trust-but-verify (non-blocking).** The answer above stands now — do **not** block on verification.
    Then, for each concept a **load-bearing** claim rests on (tie "load-bearing" to the question's intent —
    a step about to be run, a value about to change — not every cited claim):
@@ -43,16 +55,16 @@ Steps:
      background (a `STALE:` correction may follow). At most **one verifier per concept per turn** (dedupe).
    - **Inline escalation** *only* when the claim is high-stakes for an action about to be taken, or its
      anchor is a quick `run:` one-liner (cheaper than spawning): confirm inline and report **confirmed**,
-     or `STALE: <concept> — wiki says X; current state shows Y` + propose `/llm-wiki:refine <concept>`.
+     or `STALE: <concept> — wiki says X; current state shows Y` + propose `/llm-wiki:capture <concept>` to
+     correct it.
    - **Lightweight, always:** check the named anchor and *only* that — a weak/missing anchor is a curation
      signal, never license to re-investigate.
-6. **Consultation counter (auto by default).** Track which concepts were consulted this turn, then apply
-   the shared counter procedure below.
-   _Counter procedure (keep byte-identical with `/llm-wiki:explore` step 4; ideal home
-   `skills/wiki/references/consultation-counter.md` once that path is editable):_ resolve the mode once
-   with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/mode.py"` (an auto mode is the default). Increment each
-   consulted concept's count in `<bundle-root>/.llm-wiki/consultations.json` (create it as `{}` if absent;
-   this dotfile is invisible to the Doctor and to OKF consumers). In an auto mode write the increments
-   silently; in `curated`/on request, propose them first and write only on approval (if declined, results
-   stand and the counter is untouched). If the file is corrupt or missing, treat it as `{}` — never let
-   counter bookkeeping break the command.
+
+### Browse mode
+
+6. **Read the starting `index.md`** (the bundle root, or the given subpath) and present its bullets —
+   titles + descriptions only, **not** full bodies (this is the lean-context win). If an `index.md` is
+   missing at a level, fall back to a Glob listing of `*.md` and continue — never abort (tolerant
+   consumer). Then **follow the user's pick:** a subdirectory → recurse into its `index.md`; a concept →
+   `Read` and present it. A broken link → note it inline and keep going. Do not modify any concept,
+   `index.md`, or `log.md` — browsing is for reading.

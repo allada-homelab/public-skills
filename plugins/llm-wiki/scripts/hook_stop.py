@@ -3,9 +3,10 @@
 
 The UserPromptSubmit / PostToolUse nudges fire *mid-turn*, where the model tends to defer
 capture in favour of the in-flight task, so durable findings slip by uncaptured. This hook
-fires when the turn is *finishing* — the non-disruptive moment to capture — and, in an auto
-mode, blocks the stop once to make the model actually decide: capture a durable finding now,
-or explicitly stop.
+fires when the turn is *finishing* — the non-disruptive moment to capture — and blocks the stop
+once to make the model actually decide: draft a durable finding and dispatch the background
+`wiki-capturer` subagent to persist it (plus `wiki-verifier` for any anchor it touched), or
+explicitly stop. The mechanical write lives in the subagents; the main loop never blocks on them.
 
 Mechanism (Claude Code Stop-hook contract): emit `{"decision": "block", "reason": ...}` at exit
 0 to continue the turn with the reason injected; emit nothing to allow the stop. (The doc names
@@ -13,8 +14,8 @@ Mechanism (Claude Code Stop-hook contract): emit `{"decision": "block", "reason"
 redundant `hookSpecificOutput.additionalContext` carrying the same text.) Gated by the
 `.llm-wiki/capture-pending` marker that the PostToolUse hook drops on a real-code edit: with no
 marker (a pure-chat turn that changed nothing) this hook stays silent, so it does not force a
-continuation on every turn. Also silent for curated mode and when no bundle exists. Reads
-`$CLAUDE_PROJECT_DIR` (falls back to the event JSON's `cwd`).
+continuation on every turn. Also silent when no bundle exists. Reads `$CLAUDE_PROJECT_DIR`
+(falls back to the event JSON's `cwd`).
 
 The model is the judge: a deterministic hook cannot know whether a durable finding occurred,
 so the reason text gives a clean "nothing durable → just stop" out.
@@ -32,15 +33,17 @@ import json
 import os
 import sys
 
-from mode import resolve_mode
-
 NUDGE = (
-    "[llm-wiki] Before finishing this turn: if it established a durable, reusable finding (a "
-    "decision; a gotcha — e.g. a silent footgun, a surprising root cause, or a failure->fix where "
-    "one approach failed and another worked; a convention, schema, or how something works), capture "
-    "it to the wiki now via /llm-wiki:capture — it is secret-scanned, Doctor-gated, logged, and "
-    "git-reversible. In an auto mode apply it silently: do not announce or summarize what you saved. "
-    "If nothing durable happened this turn, just stop without capturing — do not invent a finding."
+    "[llm-wiki] Before finishing this turn, run the wiki's end-of-turn loop (fire-and-forget — do not "
+    "block on the subagents): "
+    "(1) If this turn established a durable, reusable finding (a decision; a gotcha — e.g. a silent "
+    "footgun, a surprising root cause, or a failure->fix where one approach failed and another worked; "
+    "a convention, schema, or how something works), DRAFT it now per the wiki skill and dispatch the "
+    "`wiki-capturer` subagent in the BACKGROUND to persist it through the gated apply engine. Do not "
+    "write the concept to the bundle inline, and do not announce or summarize what you saved. "
+    "(2) For any wiki concept whose `## Verify` anchor names a file you changed this turn, dispatch the "
+    "`wiki-verifier` subagent in the background to re-check it. "
+    "(3) If nothing durable changed this turn, just stop — do not invent a finding."
 )
 
 
@@ -58,8 +61,6 @@ def main():
     project = _project_dir(event)
     if not os.path.isfile(os.path.join(project, "llm-wiki", "index.md")):
         return 0  # no bundle here — contribute nothing
-    if resolve_mode(project) not in ("proactive", "max"):
-        return 0  # only force the end-of-turn check in an auto mode
 
     marker = os.path.join(project, "llm-wiki", ".llm-wiki", "capture-pending")
     if not os.path.exists(marker):

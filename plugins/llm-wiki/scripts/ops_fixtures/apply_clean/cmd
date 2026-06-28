@@ -1,0 +1,1 @@
+apply BUNDLE --concept widget.md --content-file BUNDLE/source.txt --log-kind Creation --log-message "Added [Widget](./widget.md)." --date 2026-06-28

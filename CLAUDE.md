@@ -9,12 +9,13 @@ marketplace (`.claude-plugin/marketplace.json`); plugins live under `plugins/`.
 
 The first and current plugin is **`llm-wiki`**: an OKF-native knowledge wiki for Claude Code.
 It lets Claude author, read, and maintain a persistent OKF knowledge bundle for a project.
-**Phases 1 & 2 shipped; Phase 3 (autonomy) core landed** — Phase 1: init / capture / explore / query /
-conform; Phase 2: refine / prune / reorganize over the deterministic `bundle_ops` engine + Doctor R4
-link-health; Phase 3 core: autonomy mode (default `proactive`), SessionStart preload, a PreToolUse
-secret/Doctor guard floor, a once-per-session UserPromptSubmit consult nudge, and the `/tend` digest (PostToolUse +
-auto-digest + Max deferred). All writes are gated by a deterministic Doctor; commands apply autonomously
-in an auto mode (the default) and confirm-first only in `curated`. See
+It is **zero-config and always-on auto**: once a bundle exists, autonomy is on — there are no modes to
+set. Six commands — `query` (answer + browse), `capture` (upsert: create-or-edit), `prune`,
+`reorganize`, `tend` (curation digest + conformance), and `ingest` (repo bootstrap) — compose the
+deterministic `bundle_ops` engine. The main agent owns curation judgment; background **Sonnet**
+subagents (`wiki-capturer` persists a drafted concept, `wiki-verifier` re-checks touched anchors) do the
+mechanical work. Every write is gated by a deterministic Doctor (OKF v0.1) plus a secret scan, applied
+autonomously and git-reversibly through the consolidated `bundle_ops apply` engine. See
 [docs/llm-wiki](./docs/llm-wiki/) for the product plan, phasing, and the per-phase technical plans.
 
 ## Repository layout
@@ -23,13 +24,13 @@ in an auto mode (the default) and confirm-first only in `curated`. See
 .claude-plugin/marketplace.json   # marketplace manifest
 plugins/llm-wiki/                  # the plugin
   .claude-plugin/plugin.json       # plugin manifest (note: inside .claude-plugin/, not plugin root)
-  commands/                        # /llm-wiki:{init,ingest,capture,explore,query,conform,refine,prune,reorganize,tend}
-  agents/                          # wiki-explorer.md (/ingest fan-out) + wiki-verifier.md (/query background trust-but-verify); both Sonnet
+  commands/                        # /llm-wiki:{query,capture,prune,reorganize,tend,ingest}
+  agents/                          # wiki-explorer.md (/ingest fan-out) + wiki-verifier.md (touched-anchor re-check) + wiki-capturer.md (background gated persist); all Sonnet
   skills/wiki/                     # the llm-wiki:wiki skill (SKILL.md + references/, incl. ingestion.md)
-  hooks/hooks.json                 # Phase 3 hooks: SessionStart, PreToolUse, UserPromptSubmit, PostToolUse, Stop, SessionEnd
-  scripts/                         # doctor.py, secret_scan.py, bundle_ops.py, mode.py;
+  hooks/hooks.json                 # hooks: SessionStart, PreToolUse, UserPromptSubmit, PostToolUse, Stop
+  scripts/                         # doctor.py, secret_scan.py, bundle_ops.py;
                                    #   hooks: hook_session_start.py, secret_guard.py, doctor_guard.py,
-                                   #          hook_user_prompt.py, hook_post_tool.py, hook_stop.py, hook_session_end.py
+                                   #          hook_user_prompt.py, hook_post_tool.py, hook_stop.py
                                    #   fixtures/ (Doctor) + ops_fixtures/ (bundle_ops) + hook_fixtures/ (hooks)
 llm-wiki/                          # this repo's own OKF bundle (dogfood + living example)
 docs/llm-wiki/                     # design docs (README = index/hub, TRIAL_BRIEF = dogfooding)
@@ -47,19 +48,19 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   ```bash
   bash plugins/llm-wiki/scripts/fixtures/run_fixtures.sh
   ```
-  Expect `pass=31 fail=0 skip=0`.
+  Expect `pass=30 fail=0 skip=0`.
 - **Test the durability engine** (the `bundle_ops` golden corpus — run after any change to
   `bundle_ops.py`):
   ```bash
   bash plugins/llm-wiki/scripts/ops_fixtures/run_ops.sh
   ```
-  Expect `pass=31 fail=0`.
-- **Test the hooks** (the `hook_fixtures` corpus — run after any change to `mode.py` or a `hook_*` /
+  Expect `pass=35 fail=0`.
+- **Test the hooks** (the `hook_fixtures` corpus — run after any change to a `hook_*` /
   `*_guard.py` script):
   ```bash
   bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh
   ```
-  Expect `pass=38 fail=0`.
+  Expect `pass=29 fail=0`.
 - **Validate a bundle**:
   ```bash
   python3 plugins/llm-wiki/scripts/doctor.py <bundle-dir> --mode strict --format text
@@ -68,39 +69,39 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
 ## Architecture & conventions
 
 - **Doctor is the conformance authority.** `doctor.py` deterministically enforces OKF v0.1
-  (rules R1/R2/R3a–c, plus report-only **R4** link-health and **R5** lonely-subdir). The `wiki` skill only makes drafts
-  *near*-conformant; if they disagree, the Doctor wins. Commands stage writes to a `/tmp` bundle
-  mirror and run the Doctor in bundle mode *before* writing anything.
+  (rules R1/R2/R3a–c, plus report-only **R4** link-health). The `wiki` skill only makes drafts
+  *near*-conformant; if they disagree, the Doctor wins. Writes are staged to a `/tmp` bundle
+  mirror and Doctor-gated in bundle mode *before* anything lands.
 - **Maintenance is deterministic.** `bundle_ops.py` (index regeneration, `log.md` appends,
-  link-preserving moves, guarded remove) is the engine the Phase 2 commands compose instead of
-  hand-editing indexes/links. `reorganize` gates on an R4 pre/post diff (`after ⊆ before` → zero
+  link-preserving moves, guarded remove) is the engine the write commands compose instead of
+  hand-editing indexes/links. Its **`apply`** subcommand is the consolidated gated write — auto-init an
+  absent bundle → stage a `/tmp` mirror → regenerate index/log → Doctor-gate → secret-scan → commit,
+  emitting a JSON status (`applied | blocked:doctor | blocked:secret`); `capture` and the background
+  `wiki-capturer` both call it. `reorganize` gates on an R4 pre/post diff (`after ⊆ before` → zero
   newly-broken links).
-- **Auto by default; confirm only on request.** In an **auto** mode (`proactive`/`max` — the default)
-  the write commands (`capture`/`refine`/`prune`/`reorganize`) apply directly with no per-write prompt and
-  no prose recap — the safety net is the in-command Doctor gate (blocking) and secret scan (a **hard
-  abort** on a hit in auto mode), plus git-reversibility. (The apply lands via `cp`, so the PreToolUse
-  guard floor backstops *direct* bundle Write/Edit, not the command path.) They show a diff and wait for
-  approval only in **`curated`** mode or when the user explicitly asks. `explore`/`query`/`conform` are read-only. `ingest` (bulk repo bootstrap) is autonomous
-  once invoked: every concept is still secret-scanned and the whole batch is Doctor-gated before it lands,
-  with `--dry-run` to preview and one git-reversible diff.
-- **Report-only secret scan.** `secret_scan.py` surfaces credentials in the capture diff (honoring
-  `pragma: allowlist secret` and skipping obvious placeholders so documentation examples don't
-  false-positive) but
-  never blocks in Phase 1; in Phase 3 the same scanner backs a *blocking* PreToolUse hook.
-- **Autonomy is hook-driven (Phase 3), with a guard floor.** `hooks/hooks.json` wires six events:
-  SessionStart (preload root index + mode notice), PreToolUse (`secret_guard.py` denies credential
-  writes, `doctor_guard.py` denies non-conformant concept writes — scoped to bundle
-  `Write|Edit|MultiEdit`), UserPromptSubmit (`hook_user_prompt.py` — a once-per-session *consult* nudge
-  (session-marker-gated): the read loop's forcing function, symmetric to capture, not a per-turn line),
-  PostToolUse (`hook_post_tool.py` — a silent marker-dropper: after a non-bundle code edit in an auto
-  mode it drops the `.llm-wiki/capture-pending` marker the Stop hook gates on and emits nothing itself —
-  the capture prompt is the Stop hook's job, raised once at end-of-turn),
-  Stop (`hook_stop.py` — the end-of-turn capture forcing function: in an auto mode, *only on a turn that
-  changed real code* (gated by that marker), it blocks the stop once — `stop_hook_active`-guarded — so the
-  model decides capture-or-stop at the non-disruptive moment; silent on pure-chat turns), and SessionEnd
-  (`hook_session_end.py` — a digest pointing at `/tend`). Mode (`mode.py`, from
-  `.claude/llm-wiki.local.md`) defaults to **`proactive`** when absent; the floor is what makes that
-  safe. Hooks are deterministic command scripts (no model-call hooks); changes need `/reload-plugins`.
+- **Always-auto; zero-config.** Once a bundle exists, autonomy is on — there are no modes. The write
+  commands (`capture`/`prune`/`reorganize`) apply directly with no per-write prompt and no prose recap;
+  the safety net is the in-command Doctor gate (blocking) and secret scan (a **hard abort** on a hit),
+  plus git-reversibility. (The apply lands via `cp`, so the PreToolUse guard floor backstops *direct*
+  bundle Write/Edit, not the command path.) `query`/`tend` are read-only. `ingest` (bulk repo bootstrap)
+  is autonomous once invoked: every concept is still secret-scanned and the whole batch is Doctor-gated
+  before it lands, with `--dry-run` to preview and one git-reversible diff.
+- **Secret scan.** `secret_scan.py` surfaces credentials (honoring `pragma: allowlist secret` and
+  skipping obvious placeholders so documentation examples don't false-positive). It runs inside
+  `bundle_ops apply` as a **hard abort** before any write lands, and the same scanner backs the
+  *blocking* PreToolUse `secret_guard` hook.
+- **Autonomy is hook-driven, with a guard floor.** `hooks/hooks.json` wires five events:
+  SessionStart (preload root index + an *N concepts · tags* summary + a consult reminder), PreToolUse
+  (`secret_guard.py` denies credential writes, `doctor_guard.py` denies non-conformant concept writes —
+  scoped to bundle `Write|Edit|MultiEdit`), UserPromptSubmit (`hook_user_prompt.py` — a once-per-session
+  *consult* nudge (session-marker-gated): the read loop's forcing function, symmetric to capture),
+  PostToolUse (`hook_post_tool.py` — after a non-bundle code edit it drops the `.llm-wiki/capture-pending`
+  marker the Stop hook gates on and emits nothing itself — the capture prompt is the Stop hook's job),
+  and Stop (`hook_stop.py` — the end-of-turn forcing function: *only on a turn that changed real code*
+  (gated by that marker), it blocks the stop once — `stop_hook_active`-guarded — so the model decides
+  capture-or-stop at the non-disruptive moment, drafting + dispatching `wiki-capturer`/`wiki-verifier` in
+  the background; silent on pure-chat turns). Autonomy is on whenever the bundle exists — no config. Hooks
+  are deterministic command scripts (no model-call hooks); changes need `/reload-plugins`.
 - **Tests are fixtures.** `scripts/fixtures/<name>/` is a minimal bundle with a planted defect and an
   `expected/<name>.json` contract (Doctor); `scripts/ops_fixtures/<name>/` is an input→expected output
   tree for `bundle_ops`. Add a fixture *before* implementing any new rule or engine behavior (TDD).

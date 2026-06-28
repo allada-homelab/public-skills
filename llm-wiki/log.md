@@ -1,5 +1,11 @@
 # Directory Update Log
 
+## 2026-06-28
+
+* **Update**: Refined [Repo ingestion — orchestrated multi-agent bootstrap](./repo-ingestion-architecture.md) and [Reading is trust-but-verify — the consult-then-confirm loop](./trust-but-verify-loop.md) for the always-auto surface.
+* **Update**: Refined [llm-wiki autonomy — zero-config always-auto with a guard floor](./phase-3-autonomy-architecture.md): collapsed modes, five hook events, background subagents.
+* **Update**: Refined [OKF Doctor — strict-producer rule set](./doctor-rule-set.md): R5 removed; capture-upsert + apply engine.
+
 ## 2026-06-27
 
 * **Creation**: Added [Reading is trust-but-verify — the consult-then-confirm loop](./trust-but-verify-loop.md).

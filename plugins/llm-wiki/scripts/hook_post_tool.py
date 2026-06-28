@@ -2,13 +2,12 @@
 """PostToolUse marker-dropper — record that real code changed this turn (deterministic, silent).
 
 When a Write/Edit touches a file *outside* the bundle (i.e. real project code/docs, which often
-encodes a durable decision or convention) and the wiki is in an auto mode, drop the
-`.llm-wiki/capture-pending` marker that the **Stop** hook gates on, so the end-of-turn capture
-check fires only on turns that actually changed real code, not on every turn. This hook emits
-nothing to the transcript — the capture nudge is the Stop hook's job, raised once at the
-non-disruptive end-of-turn moment rather than mid-turn where the model defers it. Stays silent —
-and writes no marker — for bundle writes (that IS the capture), for curated mode, and when there
-is no bundle, so it never fires a model judgment on every tool call.
+encodes a durable decision or convention), drop the `.llm-wiki/capture-pending` marker that the
+**Stop** hook gates on, so the end-of-turn capture check fires only on turns that actually changed
+real code, not on every turn. This hook emits nothing to the transcript — the capture nudge is the
+Stop hook's job, raised once at the non-disruptive end-of-turn moment rather than mid-turn where the
+model defers it. Stays silent — and writes no marker — for bundle writes (that IS the capture) and
+when there is no bundle, so it never fires a model judgment on every tool call.
 
 Tunable: if this proves noisy, narrow the matcher or disable the hook in hooks.json.
 Reads `$CLAUDE_PROJECT_DIR` (falls back to event `cwd`).
@@ -16,8 +15,6 @@ Reads `$CLAUDE_PROJECT_DIR` (falls back to event `cwd`).
 import json
 import os
 import sys
-
-from mode import resolve_mode
 
 
 def _under(path_abs, root_abs):
@@ -55,8 +52,6 @@ def main():
         return 0  # no bundle — nothing to capture into
     if _under(os.path.realpath(fp), os.path.realpath(os.path.join(project, "llm-wiki"))):
         return 0  # the write IS into the bundle — not a trigger
-    if resolve_mode(project) not in ("proactive", "max"):
-        return 0  # only auto-nudge in an auto mode
 
     _mark_capture_pending(_marker_path(project))  # gate signal for the Stop hook: real code changed
     return 0

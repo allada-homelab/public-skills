@@ -1,7 +1,7 @@
 ---
 description: Bootstrap a wiki from an existing repo (multi-agent).
 argument-hint: "[repo-path] [--scope min|medium|high] [--bundle <path>] [--dry-run]"
-allowed-tools: Task, Glob, Grep, Read, Write, Bash(python3:*), Bash(date:*), Bash(cp:*), Bash(rm:*), Bash(mktemp:*), Bash(diff:*)
+allowed-tools: Task, Glob, Grep, Read, Write, Bash(python3:*), Bash(date:*), Bash(cp:*), Bash(rm:*), Bash(mkdir:*), Bash(mktemp:*), Bash(diff:*)
 ---
 
 You are running `/llm-wiki:ingest`. Populate an **existing** llm-wiki bundle from a whole repository by
@@ -21,9 +21,10 @@ Steps:
 
 1. **Resolve repo + bundle + flags.** Repo to ingest = `[repo-path]` if given, else `${CLAUDE_PROJECT_DIR}`.
    Bundle = `--bundle` if given; else the default `${CLAUDE_PROJECT_DIR}/llm-wiki` if it holds a root
-   `index.md` (`okf_version: "0.1"`); else walk up from the cwd. **No bundle → stop:** "No OKF bundle
-   here. Run `/llm-wiki:init` first, then `/llm-wiki:ingest`." Parse `--scope` (default `medium`) and
-   `--dry-run`.
+   `index.md` (`okf_version: "0.1"`); else walk up from the cwd. **No bundle found → use the default
+   `${CLAUDE_PROJECT_DIR}/llm-wiki`** — the bundle is created automatically by the staging step (the
+   `index` regen below writes a conformant root `index.md` with `okf_version: "0.1"`), so there is nothing
+   to bootstrap by hand. Parse `--scope` (default `medium`) and `--dry-run`.
 
 2. **Recon (orchestrator).** Survey the repo cheaply: README, top-level layout, package manifests, CI
    configs, any `docs/`/ADRs. Build a subsystem map. Also load the **existing** bundle concepts (Glob the
@@ -41,7 +42,7 @@ Steps:
 
 5. **Synthesize** (per `references/ingestion.md`): **dedupe** across subagents and against existing
    concepts; choose structure **flat-first** (a subdirectory section only for a real ~3+ cluster or a
-   distinct domain — never a lonely folder, which the Doctor flags as **R5**); assign each concept its
+   distinct domain — never a lonely folder); assign each concept its
    final `<dir>/<slug>.md` path and frontmatter (non-empty `type`, `title`, `description`, `tags`,
    `timestamp`); **resolve cross-links** to real `./` paths (drop danglers). Enforce the scope cap and
    **record anything dropped** (no silent truncation).
@@ -53,7 +54,9 @@ Steps:
 6. **`--dry-run` → stop here.** Print the plan: each concept as `path · type · title — one-line desc`,
    the proposed sections, the cross-link graph, and anything the cap dropped. Write nothing.
 
-7. **Stage the batch in a mirror.** `mirror=$(mktemp -d)`; `cp -r "<bundle>/." "$mirror/"`. Write every
+7. **Stage the batch in a mirror.** `mirror=$(mktemp -d)`; if the bundle already exists, seed the mirror
+   with `cp -r "<bundle>/." "$mirror/"` (skip this `cp` when the bundle is absent — the `index` regen below
+   writes a conformant root `index.md` into the mirror from scratch). Write every
    new concept into the mirror at its `<dir>/<slug>.md` (Write creates section dirs). **Secret-scan each
    before trusting it:** `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/secret_scan.py" "$mirror/<relpath>"
    --format json` — a **hit** is a non-zero `summary.findings` in the JSON (`secret_scan.py` always exits
@@ -65,11 +68,12 @@ Steps:
 
 8. **Doctor gate.** `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "$mirror" --mode strict --format
    json`. Exit ≠ 0 → **fix the offending concept(s)** in the mirror and re-run `index` + the Doctor until
-   it passes (the Doctor wins — never land non-conformant content). Surface any `R4` (dangling link) or
-   `R5` (lonely-subdir) **WARNINGs**; they don't block, but an R5 is a cue to flatten a section.
+   it passes (the Doctor wins — never land non-conformant content). Surface any `R4` (dangling link)
+   **WARNINGs**; they don't block (broken links are tolerated per OKF spec §5).
 
-9. **Apply (autonomous).** Land *exactly the gated bytes*: `cp` each staged concept back to
-   `<bundle>/<relpath>` (creating section dirs). Then reproduce the deterministic bookkeeping on the real
+9. **Apply (autonomous).** Land *exactly the gated bytes*: for each staged concept, `mkdir -p` its target
+   parent directory (this creates the bundle root and any new section dirs, since `cp` does not create
+   parents), then `cp` it back to `<bundle>/<relpath>`. Then reproduce the deterministic bookkeeping on the real
    bundle — `bundle_ops.py index "<bundle>"` and the same `bundle_ops.py log-append … --date "$today"` —
    and run the Doctor on `<bundle>` to confirm **PASS**. If any write fails, report exactly what landed.
    Clean up only a real mirror (`rm -rf "$mirror"` — never an unset path).

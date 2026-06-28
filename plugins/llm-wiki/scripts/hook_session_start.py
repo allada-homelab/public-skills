@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """SessionStart hook — preload the llm-wiki into context (deterministic, no model call).
 
-If a bundle exists at `$CLAUDE_PROJECT_DIR/llm-wiki/`, inject a mode notice + concept/tag
-summary via the SessionStart `additionalContext` channel, so each session starts knowing the
-wiki's shape and whether it is in auto (proactive) mode. If no bundle exists, emit nothing and
-exit 0 — never block or noise a session that has no wiki.
+If a bundle exists at `$CLAUDE_PROJECT_DIR/llm-wiki/`, inject a concept/tag summary via the
+SessionStart `additionalContext` channel, so each session starts knowing the wiki's shape. If no
+bundle exists, emit nothing and exit 0 — never block or noise a session that has no wiki.
 
 Branches on the event `source` (startup/resume/clear/compact): on a fresh/resumed/cleared
 session the full root `index.md` body is injected; on `source == "compact"` only the shorter
-pointer (mode notice + summary, *not* the index body) is injected — re-injecting the whole index
+pointer (summary, *not* the index body) is injected — re-injecting the whole index
 on every compaction would partially defeat compaction and grow with the bundle.
 
 Reads `$CLAUDE_PROJECT_DIR` (falls back to the event JSON's `cwd`, else cwd).
@@ -17,23 +16,14 @@ import json
 import os
 import sys
 
-from mode import resolve_mode
-
-MODE_NOTE = {
-    "proactive": "auto — findings are captured and indexes/log maintained without per-write "
-                 "confirmation (every write is secret-scanned, Doctor-gated, logged, and git-reversible). "
-                 "Switch with `mode: curated` in .claude/llm-wiki.local.md.",
-    "curated": "propose-only — captures are proposed, never written without your confirmation.",
-    "max": "auto — currently identical to proactive; reserved for a future background-curation tail.",
-}
-
 # Shared start-of-session "consult the wiki" guidance, used here in the SessionStart preload and
 # re-used by the UserPromptSubmit nudge (hook_user_prompt.py imports it) so the two cannot drift.
 # Phrased to begin lower-case so it reads as a clause joined onto each hook's own lead-in.
 CONSULT_GUIDANCE = (
-    "consult it before non-trivial work via `/llm-wiki:query` or `/llm-wiki:explore`; trust it as a "
-    "curated summary, then verify a load-bearing claim against current state before acting (the "
-    "concept says where to look, so it's quick); capture durable findings as you go."
+    "consult it before any non-trivial work via `/llm-wiki:query` — proactively and WITHOUT asking the "
+    "user first (reading the wiki first is the default expectation, not opt-in); trust it as a curated "
+    "summary, then verify a load-bearing claim against current state before acting (the concept says "
+    "where to look, so it's quick); capture durable findings as you go."
 )
 
 
@@ -79,7 +69,6 @@ def main():
     except OSError:
         return 0  # no bundle here — contribute nothing
 
-    mode = resolve_mode(project_dir)
     count, tags = _bundle_summary(os.path.join(project_dir, "llm-wiki"))
     summary = "**%d concept%s**%s" % (
         count, "" if count == 1 else "s",
@@ -87,8 +76,7 @@ def main():
     )
     head = (
         "# llm-wiki knowledge bundle (preloaded)\n\n"
-        "Active mode: **%s** — %s\n\n"
-        "%s — %s\n\n" % (mode, MODE_NOTE.get(mode, ""), summary, CONSULT_GUIDANCE)
+        "%s — %s\n\n" % (summary, CONSULT_GUIDANCE)
     )
     if event.get("source") == "compact":
         # post-compaction: the full index is (or just was) in context — inject only the pointer,

@@ -1,5 +1,11 @@
 # Product Plan — `/llm-wiki`: an OKF-native LLM Wiki as a Claude Code Plugin
 
+> **Status (2026-06-28): partly superseded.** The shipped plugin has since been refactored to a leaner,
+> **zero-config always-auto** design — no autonomy modes, a 6-command surface, a consolidated
+> `bundle_ops apply` write engine, and background Sonnet persist/validate. For the *current* surface and
+> behavior, [`phases/lean-always-auto-tech-plan.md`](../phases/lean-always-auto-tech-plan.md) and the repo
+> `CLAUDE.md` are authoritative; this document is retained as the original product vision.
+
 > **Phasing & sequencing decisions are refined in [`PHASE_PLAN.md`](./PHASE_PLAN.md)** — where they
 > differ (e.g. 4 phases vs. the 5-phase roadmap below; "Proactive default" clarified as Curated-when-absent;
 > the `/loop` idea deferred past Phase 4), the phase plan is authoritative. This document remains the

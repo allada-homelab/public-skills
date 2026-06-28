@@ -4,8 +4,8 @@ description: >-
   Build, maintain, and read a project knowledge wiki — a curated library of
   markdown notes the agent consults to start each session smarter. This skill
   should be used when the user wants to capture or save a finding, decision,
-  runbook, schema, or metric into a wiki or knowledge base; or to initialize,
-  explore, or query that wiki. The wiki follows the Open Knowledge Format
+  runbook, schema, or metric into a wiki or knowledge base; or to read or
+  query that wiki. The wiki follows the Open Knowledge Format
   (OKF v0.1); this skill explains its conformance and concept/frontmatter/linking
   rules so authored files are near-conformant before the deterministic Doctor
   gate runs. Also relevant when the user mentions llm-wiki, OKF, a concept doc,
@@ -74,9 +74,8 @@ should emerge from real clusters. Put a concept in a subdirectory only when ther
   (often paired with `/llm-wiki:reorganize` for the existing ones);
 - ✅ it is a **distinct domain/subsystem** with its own identity and expected growth.
 
-Avoid: a brand-new folder for a **single** concept (a "lonely folder"), foldering by type with thin
-contents, and speculative depth (prefer depth 1; rarely 2). The Doctor's **R5** warning flags a lonely
-single-concept subdir as the backstop. When in doubt, root — and `reorganize` into sections later.
+Avoid: a brand-new folder for a **single** concept, foldering by type with thin contents, and
+speculative depth (prefer depth 1; rarely 2). When in doubt, root — and `reorganize` into sections later.
 
 ## Doctor is the authority — these rules guide, they do not verify
 
@@ -101,6 +100,23 @@ verify the spot — don't re-investigate from scratch (that defeats the point).
 A concept records a **`## Verify`** anchor and a `verified:` stamp to make that spot-check cheap and
 targeted; the freshness gate and self-heal are owned by `/llm-wiki:query`.
 
+## The always-on loop (read first, persist in the background)
+
+The wiki is always-on — there is no mode to enable. The main agent runs this loop itself:
+
+- **Read first, without asking.** Before any non-trivial work, consult the wiki via `/llm-wiki:query`
+  **proactively and without asking the user** — reading the wiki first is the default expectation, not
+  an opt-in. Treat it as a first-class source alongside `CLAUDE.md` and READMEs.
+- **The main agent owns judgment.** At the end of work *you* decide what (if anything) is durable and
+  reusable, and you draft the concept per this skill. A subagent never makes that call.
+- **Persist in the background.** Dispatch the **`wiki-capturer`** subagent (background) to write your
+  drafted concept through the gated `bundle_ops apply` engine — don't write it to the bundle inline and
+  don't block on it. It persists what you handed it; it does not re-curate.
+- **Verify touched anchors.** For any concept whose `## Verify` anchor names a file you changed this
+  turn, dispatch the **`wiki-verifier`** subagent (background) to re-check it.
+
+The Stop hook nudges this loop at end-of-turn, but it is the model's standing behavior, not the hook's.
+
 ## Verify anchors
 
 Authoring rules — what makes a good anchor, the free-text-not-a-link constraint, repo-root-relative
@@ -124,22 +140,18 @@ Never paste the raw OKF spec into context — these notes plus the on-demand ref
 
 ## Command map (orientation)
 
-- `/llm-wiki:init` — bootstrap an empty conformant bundle (one-time).
-- `/llm-wiki:ingest` — bootstrap a whole wiki from an existing repo (orchestrated multi-agent ingestion).
-- `/llm-wiki:capture` — turn a finding into one conformant concept (the core loop).
-- `/llm-wiki:explore` — navigate via `index.md` progressive disclosure.
-- `/llm-wiki:query` — answer a question grounded in concepts, with citations and a gap flag.
-- `/llm-wiki:conform` — run the Doctor and report (read-only).
-- `/llm-wiki:refine` — edit an existing concept in place (indexes + log kept correct).
+- `/llm-wiki:query` — answer a question grounded in concepts (citations + a gap flag), or browse from a point via `index.md` progressive disclosure. Read-only.
+- `/llm-wiki:capture` — **upsert** a finding as one conformant concept: create it, or edit in place if it already exists (the core loop). No bundle is bootstrapped by hand — the first write auto-inits a conformant empty bundle.
 - `/llm-wiki:prune` — remove a concept; dangling inbound links are *reported*, not rewritten.
 - `/llm-wiki:reorganize` — move/rename concepts (incl. into subdirectories) with zero broken links.
 - `/llm-wiki:tend` — emit a read-only curation digest (conformance, broken links, staleness, gaps) and propose maintenance.
+- `/llm-wiki:ingest` — bootstrap a whole wiki from an existing repo (orchestrated multi-agent ingestion).
 
 Each command owns its own arguments, allowed-tools, and Doctor wiring — this skill does not restate them.
 
 ## Maintenance is deterministic
 
-`refine` / `prune` / `reorganize` never hand-edit `index.md`, `log.md`, or cross-links. Those are
+`capture` / `prune` / `reorganize` never hand-edit `index.md`, `log.md`, or cross-links. Those are
 regenerated by the shared `scripts/bundle_ops.py` engine: indexes are rebuilt from concept frontmatter
 (root keeps only `okf_version`; subdir `index.md` gets zero frontmatter), `log.md` entries are appended
 newest-first with the bold prefix, and a `move` rewrites every inbound link in **both** the `./` and `/`

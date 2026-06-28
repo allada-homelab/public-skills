@@ -7,7 +7,7 @@ tags:
   - orchestration
   - subagents
 timestamp: 2026-06-15T00:00:00Z
-verified: 2026-06-26T21:36:34Z
+verified: 2026-06-28T05:51:41Z
 ---
 # Repo ingestion — orchestrated multi-agent bootstrap
 
@@ -33,8 +33,8 @@ subagent (Sonnet) is the unit it fans out.
 
 - **Command, not an auto-skill.** Ingestion is an expensive, deliberate, one-time action — explicit
   invocation (consistent with the other commands), so it never auto-fires mid-task.
-- **Autonomous once invoked** (no per-concept confirm gate) — like the other write commands in an auto
-  mode, but autonomous *regardless* of mode, since it is an explicit bulk action. The floor still holds:
+- **Autonomous once invoked** (no per-concept confirm gate) — like the other write commands, since it is
+  an explicit bulk action. The floor still holds:
   every concept is **secret-scanned** in the mirror (a hit is
   redacted, since the `cp`-back bypasses the PreToolUse `secret_guard`), the whole batch is
   **Doctor-gated** before it lands, and the result is one **git-reversible** diff. `--dry-run` previews

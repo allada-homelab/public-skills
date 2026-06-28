@@ -39,6 +39,15 @@ for dir in "$HERE"/*/; do
       echo "FAIL $name — stderr missing '$(cat "$dir/expect_err")': $(cat "$tmp/.err")"
       fail=$((fail+1)); failed_names+=("$name"); rm -rf "$tmp"; continue
     fi
+    # A gate-block case may ALSO ship an expected/ tree to assert the bundle is left
+    # byte-for-byte unchanged (the load-bearing `apply` safety property). Cases without
+    # expected/ keep asserting exit-code + stderr only.
+    rm -f "$tmp/.err"  # the harness's own stderr capture is not part of the bundle tree
+    if [ -d "$dir/expected" ] && ! diff -ru "$dir/expected" "$tmp" >/tmp/ops_diff.$$ 2>&1; then
+      echo "FAIL $name — tree changed despite exit $code (expected unchanged):"; sed 's/^/    /' /tmp/ops_diff.$$
+      fail=$((fail+1)); failed_names+=("$name"); rm -f /tmp/ops_diff.$$; rm -rf "$tmp"; continue
+    fi
+    rm -f /tmp/ops_diff.$$
     echo "PASS $name"; pass=$((pass+1)); rm -rf "$tmp"; continue
   fi
 
