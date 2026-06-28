@@ -10,7 +10,7 @@ const PRED_SCHEMA = {
   properties: {
     predicted: {
       type: 'array', items: { type: 'string' },
-      description: 'dotted symbol identities (e.g. pkg.mod.func) that answer the question; [] if none',
+      description: 'repo-root-relative file path(s) where the answer is defined, e.g. pkg/mod.py; [] if none',
     },
   },
 }
@@ -24,7 +24,8 @@ const brief = (cand, question, repoPath, wiki, bundle) =>
       `Read the relevant concept files to orient FIRST, then confirm exact locations in code.\n`
     : '') +
   `QUESTION: ${question}\n` +
-  `Return the dotted symbol identities that answer it (empty list if none).`
+  `Return the file path(s) where the answer is defined, **relative to the repository root** ` +
+  `(${repoPath}) — e.g. \`pkg/mod.py\`, NOT an absolute or clone-prefixed path. Empty list if none.`
 
 // Ablated reference is candidate-independent (no wiki) — the cacheable baseline; comparing each
 // candidate's with-wiki score against a FIXED no-wiki bar avoids the "win uplift by being a bad
@@ -32,6 +33,12 @@ const brief = (cand, question, repoPath, wiki, bundle) =>
 const BASELINE = { id: '__baseline__', prompt_text: 'Find the code locations that answer the question.' }
 
 phase('SUT grid')
+
+// Invoke via the Workflow tool with `args` = {items, candidates, wikiContext, wikiBundlePath, repoPath}.
+// (Observed: `args` may not thread when a workflow is launched by `scriptPath`; if so, run an inline
+// `script` with the data baked in. This guard fails loudly instead of with a cryptic `args.items` error.)
+if (typeof args === 'undefined' || !args || !Array.isArray(args.items) || !Array.isArray(args.candidates))
+  throw new Error('p2a_smoke.mjs requires args = {items, candidates, wikiContext, wikiBundlePath, repoPath}')
 
 const cells = []
 for (const item of args.items)

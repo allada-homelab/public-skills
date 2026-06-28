@@ -7,10 +7,19 @@ from llm_wiki_optimizer.config import Item
 from llm_wiki_optimizer.score import prf1, uplift
 
 
+def _norm(p: str) -> str:
+    """Normalize a file path to repo-root-relative so SUT output matches gold."""
+    p = p.strip().lstrip("./")
+    for marker in ("data/scaffold/", "/scaffold/"):
+        if marker in p:
+            p = p.split(marker, 1)[1]
+    return p
+
+
 def _f1(cell: dict[str, Any], gold: list[str]) -> float:
     if not cell.get("ok", False):
         return 0.0
-    return prf1(cell["predicted"], gold)[2]
+    return prf1([_norm(x) for x in cell["predicted"]], [_norm(g) for g in gold])[2]
 
 
 def report(items_path: Path, cells_path: Path) -> dict[str, Any]:
@@ -21,7 +30,7 @@ def report(items_path: Path, cells_path: Path) -> dict[str, Any]:
 
     def f1(item_id: str, cand: str, sut: str, cond: str) -> float:
         c = idx.get((item_id, cand, sut, cond))
-        return 0.0 if c is None else _f1(c, [g.symbol for g in items[item_id].gold])
+        return 0.0 if c is None else _f1(c, [g.file for g in items[item_id].gold])
 
     real = [c for c in cand_ids if c != "__baseline__"]
     out: dict[str, Any] = {}

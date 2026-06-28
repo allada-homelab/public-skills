@@ -398,3 +398,44 @@ significant, transfer-validated uplift** over the frozen baseline (private test 
 regression), **or** a **documented null result** ("baseline holds") — *plus*, in both cases, the
 **standing regression harness** and the reproducible experiment log. A null result with a working
 harness is a successful project, not a failed one.
+
+---
+
+## 11. P2a outcome & learnings (first end-to-end run, `agents-scaffold`)
+
+Built and ran the harness end-to-end against the private `agents-scaffold` repo (599 `.py` files):
+clone → tree-sitter gold → item bank → a **blind** 7-concept reference wiki built through the gated
+`bundle_ops apply` (Doctor PASS) → SUT-subagent grid via a native Workflow → file-level scoring →
+report. **The pipeline works.** Two task batches were run (Sonnet SUT):
+
+- **Single-hop Locate (identifier in the question) is grep-trivial.** Ablated Sonnet ≈ **0.97 F1**;
+  wiki uplift ≈ **+0.03 (noise)**; all read-prompt candidates ceiling at ~1.0. Single-hop Locate is a
+  **poor discriminator** — it can't measure the wiki's value *or* rank prompts. Keep it only as a
+  small control stratum.
+- **Multi-file "new-developer change-set" tasks (PR-derived gold) are where the wiki earns its keep.**
+  Mean uplift **+0.083**, and **strongly inverse to difficulty**: ~0 where ablated already scores ~0.9
+  (nameable/localized), but **+0.14 to +0.32 on the low-baseline items** where a dev must connect
+  scattered files. That "helps most where help is needed" shape is the value proposition, confirmed.
+- **A real prompt-optimization target exists.** A "read-the-wiki-then-enumerate-the-complete-set"
+  prompt **over-fetched** — lower precision than a plain "identify the files" prompt *with* the wiki
+  (0.64 vs 0.69), and caused a −0.23 on one item. So the wiki helps, but the read-prompt must balance
+  **recall vs precision** — exactly what the optimizer tunes.
+
+**Caveats:** N≈10–20/batch (a signal, **not** significance); some PR titles still carry greppable
+identifiers (the absent-identifier *concept* family should sharpen the signal); Sonnet-only.
+
+**Operational findings folded back into the plan:**
+- **Throttle Opus.** ~80 concurrent Opus subagents tripped transient *server* rate-limiting (≈38/80
+  failed); the search-tier (Sonnet) ran clean. P2b runs Opus in small waves with backoff.
+- **Score on the defining file, not the dotted symbol.** The SUT can't reproduce our AST symbol
+  identity; "find the right file(s)" is the robust, meaningful matching unit.
+- **Item-quality gates that mattered:** skip ambiguous names (defined in >1 file — e.g. Alembic
+  `upgrade`); stride-sample across files for breadth; filter to substantive feat/fix/refactor PRs.
+- **`args` did not thread** into a Workflow launched by `scriptPath`; runs used an inline script with
+  data baked in. The committed `p2a_smoke.mjs` guards loudly if `args` is missing.
+
+**Steer for P2b (revises §9):** lead with **multi-hop / new-developer / concept (absent-identifier)**
+strata, single-hop as a small control; scale to **≥50 items/stratum + Wilcoxon/BH significance**;
+throttle Opus; the optimizer's first target is the read-prompt's **recall/precision balance**. The
+three generators backing these strata ship in the harness: `items.py` (single-hop control),
+`pr_items.py` (change-set / explain), `dep_items.py` (reverse-dependency / impact).
