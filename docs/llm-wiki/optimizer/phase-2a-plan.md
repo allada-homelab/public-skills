@@ -575,7 +575,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-DATA_DIR = Path(__file__).resolve().parents[3] / ".data"
+DATA_DIR = Path(__file__).resolve().parents[2] / ".data"  # harness/.data (covered by harness/.gitignore)
 
 
 def clone(repo: str, dest_name: str, ref: str | None = None) -> Path:
@@ -628,7 +628,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-PLUGIN = Path(__file__).resolve().parents[4] / "plugins" / "llm-wiki"
+PLUGIN = Path(__file__).resolve().parents[5] / "plugins" / "llm-wiki"  # public-skills/plugins/llm-wiki
 
 
 def doctor_ok(bundle: Path) -> bool:
