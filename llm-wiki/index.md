@@ -9,6 +9,7 @@ and read back with `/llm-wiki:query`.
 ## Concepts
 
 * [llm-wiki autonomy — zero-config always-auto with a guard floor](./phase-3-autonomy-architecture.md) — How llm-wiki autonomy works — five deterministic hook events, always-on auto (no modes), a PreToolUse guard floor, and background Sonnet subagents that persist and validate.
+* [llm-wiki value shows on multi-hop navigation, not single-hop grep lookups](./llm-wiki-value-on-multihop-navigation.md) — An end-to-end optimizer experiment found the wiki's measurable retrieval uplift concentrates on multi-hop new-developer navigation (finding the full set of files for a change), not single-hop grep-able lookups where a strong agent already wins.
 * [OKF Doctor — strict-producer rule set](./doctor-rule-set.md) — The conformance rules doctor.py enforces (R1/R2/R3a–c plus R4 link-health), its strict/lenient modes, and exit codes.
 * [Plugin versioning — unpinned for git-SHA auto-update](./plugin-versioning.md) — Why plugin.json omits the version field — Claude Code falls back to the git commit SHA, so every commit auto-updates installed users during active development.
 * [Reading is trust-but-verify — the consult-then-confirm loop](./trust-but-verify-loop.md) — Trust a wiki finding on its face, but cheaply confirm load-bearing claims against current state via a ## Verify anchor + freshness gate, with background self-healing verification.
