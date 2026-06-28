@@ -3,6 +3,7 @@
 > **Status:** Phase-1 **final**, awaiting sign-off to begin Phase 2.
 > **Scope this round:** Surface A (retrieval/comprehension) committed; Surface B (capture) a stretch goal.
 > Incorporates the Phase-0 discovery + the deep-validation pass (corrections 1–13).
+> **Models:** Claude-only (Opus + Sonnet) — external vLLM **de-scoped**; overnight compute is **metered, not free**.
 
 ---
 
@@ -59,24 +60,23 @@ as **text**. It never imports llm-wiki code and never adds a dep llm-wiki's runt
 
 | Decision | Choice |
 |---|---|
-| **Search SUT** | **Free local vLLM across all strata.** The wide candidate search runs entirely on free compute — that is what makes it an overnight run. |
-| **Escalation / gate SUT** | **Capability-tiered, only at the narrowest end:** search **and top-K survivor selection both run on vLLM**; only the **single winning config + the anchor** re-run on the tiered target SUT (Opus on the complex multi-hop stratum) for final confirmation. This keeps Opus bounded and consistent with the budget. SUT model is **fixed per item** across candidates → paired comparison stays valid. **Load-bearing assumption (the riskiest in the plan):** candidate *rankings* transfer between the vLLM search SUT and the Opus gate SUT. The wiki's value is plausibly model-dependent (a strong model may grep well enough that the wiki adds little), so this is **guarded in P2a** (§9) by measuring search↔gate ranking correlation; if low, "search cheap / gate expensive" is invalid and Opus must enter the search loop (bigger budget). |
+| **Search SUT** | **Sonnet (the cheap Claude tier) across all strata.** vLLM is de-scoped; the wide candidate search runs on Sonnet. **Compute is now metered, not free** — so search breadth is bounded by the token budget, which makes caching + successive-halving load-bearing rather than optional. |
+| **Escalation / gate SUT** | **Capability-tiered, only at the narrowest end:** search **and top-K survivor selection both run on Sonnet**; only the **single winning config + the anchor** re-run on **Opus** (the complex multi-hop stratum) for final confirmation. This keeps Opus bounded and consistent with the budget. SUT model is **fixed per item** across candidates → paired comparison stays valid. **Load-bearing assumption (the riskiest in the plan):** candidate *rankings* transfer between the Sonnet search SUT and the Opus gate SUT. The wiki's value is plausibly model-dependent (a strong model may grep well enough that the wiki adds little), so this is **guarded in P2a** (§9) by measuring search↔gate ranking correlation; if low, "search cheap / gate expensive" is invalid and Opus must enter the search loop (bigger budget). |
 | **Proposer (writes prompt edits)** | **Opus** — few calls/round, highest leverage; GEPA's reflective edits need a capable LM. |
-| **Judge** | **Trimmed.** Cut from the Surface-A loop entirely (Explain is gated by *deterministic* evidence-coverage, so a judge can't move candidates across the gate). Reserved only for **Surface-B summarization faithfulness** + a **final-winner correctness audit** — there it is gated, reference-guided, CoT-rubric, **distinct model family** from the SUT, dual-order-flip→tie, length-controlled, human/Opus-calibrated. |
+| **Judge** | **Trimmed.** Cut from the Surface-A loop entirely (Explain is gated by *deterministic* evidence-coverage, so a judge can't move candidates across the gate). Reserved only for **Surface-B summarization faithfulness** + a **final-winner correctness audit** — there it is gated, reference-guided, CoT-rubric, a **different Claude tier** from the SUT (Sonnet judging Opus output, or vice versa), dual-order-flip→tie, length-controlled, human-calibrated. *Claude-only caveat: true cross-model-family judging isn't available, a documented limitation — bounded because the judge is already cut from the A loop and gate-only elsewhere.* |
 | **Benchmark repos** | **Two Python repos** (§4): `allada-homelab/agents-scaffold` (private) = primary optimization target; `fastapi/fastapi` (public) = held-out transfer + contamination check. |
 | **Surface scope** | **A primary, B stretch.** B depends on A's read path as its measurement instrument. |
 | **Promotion** | **Auto-promote on significance — git-reversibly, generalization-gated** (§7): requires a significant win on the private held-out test **AND** no significant regression on the fastapi transfer set. Winner auto-written to the working tree + `ntfy`'d; **never pushed/merged** — you review the diff and merge. |
 | **Baselines** | Wiki-ablated same-agent (primary contrast) + raw ripgrep (floor). **Vanilla vector = optional** floor, built only if cheap. |
 
 ### Config-driven defaults (nothing hardcoded — change at run time)
-- `max_wallclock_hours: 8`; `max_opus_api_calls: 3000` (**unit = Opus API calls, not task-loops**;
-  covers the Opus *proposer* across GEPA rounds + the **single-winner** final confirmation on the
-  private test + fastapi transfer + anchor + calibration — top-K selection stays on free vLLM).
-  **This default is an estimate** — P2a measures the real Opus-calls-per-task-loop and recalibrates it
-  bottom-up before the full run (a 50-item × 5-seed complex-stratum confirmation alone is ~1k+ calls).
-  vLLM tokens uncapped (free).
-- vLLM endpoints / judge model: runtime config values you supply (`sut_search_endpoint`,
-  `judge_endpoint`, `proposer = opus`). Not needed to finalize this design.
+- `max_wallclock_hours: 8`; a **metered budget across both Claude tiers** — `max_sonnet_calls` (the
+  wide search) **and** `max_opus_api_calls: 3000` (the Opus proposer across GEPA rounds + the
+  single-winner final confirmation + calibration). **vLLM is de-scoped, so Sonnet volume now counts
+  too** — there is no free tier. **These are estimates** — P2a measures real calls-per-task-loop *per
+  tier* and recalibrates bottom-up (and gives a real $ figure) before the full run.
+- Models (Claude-only, Anthropic SDK auth): `search = claude-sonnet-4-6`,
+  `gate / proposer / complex = claude-opus-4-8`. No external endpoints to configure.
 
 ---
 
@@ -156,10 +156,9 @@ second extractor. Verified 2026-06-28 via `gh`/local clone.
   internals also make static call-graph gold unworkable. Out on size.
 - **Public swap-in — `litestar` (~48k LOC, 8k stars):** better-supplied/lower-fame if we later want
   the public repo to carry optimization load.
-- **Data-handling (private repo):** code is sent to whatever model serves as SUT/judge/proposer —
-  fully private on local vLLM, and to Anthropic for Opus calls (consistent with already running
-  Claude Code over it). The harness sandboxes a clone, secret-scans, keeps gold/eval artifacts local
-  and out of the committed `public-skills` repo.
+- **Data-handling (private repo):** code is sent to Anthropic for **all** SUT/judge/proposer calls
+  (Sonnet + Opus) — consistent with already running Claude Code over it. The harness sandboxes a
+  clone, secret-scans, keeps gold/eval artifacts local and out of the committed `public-skills` repo.
 
 ### The frozen reference wiki (the Surface-A substrate)
 Surface A optimizes the *read* prompt, meaningless without a wiki to read. Phase 2 builds and
@@ -215,11 +214,12 @@ trivially leaked. Two gates before an item enters the bank:
 
 ### Cost structure
 The agentic eval at statistical scale (≥50/stratum × strata × ≥5 seeds × candidates × 2 conditions)
-is the cost driver. Structure that keeps it inside an overnight free budget:
+is the cost driver. Structure that keeps it inside an overnight **metered** budget:
 
-- **Cheap-wide → expensive-narrow.** All search + top-K selection run on free vLLM; only the **single
-  winner + anchor** escalate to the tiered target SUT. Successive-halving kills weak candidates after
-  a cheap 1–2-seed screen; the final gate uses ≥5 seeds.
+- **Cheap-wide → expensive-narrow.** All search + top-K selection run on **Sonnet**; only the **single
+  winner + anchor** escalate to **Opus**. Successive-halving kills weak candidates after a cheap
+  1–2-seed screen; the final gate uses ≥5 seeds. *Sonnet is cheaper than Opus but not free — caching +
+  halving are what keep the metered budget bounded now that there is no free tier.*
 - **Cache invariants.** The **wiki-ablated baseline**, raw-ripgrep, and (optional) vector results are
   **constant across candidates** → computed once per item/seed and cached. The reference-wiki build is
   cached. Only the *with-wiki read* re-runs per candidate.
@@ -233,11 +233,11 @@ drift, the model choosing to stop, `stop_hook_active` guards). We don't use it. 
 launches, and later reads* the daemon; the overnight run needs no live session.
 
 1. **Control flow in deterministic Python.** `while within_budget: propose → evaluate the cell grid →
-   checkpoint` is plain code. The LLM is called as a function (HTTP to vLLM/Anthropic); it is never
-   the orchestrator and cannot "stop the loop."
-2. **Supervised with auto-restart, co-located with the compute.** Run under **systemd**
-   (`Restart=always`, on the Linux homelab box where the vLLM endpoints live — so no laptop sleep /
-   network drop sits in the critical path) or **launchd** (`KeepAlive`, macOS dev). Driver dies →
+   checkpoint` is plain code. The LLM is called as a function (an Anthropic API call to Claude); it is
+   never the orchestrator and cannot "stop the loop."
+2. **Supervised with auto-restart on a stable host.** Run under **systemd**
+   (`Restart=always`, on an always-on host such as the homelab box — so no laptop sleep / network drop
+   sits in the critical path) or **launchd** (`KeepAlive`, macOS dev). Driver dies →
    supervisor restarts it → it resumes from checkpoint. The launching Claude Code session can close
    freely.
 3. **Cell-level checkpointing + idempotent resume.** The eval is a grid of
@@ -248,9 +248,9 @@ launches, and later reads* the daemon; the overnight run needs no live session.
 4. **Timeouts + bounded retries at every external boundary.** Each model call: per-call timeout +
    exponential-backoff retry on 429/5xx/timeout, then **mark-failed-and-continue**. Each agentic SUT
    task-loop: a **hard cap on tool-iterations + wall-clock** → kill and record the cell as failed
-   rather than hang forever (defends the never-returning item). vLLM **health-check + circuit-breaker**
-   — endpoint down → back off, and if down past a threshold, checkpoint and pause rather than burn
-   budget spinning.
+   rather than hang forever (defends the never-returning item). Model-API **health-check +
+   circuit-breaker** — API failing / rate-limited → back off, and if down past a threshold, checkpoint
+   and pause rather than burn budget spinning.
 5. **Fail open *toward progress*.** One failed cell / candidate / item / seed is logged and skipped;
    the loop continues. A single exception never wedges the night. (Mirrors llm-wiki's own "a guard
    must never wedge the session.")
@@ -259,8 +259,10 @@ launches, and later reads* the daemon; the overnight run needs no live session.
    prompt). The **only** agentic loop is the SUT, and it is iteration-capped. We replicate the
    llm-wiki read path — preload `index.md` + grep + read — in **our own minimal tool harness**, so the
    run has **zero dependency on Claude Code's session/hook lifecycle**. *(Fidelity note: this is a
-   faithful stand-in for the read path; optionally re-confirm only the final winner inside real Claude
-   Code. Fork — chosen toward robustness over exact-harness fidelity, per the stated priority.)*
+   faithful stand-in for the read path; optionally re-confirm only the final winner inside a real
+   Claude Code agent via the **Claude Agent SDK** — driven by the daemon, not an interactive session,
+   so robustness holds. Fork — chosen toward robustness/control over exact-harness fidelity in the
+   search loop, per the stated priority.)*
 7. **Heartbeat + watchdog + `ntfy`.** The driver writes a heartbeat each round; a tiny external
    watchdog (cron) detects a **stale heartbeat** (hung driver) → kill + restart (→ resume) + alert.
    `ntfy` on **start / milestone / stall-detected / restart / completion / fatal**, and a `--status`
@@ -345,7 +347,7 @@ p-hacking pressure to ship *something*. The report says so plainly.
 | Sandbox everything | Copies of KB + repo; never mutate live (§5). |
 | Unattended | **Supervised daemon (systemd/launchd auto-restart), not a Claude Code agent loop**; cell-level SQLite checkpoint + idempotent resume; per-boundary timeout/retry/circuit-breaker; fail-open-toward-progress; heartbeat+watchdog; wall-clock + Opus-call hard kill; `ntfy` on start/stall/restart/done/fatal (§5). |
 | Reproducible | Statistical (CI over ≥5 seeds), not bit-exact (agentic SUT); pin temperature/prompt; one SQLite row per cell+round; content-addressed config hashes → free re-runs (§5). |
-| Tech stack | Python 3.12+, async, pydantic v2, `uv`, ruff + `mypy --strict`, pytest, `src/`, SQLite, vLLM, `ntfy` — all inside the optimizer's own boundary (§1). |
+| Tech stack | Python 3.12+, async, pydantic v2, `uv`, ruff + `mypy --strict`, pytest, `src/`, SQLite, **Anthropic SDK (Claude Opus + Sonnet)**, `ntfy` — all inside the optimizer's own boundary (§1). *(vLLM / free-compute de-scoped per the latest decision.)* |
 
 ---
 
@@ -355,11 +357,11 @@ p-hacking pressure to ship *something*. The report says so plainly.
 |---|---|---|
 | **P0** | Discovery — understanding + open questions | ✅ done |
 | **P1** | This final design plan | **← here [GATE]** |
-| **P2a** | **Hypothesis smoke test (go/no-go)**, plus three architecture checks. (i) Build a decent reference wiki, ~20 single-hop Locate items, run with-wiki vs ablated — **detectable positive uplift at all?** If not, stop and rethink. (ii) Run the smoke test on **both** the vLLM and Opus SUTs and report **candidate-ranking correlation** — if low, the cheap-search/expensive-gate architecture is invalid (Opus must enter search; bigger budget). (iii) Confirm `agents-scaffold`'s **test suite runs green and stable locally** (the anchor depends on it) and the gold extractor recovers symbol-identity/multi-hop gold at acceptable fidelity. **Recalibrate `max_opus_api_calls` from measured per-loop call counts.** | **[GO/NO-GO]** |
+| **P2a** | **Hypothesis smoke test (go/no-go)**, plus three architecture checks. (i) Build a decent reference wiki, ~20 single-hop Locate items, run with-wiki vs ablated — **detectable positive uplift at all?** If not, stop and rethink. (ii) Run the smoke test on **both** the Sonnet and Opus SUTs and report **candidate-ranking correlation** — if low, the cheap-search/expensive-gate architecture is invalid (Opus must enter search; bigger budget). (iii) Confirm `agents-scaffold`'s **test suite runs green and stable locally** (the anchor depends on it) and the gold extractor recovers symbol-identity/multi-hop gold at acceptable fidelity. **Recalibrate `max_opus_api_calls` + `max_sonnet_calls` (both metered) from measured per-loop call counts.** | **[GO/NO-GO]** |
 | **P2b** | Full eval harness + gold extraction + reference wiki + self-validation (incl. adversarial reward-hack configs) | **[GATE]** |
 | **P3** | Frozen-baseline scores (dev + private test + fastapi transfer, with variance) | — |
 | **P4** | Random optimizer + GEPA bake-off + prompt-edit validator | **[GATE]** |
-| **P5** | Overnight loop under the supervisor. **Dry-run with fault injection first:** `kill -9` mid-round → confirm clean resume from checkpoint; simulate vLLM-down + API-429 → confirm backoff/skip/continue; stale-heartbeat → confirm watchdog restart + `ntfy`. Then the full run; validate winner on frozen test + transfer. | — |
+| **P5** | Overnight loop under the supervisor. **Dry-run with fault injection first:** `kill -9` mid-round → confirm clean resume from checkpoint; simulate model-API-down + API-429 → confirm backoff/skip/continue; stale-heartbeat → confirm watchdog restart + `ntfy`. Then the full run; validate winner on frozen test + transfer. | — |
 | **P6** | Report + generalization-gated auto-promotion (git-reversible) | — |
 
 The skill itself (a `SKILL.md` trigger + the Python harness) is authored via `skill-creator` once

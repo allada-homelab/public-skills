@@ -4,9 +4,9 @@
 
 **Goal:** Build the minimal vertical slice that answers the go/no-go question — *does the llm-wiki give detectable retrieval uplift over a grep-capable agent?* — plus the two architecture checks (cross-SUT candidate-ranking correlation; test-suite + gold-extraction feasibility) and a measured Opus-calls/loop figure to recalibrate the budget.
 
-**Architecture:** A standalone `uv`/pydantic harness in its own plugin dir (`plugins/llm-wiki-optimizer/harness/`) that drives the *stdlib-only* llm-wiki via subprocess only. It clones the benchmark repo into a gitignored sandbox, derives single-hop Locate gold deterministically (tree-sitter), builds a frozen reference wiki via `llm-wiki ingest`, runs a bounded read-loop SUT (vLLM + Anthropic backends) in with-wiki vs wiki-ablated conditions across a few hand-made read-prompt candidates, scores set precision/recall/F1 → uplift, checkpoints every cell to SQLite, and emits a go/no-go report. This slice is the seed the full P2b harness extends.
+**Architecture:** A standalone `uv`/pydantic harness in its own plugin dir (`plugins/llm-wiki-optimizer/harness/`) that drives the *stdlib-only* llm-wiki via subprocess only. It clones the benchmark repo into a gitignored sandbox, derives single-hop Locate gold deterministically (tree-sitter), builds a frozen reference wiki via `llm-wiki ingest`, runs a bounded read-loop SUT (Claude Sonnet + Opus via the Anthropic SDK) in with-wiki vs wiki-ablated conditions across a few hand-made read-prompt candidates, scores set precision/recall/F1 → uplift, checkpoints every cell to SQLite, and emits a go/no-go report. This slice is the seed the full P2b harness extends.
 
-**Tech Stack:** Python 3.12+, `uv`, pydantic v2, `httpx` (vLLM OpenAI-compatible), `anthropic` SDK, `tree_sitter` + `tree_sitter_python`, `sqlite3` (stdlib), pytest, ruff, `mypy --strict`. The llm-wiki side stays stdlib-only and is driven via `subprocess` + its JSON contracts.
+**Tech Stack:** Python 3.12+, `uv`, pydantic v2, `anthropic` SDK (Claude **Sonnet** for search + **Opus** for the gate tier), `tree_sitter` + `tree_sitter_python`, `sqlite3` (stdlib), pytest, ruff, `mypy --strict`. **vLLM is de-scoped — Claude-only, so both tiers are metered.** The llm-wiki side stays stdlib-only and is driven via `subprocess` + its JSON contracts.
 
 **This plan deliberately stops at the go/no-go gate.** Components whose feasibility P2a is meant to *test* (the SUT loop fidelity, the wiki build quality, the cross-SUT ranking) are built minimally and their uncertainty is named, not over-specified.
 
@@ -28,7 +28,7 @@ plugins/llm-wiki-optimizer/
       gold/locate.py                     # deterministic single-hop Locate gold via tree-sitter-python
       repo.py                            # clone benchmark repo into .data/ sandbox (subprocess gh/git)
       wiki.py                            # build frozen reference wiki via `llm-wiki ingest`; ablation context
-      backends.py                        # LLM call: vLLM (httpx, OpenAI-compatible) + Anthropic; timeout+retry; call counter
+      backends.py                        # Claude call (Anthropic SDK, Sonnet+Opus); timeout+retry; per-tier call counter
       sut.py                             # bounded read-loop agent (grep/read tools) → answer location set
       smoke.py                           # P2a orchestration + go/no-go report (CLI entrypoint)
     tests/
@@ -59,7 +59,6 @@ version = "0.0.1"
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.7",
-    "httpx>=0.27",
     "anthropic>=0.40",
     "tree-sitter>=0.23",
     "tree-sitter-python>=0.23",
@@ -145,15 +144,15 @@ def test_item_requires_nonempty_gold():
 
 
 def test_cellkey_is_hashable_and_stable():
-    k1 = CellKey(item_id="i1", candidate_id="c1", sut="vllm", condition="with_wiki", seed=0)
-    k2 = CellKey(item_id="i1", candidate_id="c1", sut="vllm", condition="with_wiki", seed=0)
+    k1 = CellKey(item_id="i1", candidate_id="c1", sut="sonnet", condition="with_wiki", seed=0)
+    k2 = CellKey(item_id="i1", candidate_id="c1", sut="sonnet", condition="with_wiki", seed=0)
     assert k1 == k2 and hash(k1) == hash(k2)
 
 
 def test_cellresult_carries_locations_and_cost():
-    r = CellResult(predicted=["pkg.mod.func"], opus_calls=3, ok=True, error=None)
+    r = CellResult(predicted=["pkg.mod.func"], calls=3, ok=True, error=None)
     assert r.predicted == ["pkg.mod.func"]
-    assert r.opus_calls == 3
+    assert r.calls == 3
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -170,7 +169,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 Family = Literal["locate", "explain"]
-Sut = Literal["vllm", "opus"]
+Sut = Literal["sonnet", "opus"]
 Condition = Literal["with_wiki", "ablated"]
 
 
@@ -212,7 +211,7 @@ class CellKey(BaseModel, frozen=True):
 
 class CellResult(BaseModel):
     predicted: list[str] = Field(default_factory=list)  # predicted symbol identities
-    opus_calls: int = 0
+    calls: int = 0          # model calls for this cell (per-tier cost; the tier is in the CellKey)
     ok: bool = True
     error: str | None = None
 ```
@@ -247,14 +246,14 @@ from llm_wiki_optimizer.store import CellStore
 
 
 def _key(seed: int = 0) -> CellKey:
-    return CellKey(item_id="i1", candidate_id="c1", sut="vllm", condition="with_wiki", seed=seed)
+    return CellKey(item_id="i1", candidate_id="c1", sut="sonnet", condition="with_wiki", seed=seed)
 
 
 def test_put_then_get_roundtrips(tmp_path: Path):
     s = CellStore(tmp_path / "run.db")
-    s.put(_key(), CellResult(predicted=["a.b"], opus_calls=2))
+    s.put(_key(), CellResult(predicted=["a.b"], calls=2))
     got = s.get(_key())
-    assert got is not None and got.predicted == ["a.b"] and got.opus_calls == 2
+    assert got is not None and got.predicted == ["a.b"] and got.calls == 2
 
 
 def test_missing_cell_returns_none(tmp_path: Path):
@@ -668,58 +667,46 @@ git commit -m "feat(optimizer): reference-wiki context + ablation + Doctor check
 
 ---
 
-## Task 8: Bounded read-loop SUT (vLLM + Anthropic backends)
+## Task 8: Bounded read-loop SUT (Claude Sonnet + Opus via Anthropic SDK)
 
 **Files:**
 - Create: `src/llm_wiki_optimizer/backends.py`
 - Create: `src/llm_wiki_optimizer/sut.py`
 
-The only agentic loop, hard-capped on iterations + wall-clock (the robustness defense). Backends share one interface; each call has a timeout + bounded retry and increments an Opus-call counter (for budget recalibration).
+The only agentic loop, hard-capped on iterations + wall-clock (the robustness defense). Both tiers are Claude via the Anthropic SDK; each call has a timeout + bounded retry and increments a per-tier call counter (both tiers are metered now, so we track calls per tier for budget recalibration).
 
 - [ ] **Step 1: Write `backends.py`**
 
 `src/llm_wiki_optimizer/backends.py`:
 ```python
 from __future__ import annotations
-import os
 from dataclasses import dataclass, field
-import httpx
 import anthropic
 
 
 @dataclass
 class CallCounter:
-    opus_calls: int = 0
+    calls: int = 0
 
 
 @dataclass
 class Backend:
-    sut: str                       # "vllm" | "opus"
-    model: str
+    sut: str                       # "sonnet" | "opus" (tier; both are Claude via the Anthropic SDK)
+    model: str                     # claude-sonnet-4-6 | claude-opus-4-8
     counter: CallCounter = field(default_factory=CallCounter)
     timeout_s: float = 120.0
 
     def chat(self, system: str, user: str) -> str:
+        client = anthropic.Anthropic()
         for attempt in range(3):
             try:
-                if self.sut == "opus":
-                    self.counter.opus_calls += 1
-                    client = anthropic.Anthropic()
-                    msg = client.messages.create(
-                        model=self.model, max_tokens=1024,
-                        system=system, messages=[{"role": "user", "content": user}],
-                        timeout=self.timeout_s,
-                    )
-                    return "".join(b.text for b in msg.content if b.type == "text")
-                resp = httpx.post(
-                    f"{os.environ['VLLM_ENDPOINT']}/v1/chat/completions",
-                    json={"model": self.model, "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": user}]},
+                self.counter.calls += 1
+                msg = client.messages.create(
+                    model=self.model, max_tokens=1024,
+                    system=system, messages=[{"role": "user", "content": user}],
                     timeout=self.timeout_s,
                 )
-                resp.raise_for_status()
-                return resp.json()["choices"][0]["message"]["content"]
+                return "".join(b.text for b in msg.content if b.type == "text")
             except Exception:  # noqa: BLE001 — bounded retry, then mark-failed upstream
                 if attempt == 2:
                     raise
@@ -774,7 +761,7 @@ def run_item(backend: Backend, prompt_text: str, wiki_context: str,
             m = re.search(r"ANSWER:\s*(\[.*\])", out)
             if m:
                 preds = [str(s) for s in json.loads(m.group(1))]
-                return CellResult(predicted=preds, opus_calls=backend.counter.opus_calls)
+                return CellResult(predicted=preds, calls=backend.counter.calls)
             cmd = out.strip().splitlines()[-1] if out.strip() else ""
             transcript += f"\n{out}\nTOOL RESULT:\n{_tool(cmd, repo)}\n"
         return CellResult(ok=False, error="iteration cap")
@@ -782,15 +769,15 @@ def run_item(backend: Backend, prompt_text: str, wiki_context: str,
         return CellResult(ok=False, error=str(e)[:200])
 ```
 
-- [ ] **Step 3: Smoke-verify one item end-to-end (vLLM)**
+- [ ] **Step 3: Smoke-verify one item end-to-end (Sonnet)**
 
-Run (with `VLLM_ENDPOINT` set):
+Run (with `ANTHROPIC_API_KEY` set):
 ```bash
 uv run python -c "
 from pathlib import Path
 from llm_wiki_optimizer.backends import Backend
 from llm_wiki_optimizer.sut import run_item
-b = Backend(sut='vllm', model='<your-vllm-model>')
+b = Backend(sut='sonnet', model='claude-sonnet-4-6')
 r = run_item(b, 'Find the definitions.', '', 'Where is the function alpha defined?', Path('tests/fixtures/minirepo'))
 print(r)
 "
@@ -801,7 +788,7 @@ Expected: a `CellResult` whose `predicted` contains a plausible symbol; no hang 
 
 ```bash
 git add src/llm_wiki_optimizer/backends.py src/llm_wiki_optimizer/sut.py
-git commit -m "feat(optimizer): bounded read-loop SUT with vLLM/Anthropic backends"
+git commit -m "feat(optimizer): bounded read-loop SUT with Claude (Sonnet/Opus) backend"
 ```
 
 ---
@@ -811,7 +798,7 @@ git commit -m "feat(optimizer): bounded read-loop SUT with vLLM/Anthropic backen
 **Files:**
 - Create: `src/llm_wiki_optimizer/smoke.py`
 
-Runs the grid and answers the three P2a questions. ~20 single-hop Locate items × {with_wiki, ablated} × {vllm, opus} × ~3 read-prompt candidates × 1 seed, every cell checkpointed.
+Runs the grid and answers the three P2a questions. ~20 single-hop Locate items × {with_wiki, ablated} × {sonnet, opus} × ~3 read-prompt candidates × 1 seed, every cell checkpointed.
 
 - [ ] **Step 1: Assemble the ~20-item bank**
 
@@ -846,7 +833,7 @@ def _candidates() -> list[Candidate]:
 
 
 def _models(sut: str) -> str:
-    return {"vllm": "<your-vllm-model>", "opus": "claude-opus-4-8"}[sut]
+    return {"sonnet": "claude-sonnet-4-6", "opus": "claude-opus-4-8"}[sut]
 
 
 def run(db: Path) -> dict[str, object]:
@@ -855,7 +842,7 @@ def run(db: Path) -> dict[str, object]:
     store = CellStore(db)
     ctx = {"with_wiki": wiki_context(WIKI), "ablated": ablated_context()}
 
-    for item, cand, sut, cond in itertools.product(items, cands, ("vllm", "opus"), ctx):
+    for item, cand, sut, cond in itertools.product(items, cands, ("sonnet", "opus"), ctx):
         key = CellKey(item_id=item.id, candidate_id=cand.id, sut=sut, condition=cond, seed=0)
         if store.get(key) is not None:
             continue
@@ -876,19 +863,19 @@ def _f1(store: CellStore, item: Item, cand: Candidate, sut: str, cond: str) -> f
 def _report(items: list[Item], cands: list[Candidate], store: CellStore) -> dict[str, object]:
     out: dict[str, object] = {}
     # (1) detectable uplift per SUT (mean per-item with_wiki - ablated, best candidate)
-    for sut in ("vllm", "opus"):
+    for sut in ("sonnet", "opus"):
         ups = [max(uplift(_f1(store, it, c, sut, "with_wiki"), _f1(store, it, c, sut, "ablated"))
                    for c in cands) for it in items]
         out[f"mean_uplift_{sut}"] = round(statistics.mean(ups), 4)
     # (2) cross-SUT candidate-ranking correlation (with_wiki mean F1 per candidate)
     def cand_scores(sut: str) -> list[float]:
         return [statistics.mean(_f1(store, it, c, sut, "with_wiki") for it in items) for c in cands]
-    out["candidate_scores_vllm"] = cand_scores("vllm")
+    out["candidate_scores_sonnet"] = cand_scores("sonnet")
     out["candidate_scores_opus"] = cand_scores("opus")
     out["ranking_note"] = "compare the two orderings; low correlation invalidates cheap-search/expensive-gate"
     # (3) measured Opus calls/loop
     opus_calls = [store.get(CellKey(item_id=it.id, candidate_id=c.id, sut="opus",
-                                    condition=cond, seed=0)).opus_calls
+                                    condition=cond, seed=0)).calls
                   for it in items for c in cands for cond in ("with_wiki", "ablated")
                   if store.get(CellKey(item_id=it.id, candidate_id=c.id, sut="opus",
                                        condition=cond, seed=0)) is not None]
@@ -907,9 +894,9 @@ Expected: a JSON report. Read it against the **go/no-go criteria** below.
 
 - [ ] **Step 4: Decide go/no-go (the gate)**
 
-- **(i) Hypothesis:** `mean_uplift_vllm` and/or `mean_uplift_opus` is **detectably positive** (a clear margin over 0 across the 20 items). If ~0 or negative on both → **NO-GO**: the wiki adds nothing over a grep-capable agent; stop and rethink the premise before building P2b.
-- **(ii) Cross-SUT ranking:** the candidate orderings from `candidate_scores_vllm` vs `candidate_scores_opus` **agree**. If they disagree → the cheap-search/expensive-gate architecture is invalid; Opus must enter the search loop (revise §5 + budget).
-- **(iii) Feasibility:** the run completed without hangs (caps held); `opus_calls_per_loop_max` gives the real figure to **recalibrate `max_opus_api_calls`** in the design. Separately confirm `agents-scaffold`'s test suite runs green locally (the anchor depends on it).
+- **(i) Hypothesis:** `mean_uplift_sonnet` and/or `mean_uplift_opus` is **detectably positive** (a clear margin over 0 across the 20 items). If ~0 or negative on both → **NO-GO**: the wiki adds nothing over a grep-capable agent; stop and rethink the premise before building P2b.
+- **(ii) Cross-SUT ranking:** the candidate orderings from `candidate_scores_sonnet` vs `candidate_scores_opus` **agree**. If they disagree → the cheap-search/expensive-gate architecture is invalid; Opus must enter the search loop (revise §5 + budget).
+- **(iii) Feasibility + cost:** the run completed without hangs (caps held); `opus_calls_per_loop_max` (and the analogous figure from the `sonnet` cells) gives real calls-per-loop to **recalibrate `max_opus_api_calls` + `max_sonnet_calls` and estimate the overnight $** — both tiers are metered now (vLLM de-scoped). Separately confirm `agents-scaffold`'s test suite runs green locally (the anchor depends on it).
 
 - [ ] **Step 5: Commit + record the verdict**
 
