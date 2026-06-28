@@ -4,9 +4,9 @@
 
 **Goal:** Build the minimal vertical slice that answers the go/no-go question — *does the llm-wiki give detectable retrieval uplift over a grep-capable agent?* — plus the two architecture checks (cross-SUT candidate-ranking correlation; test-suite + gold-extraction feasibility) and a measured Opus-calls/loop figure to recalibrate the budget.
 
-**Architecture:** A standalone `uv`/pydantic harness in its own plugin dir (`plugins/llm-wiki-optimizer/harness/`) that drives the *stdlib-only* llm-wiki via subprocess only. It clones the benchmark repo into a gitignored sandbox, derives single-hop Locate gold deterministically (tree-sitter), builds a frozen reference wiki via `llm-wiki ingest`, runs a bounded read-loop SUT (Claude Sonnet + Opus via the Anthropic SDK) in with-wiki vs wiki-ablated conditions across a few hand-made read-prompt candidates, scores set precision/recall/F1 → uplift, checkpoints every cell to SQLite, and emits a go/no-go report. This slice is the seed the full P2b harness extends.
+**Architecture:** An **LLM-free** `uv`/pydantic harness in its own plugin dir (`plugins/llm-wiki-optimizer/harness/`) provides the deterministic pieces — clone the benchmark repo into a gitignored sandbox, derive single-hop Locate gold (tree-sitter), build the item bank, score set precision/recall/F1, persist to SQLite. **All model work is native Claude Code**: the SUT is a **subagent** (Sonnet / Opus) dispatched from a **dynamic Workflow** that runs the cell grid (item × candidate × tier × condition), returns structured predictions, and journals/resumes itself. A Python report step scores the predictions → uplift, plus the cross-SUT ranking and per-tier cost. **No `anthropic` SDK, no API key** — auth is the Claude Code session. This slice is the seed the full P2b harness extends.
 
-**Tech Stack:** Python 3.12+, `uv`, pydantic v2, `anthropic` SDK (Claude **Sonnet** for search + **Opus** for the gate tier), `tree_sitter` + `tree_sitter_python`, `sqlite3` (stdlib), pytest, ruff, `mypy --strict`. **vLLM is de-scoped — Claude-only, so both tiers are metered.** The llm-wiki side stays stdlib-only and is driven via `subprocess` + its JSON contracts.
+**Tech Stack:** Python 3.12+, `uv`, pydantic v2, `tree_sitter` + `tree_sitter_python`, `sqlite3` (stdlib), pytest, ruff, `mypy --strict` for the **LLM-free** harness. Model work = **native Claude Code subagents (Sonnet + Opus) dispatched from a dynamic Workflow** — no SDK, no endpoint, no API key. The llm-wiki side stays stdlib-only and is driven via `subprocess` + its JSON contracts.
 
 **This plan deliberately stops at the go/no-go gate.** Components whose feasibility P2a is meant to *test* (the SUT loop fidelity, the wiki build quality, the cross-SUT ranking) are built minimally and their uncertainty is named, not over-specified.
 
@@ -21,16 +21,17 @@ plugins/llm-wiki-optimizer/
     .gitignore                           # .data/  (clones, gold, wiki, db — never committed)
     src/llm_wiki_optimizer/
       __init__.py
-      config.py                          # pydantic models: paths, SUT/backend config, Item, GoldLocation, Candidate, CellKey, CellResult
+      config.py                          # pydantic models: SUT tier, Item, GoldLocation, Candidate, CellKey, CellResult
       store.py                           # SQLite cell store: idempotent upsert + "empty cells" resume
       score.py                           # symbol-set precision/recall/F1; per-item uplift
       gold/__init__.py
       gold/locate.py                     # deterministic single-hop Locate gold via tree-sitter-python
       repo.py                            # clone benchmark repo into .data/ sandbox (subprocess gh/git)
       wiki.py                            # build frozen reference wiki via `llm-wiki ingest`; ablation context
-      backends.py                        # Claude call (Anthropic SDK, Sonnet+Opus); timeout+retry; per-tier call counter
-      sut.py                             # bounded read-loop agent (grep/read tools) → answer location set
-      smoke.py                           # P2a orchestration + go/no-go report (CLI entrypoint)
+      items.py                           # build the ~20-item Locate bank from gold → .data/items.json
+      report.py                          # score Workflow predictions → uplift / ranking / cost report
+    workflows/
+      p2a_smoke.mjs                      # the dynamic Workflow: SUT subagent over the cell grid (Sonnet/Opus)
     tests/
       fixtures/minirepo/                 # tiny Python package with known symbols (gold-extraction fixture)
       test_config.py
@@ -59,7 +60,6 @@ version = "0.0.1"
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.7",
-    "anthropic>=0.40",
     "tree-sitter>=0.23",
     "tree-sitter-python>=0.23",
 ]
@@ -667,242 +667,210 @@ git commit -m "feat(optimizer): reference-wiki context + ablation + Doctor check
 
 ---
 
-## Task 8: Bounded read-loop SUT (Claude Sonnet + Opus via Anthropic SDK)
+## Task 8: SUT subagent + smoke Workflow (native Claude Code)
 
 **Files:**
-- Create: `src/llm_wiki_optimizer/backends.py`
-- Create: `src/llm_wiki_optimizer/sut.py`
+- Create: `src/llm_wiki_optimizer/sut_agent.md` (the SUT subagent brief)
+- Create: `plugins/llm-wiki-optimizer/harness/workflows/p2a_smoke.mjs` (the dynamic Workflow)
 
-The only agentic loop, hard-capped on iterations + wall-clock (the robustness defense). Both tiers are Claude via the Anthropic SDK; each call has a timeout + bounded retry and increments a per-tier call counter (both tiers are metered now, so we track calls per tier for budget recalibration).
+The SUT is a **real Claude Code subagent** (read-only `Explore` type — Grep/Read tools), dispatched from a **dynamic Workflow** over the cell grid. No hand-rolled loop, no API, no key — the agent *is* the read loop, maximally faithful to deployed llm-wiki. Each cell forces a structured prediction via a `schema`; a dead agent returns `null` (fail-open). The tier (`sonnet`/`opus`) is the agent's `model`.
 
-- [ ] **Step 1: Write `backends.py`**
+- [ ] **Step 1: Write the SUT subagent brief**
 
-`src/llm_wiki_optimizer/backends.py`:
-```python
-from __future__ import annotations
-from dataclasses import dataclass, field
-import anthropic
+`src/llm_wiki_optimizer/sut_agent.md` — the read-only agent that answers one Locate item. The Workflow composes the final prompt per cell (prepending the candidate prompt + question, and — for `with_wiki` — the wiki index + bundle path):
 
+```markdown
+You answer ONE code-location question about a repository, read-only.
 
-@dataclass
-class CallCounter:
-    calls: int = 0
-
-
-@dataclass
-class Backend:
-    sut: str                       # "sonnet" | "opus" (tier; both are Claude via the Anthropic SDK)
-    model: str                     # claude-sonnet-4-6 | claude-opus-4-8
-    counter: CallCounter = field(default_factory=CallCounter)
-    timeout_s: float = 120.0
-
-    def chat(self, system: str, user: str) -> str:
-        client = anthropic.Anthropic()
-        for attempt in range(3):
-            try:
-                self.counter.calls += 1
-                msg = client.messages.create(
-                    model=self.model, max_tokens=1024,
-                    system=system, messages=[{"role": "user", "content": user}],
-                    timeout=self.timeout_s,
-                )
-                return "".join(b.text for b in msg.content if b.type == "text")
-            except Exception:  # noqa: BLE001 — bounded retry, then mark-failed upstream
-                if attempt == 2:
-                    raise
-        raise RuntimeError("unreachable")
+- Use **Grep** and **Read** to locate the answer; ground every symbol in code you actually read.
+- If a knowledge wiki is provided, read its index and the relevant concept files to orient FIRST,
+  then confirm the exact locations in code.
+- Return the **dotted symbol identities** (e.g. `pkg.mod.func`) that answer the question — an empty
+  list if none are present. Write nothing.
 ```
 
-- [ ] **Step 2: Write `sut.py`**
+- [ ] **Step 2: Write the smoke Workflow**
 
-`src/llm_wiki_optimizer/sut.py`:
-```python
-from __future__ import annotations
-import json
-import re
-import subprocess
-import time
-from pathlib import Path
-from llm_wiki_optimizer.backends import Backend
-from llm_wiki_optimizer.config import CellResult
+`plugins/llm-wiki-optimizer/harness/workflows/p2a_smoke.mjs` — invoked via the Workflow tool with `args = { items, candidates, wikiContext, wikiBundlePath, repoPath }`:
 
-MAX_ITERS = 6
-MAX_WALL_S = 180.0
+```javascript
+export const meta = {
+  name: 'p2a-smoke',
+  description: 'P2a smoke: SUT subagent over the cell grid (with-wiki vs ablated, Sonnet vs Opus)',
+  phases: [{ title: 'SUT grid' }],
+}
 
-_SYSTEM = (
-    "You answer code-location questions about a repository. Tools: "
-    "`GREP <pattern>` searches the repo; `READ <path>` reads a file. "
-    "When done, output a single line `ANSWER: <json list of dotted symbol identities>`. "
-    "Ground every answer in files you READ; if nothing covers it, output `ANSWER: []`."
-)
+const PRED_SCHEMA = {
+  type: 'object',
+  required: ['predicted'],
+  properties: {
+    predicted: {
+      type: 'array', items: { type: 'string' },
+      description: 'dotted symbol identities (e.g. pkg.mod.func) that answer the question; [] if none',
+    },
+  },
+}
 
+const brief = (cand, question, repoPath, wiki, bundle) =>
+  `${cand.prompt_text}\n\n` +
+  `Answer ONE code-location question about the repository at ${repoPath}, read-only.\n` +
+  `Use Grep and Read to ground every symbol in code you actually read.\n` +
+  (wiki
+    ? `A knowledge wiki for this repo is at ${bundle}; its index:\n${wiki}\n` +
+      `Read the relevant concept files to orient FIRST, then confirm exact locations in code.\n`
+    : '') +
+  `QUESTION: ${question}\n` +
+  `Return the dotted symbol identities that answer it (empty list if none).`
 
-def _tool(line: str, repo: Path) -> str:
-    if line.startswith("GREP "):
-        pat = line[5:].strip()
-        r = subprocess.run(["grep", "-rn", pat, str(repo)], capture_output=True, text=True)
-        return r.stdout[:4000]
-    if line.startswith("READ "):
-        p = repo / line[5:].strip()
-        return p.read_text()[:6000] if p.exists() else "NOT FOUND"
-    return "UNKNOWN TOOL"
+// Ablated reference is candidate-independent (no wiki) — the cacheable baseline; comparing each
+// candidate's with-wiki score against a FIXED no-wiki bar avoids the "win uplift by being a bad
+// no-wiki prompt" gaming.
+const BASELINE = { id: '__baseline__', prompt_text: 'Find the code locations that answer the question.' }
 
+phase('SUT grid')
 
-def run_item(backend: Backend, prompt_text: str, wiki_context: str,
-             question: str, repo: Path) -> CellResult:
-    """Bounded read loop → predicted symbol list. Hard caps defend against hangs."""
-    transcript = f"{prompt_text}\n\n{wiki_context}\n\nQUESTION: {question}\n"
-    started = time.monotonic()
-    try:
-        for _ in range(MAX_ITERS):
-            if time.monotonic() - started > MAX_WALL_S:
-                return CellResult(ok=False, error="wall-clock cap")
-            out = backend.chat(system=_SYSTEM, user=transcript)
-            m = re.search(r"ANSWER:\s*(\[.*\])", out)
-            if m:
-                preds = [str(s) for s in json.loads(m.group(1))]
-                return CellResult(predicted=preds, calls=backend.counter.calls)
-            cmd = out.strip().splitlines()[-1] if out.strip() else ""
-            transcript += f"\n{out}\nTOOL RESULT:\n{_tool(cmd, repo)}\n"
-        return CellResult(ok=False, error="iteration cap")
-    except Exception as e:  # noqa: BLE001 — fail open toward progress
-        return CellResult(ok=False, error=str(e)[:200])
+const cells = []
+for (const item of args.items)
+  for (const sut of ['sonnet', 'opus']) {
+    cells.push({ item, cand: BASELINE, sut, cond: 'ablated' })        // one per item×tier
+    for (const cand of args.candidates)                              // with-wiki: one per candidate
+      cells.push({ item, cand, sut, cond: 'with_wiki' })
+  }
+
+const out = await parallel(cells.map((c) => () =>
+  agent(
+    brief(c.cand, c.item.question, args.repoPath,
+          c.cond === 'with_wiki' ? args.wikiContext : '', args.wikiBundlePath),
+    { label: `sut:${c.sut}:${c.cond}:${c.item.id}:${c.cand.id}`,
+      model: c.sut, agentType: 'Explore', schema: PRED_SCHEMA },
+  ).then((r) => ({
+    item_id: c.item.id, candidate_id: c.cand.id, sut: c.sut, condition: c.cond,
+    predicted: r ? r.predicted : [], ok: r !== null,
+  }))
+))
+
+return { cells: out }
 ```
 
-- [ ] **Step 3: Smoke-verify one item end-to-end (Sonnet)**
+- [ ] **Step 3: Smoke-verify one cell via the Workflow tool**
 
-Run (with `ANTHROPIC_API_KEY` set):
-```bash
-uv run python -c "
-from pathlib import Path
-from llm_wiki_optimizer.backends import Backend
-from llm_wiki_optimizer.sut import run_item
-b = Backend(sut='sonnet', model='claude-sonnet-4-6')
-r = run_item(b, 'Find the definitions.', '', 'Where is the function alpha defined?', Path('tests/fixtures/minirepo'))
-print(r)
-"
-```
-Expected: a `CellResult` whose `predicted` contains a plausible symbol; no hang (returns within the caps). This proves the loop + tool wiring; fidelity is judged in Task 9.
+Invoke the Workflow tool with `p2a_smoke.mjs` and a 1-item / 1-candidate `args` (it still fans `sonnet`×`opus` × `with_wiki`×`ablated` = 4 cells). Expected: it returns `{cells: [...]}` with a `predicted` symbol list per cell and no stall. This proves the subagent + schema + tiering wiring; full-grid fidelity is judged in Task 9.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/llm_wiki_optimizer/backends.py src/llm_wiki_optimizer/sut.py
-git commit -m "feat(optimizer): bounded read-loop SUT with Claude (Sonnet/Opus) backend"
+git add src/llm_wiki_optimizer/sut_agent.md plugins/llm-wiki-optimizer/harness/workflows/p2a_smoke.mjs
+git commit -m "feat(optimizer): SUT subagent + p2a smoke Workflow (native Claude Code)"
 ```
 
 ---
 
-## Task 9: P2a orchestration + go/no-go report
+## Task 9: Item bank + score + go/no-go report
 
 **Files:**
-- Create: `src/llm_wiki_optimizer/smoke.py`
+- Create: `src/llm_wiki_optimizer/items.py`
+- Create: `src/llm_wiki_optimizer/report.py`
 
-Runs the grid and answers the three P2a questions. ~20 single-hop Locate items × {with_wiki, ablated} × {sonnet, opus} × ~3 read-prompt candidates × 1 seed, every cell checkpointed.
+Build the ~20-item bank, run the smoke Workflow (Task 8) via the Workflow tool, and score its predictions → the three P2a answers. Grid = ~20 single-hop Locate items × {with_wiki, ablated} × {sonnet, opus} × ~3 candidates.
 
-- [ ] **Step 1: Assemble the ~20-item bank**
+- [ ] **Step 1: Write `items.py` and build the bank**
 
-Procedure: call `gold.locate.definitions(.data/scaffold)`, sample ~20 definitions, and for each phrase a question ("Where is `<name>` defined?") — gold is the dotted symbol (NOT phrased by a model; the question is a template). Persist the bank as `.data/items.json` (list of `Item`). Filter out any symbol whose name is a unique exact-string trivially greppable in one hit (too-easy guard).
-
-- [ ] **Step 2: Write `smoke.py`**
-
-`src/llm_wiki_optimizer/smoke.py`:
+`src/llm_wiki_optimizer/items.py`:
 ```python
 from __future__ import annotations
-import itertools
+import json
+import subprocess
+from pathlib import Path
+from llm_wiki_optimizer.config import Item
+from llm_wiki_optimizer.gold.locate import definitions
+
+
+def _too_easy(name: str, repo: Path) -> bool:
+    # trivially navigable: the bare name appears in <= 1 file (defined, never referenced)
+    r = subprocess.run(["grep", "-rwl", name, str(repo)], capture_output=True, text=True)
+    return len(r.stdout.split()) <= 1
+
+
+def build(repo: Path, out: Path, limit: int = 20) -> list[Item]:
+    items: list[Item] = []
+    for d in definitions(repo):
+        name = d.symbol.rsplit(".", 1)[-1]
+        if _too_easy(name, repo):
+            continue
+        items.append(Item(id=f"loc{len(items)}", family="locate", hop=1,
+                          question=f"Where is `{name}` defined?", gold=[d]))
+        if len(items) >= limit:
+            break
+    out.write_text(json.dumps([it.model_dump() for it in items], indent=2))
+    return items
+```
+Run: `uv run python -c "from pathlib import Path; from llm_wiki_optimizer.items import build; print(len(build(Path('.data/scaffold'), Path('.data/items.json'))))"`
+Expected: ~20. Gold is the AST-derived dotted symbol (model-free); the question is a template. *(Single-hop navigational Locate has the identifier in the question by design; absent-identifier / obfuscated strata are P2b, not the smoke test.)*
+
+- [ ] **Step 2: Write `report.py`**
+
+`src/llm_wiki_optimizer/report.py`:
+```python
+from __future__ import annotations
 import json
 import statistics
 from pathlib import Path
-from llm_wiki_optimizer.backends import Backend, CallCounter
-from llm_wiki_optimizer.config import Candidate, CellKey, Item
+from llm_wiki_optimizer.config import Item
 from llm_wiki_optimizer.score import prf1, uplift
-from llm_wiki_optimizer.store import CellStore
-from llm_wiki_optimizer.sut import run_item
-from llm_wiki_optimizer.wiki import wiki_context, ablated_context
-
-REPO = Path(".data/scaffold")
-WIKI = Path(".data/scaffold-wiki")
 
 
-def _candidates() -> list[Candidate]:
-    return [
-        Candidate(id="baseline", prompt_text="Find the code locations that answer the question."),
-        Candidate(id="map-first", prompt_text="First read the wiki to orient, then grep to confirm exact locations."),
-        Candidate(id="terse", prompt_text="Locate the definition. Answer only with symbol identities."),
-    ]
-
-
-def _models(sut: str) -> str:
-    return {"sonnet": "claude-sonnet-4-6", "opus": "claude-opus-4-8"}[sut]
-
-
-def run(db: Path) -> dict[str, object]:
-    items = [Item.model_validate(d) for d in json.loads(Path(".data/items.json").read_text())]
-    cands = _candidates()
-    store = CellStore(db)
-    ctx = {"with_wiki": wiki_context(WIKI), "ablated": ablated_context()}
-
-    for item, cand, sut, cond in itertools.product(items, cands, ("sonnet", "opus"), ctx):
-        key = CellKey(item_id=item.id, candidate_id=cand.id, sut=sut, condition=cond, seed=0)
-        if store.get(key) is not None:
-            continue
-        backend = Backend(sut=sut, model=_models(sut), counter=CallCounter())
-        store.put(key, run_item(backend, cand.prompt_text, ctx[cond], item.question, REPO))
-
-    return _report(items, cands, store)
-
-
-def _f1(store: CellStore, item: Item, cand: Candidate, sut: str, cond: str) -> float:
-    res = store.get(CellKey(item_id=item.id, candidate_id=cand.id, sut=sut, condition=cond, seed=0))
-    if res is None or not res.ok:
+def _f1(cell: dict, gold: list[str]) -> float:
+    if not cell.get("ok", False):
         return 0.0
-    gold = [g.symbol for g in item.gold]
-    return prf1(res.predicted, gold)[2]
+    return prf1(cell["predicted"], gold)[2]
 
 
-def _report(items: list[Item], cands: list[Candidate], store: CellStore) -> dict[str, object]:
-    out: dict[str, object] = {}
-    # (1) detectable uplift per SUT (mean per-item with_wiki - ablated, best candidate)
+def report(items_path: Path, cells_path: Path) -> dict:
+    items = {d["id"]: Item.model_validate(d) for d in json.loads(items_path.read_text())}
+    cells = json.loads(cells_path.read_text())["cells"]
+    idx = {(c["item_id"], c["candidate_id"], c["sut"], c["condition"]): c for c in cells}
+    cand_ids = sorted({c["candidate_id"] for c in cells})
+
+    def f1(item_id: str, cand: str, sut: str, cond: str) -> float:
+        c = idx.get((item_id, cand, sut, cond))
+        return 0.0 if c is None else _f1(c, [g.symbol for g in items[item_id].gold])
+
+    real = [c for c in cand_ids if c != "__baseline__"]
+    out: dict = {}
+    # (1) detectable uplift per SUT: best candidate's with-wiki F1 minus the FIXED ablated baseline
     for sut in ("sonnet", "opus"):
-        ups = [max(uplift(_f1(store, it, c, sut, "with_wiki"), _f1(store, it, c, sut, "ablated"))
-                   for c in cands) for it in items]
-        out[f"mean_uplift_{sut}"] = round(statistics.mean(ups), 4)
+        ups = [uplift(max(f1(i, c, sut, "with_wiki") for c in real),
+                      f1(i, "__baseline__", sut, "ablated")) for i in items]
+        out[f"mean_uplift_{sut}"] = round(statistics.mean(ups), 4) if ups else 0.0
     # (2) cross-SUT candidate-ranking correlation (with_wiki mean F1 per candidate)
-    def cand_scores(sut: str) -> list[float]:
-        return [statistics.mean(_f1(store, it, c, sut, "with_wiki") for it in items) for c in cands]
-    out["candidate_scores_sonnet"] = cand_scores("sonnet")
-    out["candidate_scores_opus"] = cand_scores("opus")
-    out["ranking_note"] = "compare the two orderings; low correlation invalidates cheap-search/expensive-gate"
-    # (3) measured Opus calls/loop
-    opus_calls = [store.get(CellKey(item_id=it.id, candidate_id=c.id, sut="opus",
-                                    condition=cond, seed=0)).calls
-                  for it in items for c in cands for cond in ("with_wiki", "ablated")
-                  if store.get(CellKey(item_id=it.id, candidate_id=c.id, sut="opus",
-                                       condition=cond, seed=0)) is not None]
-    out["opus_calls_per_loop_max"] = max(opus_calls) if opus_calls else 0
+    for sut in ("sonnet", "opus"):
+        out[f"candidate_scores_{sut}"] = [
+            round(statistics.mean(f1(i, c, sut, "with_wiki") for i in items), 4) for c in real]
+    out["candidates"] = real
+    out["ranking_note"] = "compare candidate_scores_sonnet vs _opus orderings; disagreement invalidates cheap-search/expensive-gate"
     return out
-
-
-if __name__ == "__main__":
-    print(json.dumps(run(Path(".data/p2a.db")), indent=2))
 ```
+*(Scoring stays in the tested `score.py`; `report.py` only aggregates the Workflow's predictions. Per-tier **cost** comes from the Workflow run's token-usage summary, read by the orchestrating agent — not from `report.py`. The SQLite `store` (Task 3) archives cells for P2b durability; P2a's report reads the Workflow's returned JSON directly.)*
 
-- [ ] **Step 3: Run the smoke test**
+- [ ] **Step 3: Run the smoke Workflow, then score**
 
-Run: `uv run python -m llm_wiki_optimizer.smoke`
-Expected: a JSON report. Read it against the **go/no-go criteria** below.
+The orchestrating Claude Code agent: (a) builds the reference wiki (Task 7) and reads its `index.md` body; (b) **invokes the Workflow tool** with `workflows/p2a_smoke.mjs` and `args = { items, candidates, wikiContext: <index.md body>, wikiBundlePath: ".data/scaffold-wiki", repoPath: ".data/scaffold" }` (3 hand-made candidates from the design's §2 read-prompt examples); (c) writes the returned `{cells}` to `.data/p2a_cells.json` **and** records the Workflow's per-tier **token usage**; (d) runs the report:
+```bash
+uv run python -c "from pathlib import Path; import json; from llm_wiki_optimizer.report import report; print(json.dumps(report(Path('.data/items.json'), Path('.data/p2a_cells.json')), indent=2))"
+```
+Expected: a JSON report. Read it against the **go/no-go criteria** below. (The Workflow journals every cell — a stopped run resumes via `resumeFromRunId`, recomputing only unfinished cells.)
 
 - [ ] **Step 4: Decide go/no-go (the gate)**
 
 - **(i) Hypothesis:** `mean_uplift_sonnet` and/or `mean_uplift_opus` is **detectably positive** (a clear margin over 0 across the 20 items). If ~0 or negative on both → **NO-GO**: the wiki adds nothing over a grep-capable agent; stop and rethink the premise before building P2b.
 - **(ii) Cross-SUT ranking:** the candidate orderings from `candidate_scores_sonnet` vs `candidate_scores_opus` **agree**. If they disagree → the cheap-search/expensive-gate architecture is invalid; Opus must enter the search loop (revise §5 + budget).
-- **(iii) Feasibility + cost:** the run completed without hangs (caps held); `opus_calls_per_loop_max` (and the analogous figure from the `sonnet` cells) gives real calls-per-loop to **recalibrate `max_opus_api_calls` + `max_sonnet_calls` and estimate the overnight $** — both tiers are metered now (vLLM de-scoped). Separately confirm `agents-scaffold`'s test suite runs green locally (the anchor depends on it).
+- **(iii) Feasibility + cost:** the Workflow completed without stalls (dead agents fail-open to `null`); its **per-tier token usage** (from the run summary) gives the real cost/cell to **recalibrate `max_sonnet_calls` + `max_opus_api_calls` and estimate the overnight $**. Separately confirm `agents-scaffold`'s test suite runs green locally (the anchor depends on it).
 
 - [ ] **Step 5: Commit + record the verdict**
 
 ```bash
-git add src/llm_wiki_optimizer/smoke.py
-git commit -m "feat(optimizer): P2a smoke-test orchestration + go/no-go report"
+git add src/llm_wiki_optimizer/items.py src/llm_wiki_optimizer/report.py
+git commit -m "feat(optimizer): P2a item bank + report (uplift/ranking/cost)"
 ```
 
 Then write the verdict (the JSON report + the three decisions + the recalibrated budget) into `docs/llm-wiki/optimizer/self-optimizer-design.md` (update §2 budget + §9 P2a row), and report to the user. **Do not start P2b until P2a returns GO.**
@@ -911,7 +879,7 @@ Then write the verdict (the JSON report + the three decisions + the recalibrated
 
 ## Self-review
 
-- **Spec coverage (vs design §9 P2a):** (i) hypothesis uplift — Tasks 5,7,8,9; (ii) cross-SUT ranking correlation — Task 9 report; (iii) test-suite + gold feasibility — Tasks 5,6 + Task 9 Step 4; Opus-calls recalibration — Task 9. Reference wiki — Task 7. Privacy (`.data/` gitignored) — Tasks 1,6. Robustness caps in the only agentic loop — Task 8. ✓
-- **Deferred to P2b (named, not gaps):** multi-hop + call-graph gold; Explain family; the statistical gate (Wilcoxon/BH); GEPA/random optimizer; the daemon/supervisor + watchdog; the judge; fastapi transfer; automated ingest. P2a is the kill-switch slice only.
-- **Type consistency:** `CellKey`/`CellResult`/`Item`/`GoldLocation`/`Candidate` are defined once in Task 2 and used unchanged in Tasks 3,5,8,9; `prf1`→3-tuple and `definitions(root)→list[GoldLocation]` signatures match their call sites; `Backend.chat`/`run_item` signatures match Task 9 usage. ✓
-- **Honesty:** Tasks 6–9 are IO/agentic boundaries verified by smoke runs, not fabricated-output unit tests — called out explicitly; the deterministic core (Tasks 2–5) is real TDD.
+- **Spec coverage (vs design §9 P2a):** (i) hypothesis uplift — Tasks 5,7,8,9; (ii) cross-SUT ranking correlation — Task 9 report; (iii) test-suite + gold feasibility — Tasks 5,6 + Task 9 Step 4; per-tier token/cost recalibration — Task 9. Reference wiki — Task 7. Privacy (`.data/` gitignored) — Tasks 1,6. Robustness: SUT is a read-only subagent in a **journaled Workflow** (fail-open via `null`) — Task 8. ✓
+- **Deferred to P2b (named, not gaps):** multi-hop + call-graph gold; Explain family; the statistical gate (Wilcoxon/BH); GEPA-style + random optimizer (as Workflows); the supervised overnight run (chained Workflows + scheduled wake); the judge; fastapi transfer; automated ingest. P2a is the kill-switch slice only.
+- **Type consistency:** `CellKey`/`CellResult`/`Item`/`GoldLocation`/`Candidate` are defined once in Task 2 and used unchanged in Tasks 3,5,9; `prf1`→3-tuple and `definitions(root)→list[GoldLocation]` signatures match their call sites; the Workflow returns `{cells:[{item_id,candidate_id,sut,condition,predicted,ok}]}`, which `report.py` indexes by exactly those keys. ✓
+- **Honesty:** Tasks 6–9 are IO/agentic boundaries verified by smoke runs, not fabricated-output unit tests — called out explicitly; the deterministic core (Tasks 2–5) is real TDD. The SUT subagent + Workflow (Task 8) is authored/run via the Workflow tool, not unit-tested in isolation.

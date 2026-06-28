@@ -60,6 +60,7 @@ as **text**. It never imports llm-wiki code and never adds a dep llm-wiki's runt
 
 | Decision | Choice |
 |---|---|
+| **Orchestration & runtime** | **Native Claude Code.** All LLM work is **subagents** (SUT / proposer / judge) dispatched from **dynamic Workflows** + **background subagents** — **no API key, SDK, or external endpoint** (auth + billing via the Claude Code session). The **Workflow runtime is the deterministic control loop + journaled `resumeFromRunId`**, replacing the standalone daemon (§5). The deterministic Python harness shrinks to LLM-free utilities (gold, scoring, store), driven by subagents via Bash. |
 | **Search SUT** | **Sonnet (the cheap Claude tier) across all strata.** vLLM is de-scoped; the wide candidate search runs on Sonnet. **Compute is now metered, not free** — so search breadth is bounded by the token budget, which makes caching + successive-halving load-bearing rather than optional. |
 | **Escalation / gate SUT** | **Capability-tiered, only at the narrowest end:** search **and top-K survivor selection both run on Sonnet**; only the **single winning config + the anchor** re-run on **Opus** (the complex multi-hop stratum) for final confirmation. This keeps Opus bounded and consistent with the budget. SUT model is **fixed per item** across candidates → paired comparison stays valid. **Load-bearing assumption (the riskiest in the plan):** candidate *rankings* transfer between the Sonnet search SUT and the Opus gate SUT. The wiki's value is plausibly model-dependent (a strong model may grep well enough that the wiki adds little), so this is **guarded in P2a** (§9) by measuring search↔gate ranking correlation; if low, "search cheap / gate expensive" is invalid and Opus must enter the search loop (bigger budget). |
 | **Proposer (writes prompt edits)** | **Opus** — few calls/round, highest leverage; GEPA's reflective edits need a capable LM. |
@@ -75,8 +76,9 @@ as **text**. It never imports llm-wiki code and never adds a dep llm-wiki's runt
   single-winner final confirmation + calibration). **vLLM is de-scoped, so Sonnet volume now counts
   too** — there is no free tier. **These are estimates** — P2a measures real calls-per-task-loop *per
   tier* and recalibrates bottom-up (and gives a real $ figure) before the full run.
-- Models (Claude-only, Anthropic SDK auth): `search = claude-sonnet-4-6`,
-  `gate / proposer / complex = claude-opus-4-8`. No external endpoints to configure.
+- Models (Claude-only, via **Claude Code subagents** — no API key/SDK): `search = Sonnet
+  (claude-sonnet-4-6)`, `gate / proposer / complex = Opus (claude-opus-4-8)`. No endpoints to
+  configure — auth is the Claude Code session.
 
 ---
 
@@ -225,51 +227,49 @@ is the cost driver. Structure that keeps it inside an overnight **metered** budg
   cached. Only the *with-wiki read* re-runs per candidate.
 - **Sandbox.** Operate on copies of the KB + repo clone; never mutate anything live.
 
-### Robustness — the loop is a supervised daemon, not a Claude Code conversation
-**The single most important robustness decision: nothing about whether the loop continues depends on
-an LLM "deciding" to continue.** Relying on Claude Code's Stop-hook continuation to keep an agent
-looping all night is the fragile path — it is best-effort and observably stalls (compaction, context
-drift, the model choosing to stop, `stop_hook_active` guards). We don't use it. Claude Code *builds,
-launches, and later reads* the daemon; the overnight run needs no live session.
+### Robustness — native Claude Code: deterministic Workflows + subagents (no daemon, no API key)
+**The single most important robustness decision: the control loop is a deterministic *Workflow
+script*, not an LLM deciding whether to continue.** All LLM work runs as Claude Code **subagents**
+(SUT, proposer, judge), dispatched from **dynamic Workflows** and **background subagents** —
+billed/authed through the Claude Code session, with **no `ANTHROPIC_API_KEY`, SDK, or external
+endpoint**. This makes the SUT *maximally faithful* (a real Claude Code agent with native grep/read
+tools — exactly how llm-wiki is used), while the **Workflow runtime, not a hand-rolled loop, owns
+durability**. Relying on Claude Code's Stop-hook continuation to keep an *interactive* agent looping
+all night is the fragile path we still avoid — but a *Workflow* is not that: its control flow is
+deterministic code.
 
-1. **Control flow in deterministic Python.** `while within_budget: propose → evaluate the cell grid →
-   checkpoint` is plain code. The LLM is called as a function (an Anthropic API call to Claude); it is
-   never the orchestrator and cannot "stop the loop."
-2. **Supervised with auto-restart on a stable host.** Run under **systemd**
-   (`Restart=always`, on an always-on host such as the homelab box — so no laptop sleep / network drop
-   sits in the critical path) or **launchd** (`KeepAlive`, macOS dev). Driver dies →
-   supervisor restarts it → it resumes from checkpoint. The launching Claude Code session can close
-   freely.
-3. **Cell-level checkpointing + idempotent resume.** The eval is a grid of
-   **(candidate × item × seed × condition)** cells in **SQLite (WAL)**; each cell's result is written
-   atomically when done. Resume = *"compute only the empty cells."* A crash loses at most the
-   in-flight cells, never a whole round. (Same deterministic-resume model as content-addressed config
-   hashes — re-runs are free.)
-4. **Timeouts + bounded retries at every external boundary.** Each model call: per-call timeout +
-   exponential-backoff retry on 429/5xx/timeout, then **mark-failed-and-continue**. Each agentic SUT
-   task-loop: a **hard cap on tool-iterations + wall-clock** → kill and record the cell as failed
-   rather than hang forever (defends the never-returning item). Model-API **health-check +
-   circuit-breaker** — API failing / rate-limited → back off, and if down past a threshold, checkpoint
-   and pause rather than burn budget spinning.
-5. **Fail open *toward progress*.** One failed cell / candidate / item / seed is logged and skipped;
-   the loop continues. A single exception never wedges the night. (Mirrors llm-wiki's own "a guard
-   must never wedge the session.")
-6. **Bounded single-shot LLM calls in the overnight path — not open-ended subagents.** The proposer
-   and (where used) judge are **one bounded API call** each (failing rows + current prompt → edited
-   prompt). The **only** agentic loop is the SUT, and it is iteration-capped. We replicate the
-   llm-wiki read path — preload `index.md` + grep + read — in **our own minimal tool harness**, so the
-   run has **zero dependency on Claude Code's session/hook lifecycle**. *(Fidelity note: this is a
-   faithful stand-in for the read path; optionally re-confirm only the final winner inside a real
-   Claude Code agent via the **Claude Agent SDK** — driven by the daemon, not an interactive session,
-   so robustness holds. Fork — chosen toward robustness/control over exact-harness fidelity in the
-   search loop, per the stated priority.)*
-7. **Heartbeat + watchdog + `ntfy`.** The driver writes a heartbeat each round; a tiny external
-   watchdog (cron) detects a **stale heartbeat** (hung driver) → kill + restart (→ resume) + alert.
-   `ntfy` on **start / milestone / stall-detected / restart / completion / fatal**, and a `--status`
-   query shows exactly which cells are done/failed/pending. So a true stall *reaches you* instead of
-   silently wasting the night.
-8. **Budget is a hard kill, not a hope.** Wall-clock + Opus-call caps are checked every round; breach
-   → clean checkpoint + exit + `ntfy`.
+1. **Control flow is the Workflow script (deterministic JS).** `propose → evaluate the cell grid →
+   select → repeat` is `agent()` / `parallel()` / `pipeline()` in a Workflow — not an LLM's choice.
+   The subagents are workers the script calls; none can "stop the loop."
+2. **Background execution + journaled resume (the daemon's replacement).** Workflows run in the
+   **background** and **journal every `agent()` call**; a stopped or edited run relaunches with
+   `resumeFromRunId` — completed cells return cached instantly, only unfinished cells re-run. Same
+   *"compute only the empty cells"* property as a checkpoint store, native to the runtime.
+3. **Fail open *toward progress*.** A subagent that dies returns `null` (`.filter(Boolean)`); the grid
+   continues. Per-agent iteration/time caps live in the subagent brief; one bad cell never wedges the
+   run. (Mirrors llm-wiki's "a guard must never wedge the session.")
+4. **Tiered subagents.** SUT = Sonnet (search) / Opus (gate) via the agent `model`; proposer = Opus;
+   judge = a different tier. The wide search runs as **background subagents** under the workflow's
+   concurrency cap; only the single winner + anchor escalate to Opus.
+5. **Durable cross-workflow state in SQLite.** The Workflow journal covers *intra-run* resume; the
+   **SQLite store** holds *cross-workflow* durable state (gold, item bank, accumulated results) — so
+   the 1000-agent/workflow cap is handled by **chaining sequential Workflows** (one per round/phase),
+   the main agent reading results between and launching the next.
+6. **Budget as a hard stop.** The Workflow `budget` gates `agent()` calls; the per-tier call/token
+   caps (§2) are enforced in-script — breach → stop cleanly, already checkpointed. `ntfy` fires on
+   milestone / stall / done / fatal.
+
+**Honest robustness tradeoff (vs. the rejected standalone daemon).** Native Workflows are robust to
+*agent-level* stalls — a deterministic script can't "decide to stop," and background + journaled
+resume survive a hiccup — but they are **more coupled to the Claude Code session/host** than a systemd
+daemon: if the whole session/host dies, the background work dies with it, and recovery means
+relaunching + `resumeFromRunId` (or the journal-resume fallback — read `agent-*.jsonl` and hand-author
+a continuation). The daemon survived host death but needed a raw API key, which is de-scoped.
+**Overnight posture (decided).** Run the Claude Code session on an **always-on host** (the homelab
+box); a **native scheduled wake** — `/loop` or a cron-style re-invocation (e.g. `CronCreate`) —
+re-advances the pipeline and resumes any stalled Workflow from its journal (`resumeFromRunId`). No
+external supervisor, no API key: background Workflows do the work between wakes, and host-death
+recovery is relaunch + resume.
 
 ### Privacy containment (the private repo flows through the whole pipeline)
 `agents-scaffold` code passes through prompts, logs, SQLite, and **`ntfy` payloads** (an *external*
@@ -294,10 +294,13 @@ bit-exact (the SUT is agentic) — pin temperature/prompt, record everything.
    coverage bar; the self-validation + adversarial configs are its integration tests.
 2. **Frozen baseline** — current prompts through the harness; mean ± CI on dev and test.
 3. **Trivial random/grid optimizer first** — to prove fancier methods beat random.
-4. **Bake-off: GEPA vs random.** Adopt **GEPA** (standalone `gepa` lib — *not* full DSPy — thin
-   adapter; each prompt **body** is a text component, frontmatter immutable) **only if it beats
-   random** on dev. Its `evaluate`-returns-score+textual-feedback contract fits (we feed the
-   precision/recall delta + failure rationale as the "textual gradient"); Opus is the reflection LM.
+4. **Bake-off: GEPA-style loop vs random.** The reflective propose-from-failures + Pareto-select loop
+   is implemented **as a Workflow** — an **Opus proposer subagent** reads failing rows + the current
+   prompt body and returns an edited prompt (frontmatter immutable); Pareto/selection live in the
+   script — **adopted only if it beats random** on dev. *(The standalone `gepa` Python library expects
+   an API-callable LM, which is de-scoped, so we reimplement its algorithm natively rather than adopt
+   the library — the research already noted "borrow the ideas" ≡ reimplement GEPA.)* The
+   precision/recall delta + failure rationale are the reflective "textual gradient."
 5. **Prompt-edit structural validator** — every proposed prompt is linted for required elements (e.g.
    the `GAP:`/abstention instruction, grounding rule) **before** evaluation, so the optimizer cannot
    game the metric by *deleting a constraint*.
@@ -345,9 +348,9 @@ p-hacking pressure to ship *something*. The report says so plainly.
 | Red-team defenses | Precision/token hard gates; absent/obfuscated-identifier strata; ablated-agent baseline; hop stratification; prompt-edit validator; canaries (§3–4, §6.5). |
 | Thin E2E anchor | Concrete SWE patch-and-test anchor; proxy↔anchor Spearman circuit-breaker (§3). |
 | Sandbox everything | Copies of KB + repo; never mutate live (§5). |
-| Unattended | **Supervised daemon (systemd/launchd auto-restart), not a Claude Code agent loop**; cell-level SQLite checkpoint + idempotent resume; per-boundary timeout/retry/circuit-breaker; fail-open-toward-progress; heartbeat+watchdog; wall-clock + Opus-call hard kill; `ntfy` on start/stall/restart/done/fatal (§5). |
+| Unattended | **Native deterministic Workflows** (background + journaled `resumeFromRunId`) as the control loop — not an interactive agent loop; cross-workflow SQLite durability; fail-open (`.filter(Boolean)`); per-tier budget hard-stop; `ntfy` on milestone/stall/done/fatal; overnight via always-on host + scheduled wake (§5). |
 | Reproducible | Statistical (CI over ≥5 seeds), not bit-exact (agentic SUT); pin temperature/prompt; one SQLite row per cell+round; content-addressed config hashes → free re-runs (§5). |
-| Tech stack | Python 3.12+, async, pydantic v2, `uv`, ruff + `mypy --strict`, pytest, `src/`, SQLite, **Anthropic SDK (Claude Opus + Sonnet)**, `ntfy` — all inside the optimizer's own boundary (§1). *(vLLM / free-compute de-scoped per the latest decision.)* |
+| Tech stack | Python 3.12+, pydantic v2, `uv`, ruff + `mypy --strict`, pytest, `src/`, SQLite, tree-sitter, `ntfy` for the **LLM-free** harness; all model work via **Claude Code subagents + dynamic Workflows (Opus + Sonnet)** (§1). *(vLLM / free-compute / external API + SDK all de-scoped — no API key.)* |
 
 ---
 
@@ -361,7 +364,7 @@ p-hacking pressure to ship *something*. The report says so plainly.
 | **P2b** | Full eval harness + gold extraction + reference wiki + self-validation (incl. adversarial reward-hack configs) | **[GATE]** |
 | **P3** | Frozen-baseline scores (dev + private test + fastapi transfer, with variance) | — |
 | **P4** | Random optimizer + GEPA bake-off + prompt-edit validator | **[GATE]** |
-| **P5** | Overnight loop under the supervisor. **Dry-run with fault injection first:** `kill -9` mid-round → confirm clean resume from checkpoint; simulate model-API-down + API-429 → confirm backoff/skip/continue; stale-heartbeat → confirm watchdog restart + `ntfy`. Then the full run; validate winner on frozen test + transfer. | — |
+| **P5** | Overnight run as chained background **Workflows**. **Dry-run with fault injection first:** stop a Workflow mid-run → relaunch with `resumeFromRunId`, confirm completed cells are cached and only unfinished re-run; kill a subagent → confirm `.filter(Boolean)` skips and the grid continues; exceed budget → clean stop. Then the full run; validate winner on frozen test + transfer. | — |
 | **P6** | Report + generalization-gated auto-promotion (git-reversible) | — |
 
 The skill itself (a `SKILL.md` trigger + the Python harness) is authored via `skill-creator` once
