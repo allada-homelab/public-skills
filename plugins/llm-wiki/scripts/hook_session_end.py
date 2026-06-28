@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """SessionEnd digest — a brief, deterministic end-of-session summary of wiki activity.
 
 Counts the change entries under the newest date heading in the bundle's `log.md` and prints

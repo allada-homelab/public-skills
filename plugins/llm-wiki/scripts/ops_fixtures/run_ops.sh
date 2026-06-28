@@ -46,6 +46,12 @@ for dir in "$HERE"/*/; do
     echo "FAIL $name — bundle_ops exited $code: $(cat "$tmp/.err")"
     fail=$((fail+1)); failed_names+=("$name"); rm -rf "$tmp"; continue
   fi
+  # success case may still assert an additive stderr warning (e.g. index regen
+  # warning that a hand-written section is dropped) alongside the tree diff
+  if [ -f "$dir/expect_err" ] && ! grep -qF "$(cat "$dir/expect_err")" "$tmp/.err"; then
+    echo "FAIL $name — stderr missing '$(cat "$dir/expect_err")': $(cat "$tmp/.err")"
+    fail=$((fail+1)); failed_names+=("$name"); rm -rf "$tmp"; continue
+  fi
   rm -f "$tmp/.err"
 
   if diff -ru "$dir/expected" "$tmp" >/tmp/ops_diff.$$ 2>&1; then

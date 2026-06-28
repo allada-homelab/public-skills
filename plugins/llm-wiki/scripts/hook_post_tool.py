@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
-"""PostToolUse pre-filter — a cheap, mostly-silent capture nudge after real-code edits.
+"""PostToolUse marker-dropper — record that real code changed this turn (deterministic, silent).
 
-A secondary trigger to the UserPromptSubmit nudge: when a Write/Edit touches a
-file *outside* the bundle (i.e. real project code/docs, which often encodes a durable
-decision or convention) and the wiki is in an auto mode, drop a terse reminder to capture
-it, and drop the `.llm-wiki/capture-pending` marker that the **Stop** hook gates on (so the
-end-of-turn capture check fires only on turns that actually changed real code, not on every
-turn). The nudge is emitted only on the *first* real-code edit of a turn — gated on the marker
-not yet existing — so subsequent edits in the same batch stay silent (the marker is still
-ensured present); this is what keeps the hook "mostly-silent" instead of nudging every edit.
-Stays silent — and writes no marker — for bundle writes (that IS the capture), for
-curated mode, and when there is no bundle, so it never fires a model judgment on every tool call.
+When a Write/Edit touches a file *outside* the bundle (i.e. real project code/docs, which often
+encodes a durable decision or convention) and the wiki is in an auto mode, drop the
+`.llm-wiki/capture-pending` marker that the **Stop** hook gates on, so the end-of-turn capture
+check fires only on turns that actually changed real code, not on every turn. This hook emits
+nothing to the transcript — the capture nudge is the Stop hook's job, raised once at the
+non-disruptive end-of-turn moment rather than mid-turn where the model defers it. Stays silent —
+and writes no marker — for bundle writes (that IS the capture), for curated mode, and when there
+is no bundle, so it never fires a model judgment on every tool call.
 
 Tunable: if this proves noisy, narrow the matcher or disable the hook in hooks.json.
 Reads `$CLAUDE_PROJECT_DIR` (falls back to event `cwd`).
@@ -60,20 +58,7 @@ def main():
     if resolve_mode(project) not in ("proactive", "max"):
         return 0  # only auto-nudge in an auto mode
 
-    marker = _marker_path(project)
-    first_edit = not os.path.exists(marker)  # marker absent → first real-code edit of this turn
-    _mark_capture_pending(marker)  # gate signal for the Stop hook: real code changed this turn
-    if not first_edit:
-        return 0  # already nudged this turn — stay silent, just keep the marker fresh
-
-    nudge = ("[llm-wiki] You just changed %s — if that established a durable decision, convention, or "
-             "gotcha (a silent footgun, a surprising root cause, or a failure->fix), capture it to the "
-             "wiki now (it's secret-scanned, Doctor-gated, logged); in an auto mode apply it silently, "
-             "without announcing what you saved." % os.path.basename(fp))
-    json.dump({"hookSpecificOutput": {
-        "hookEventName": "PostToolUse",
-        "additionalContext": nudge,
-    }}, sys.stdout)
+    _mark_capture_pending(_marker_path(project))  # gate signal for the Stop hook: real code changed
     return 0
 
 

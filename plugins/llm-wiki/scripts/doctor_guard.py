@@ -4,10 +4,10 @@ rule (R1 parseable frontmatter, R2 non-empty `type`).
 
 Scope is deliberately per-file: `index.md` / `log.md` are engine-owned and their rules
 (R3*) are multi-file / context-dependent, so they stay in command orchestration, not this
-per-call hook (per the Phase 3 plan). Only a full-content **Write** is validated — an Edit
-doesn't carry the whole resulting file, and the pre-existing file already passed.
-(So an Edit that *empties* a concept's `type:` is not caught here — that conformance gap is
-deferred to the command-orchestration Doctor, not this hook.) This is a conformance guard,
+per-call hook (per the Phase 3 plan). Only a full-content **Write** is validated — an
+Edit/MultiEdit doesn't carry the whole resulting file, and the pre-existing file already
+passed. (So an Edit/MultiEdit that *empties* a concept's `type:` is not caught here — that
+conformance gap is deferred to the command-orchestration Doctor, not this hook.) This is a conformance guard,
 not a security one, so it fails open on ambiguity — a guard must never wedge the session.
 """
 import json

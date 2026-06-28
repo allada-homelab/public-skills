@@ -1,7 +1,7 @@
 ---
-description: Prune (remove) a concept from the llm-wiki, regenerating indexes and logging the removal.
+description: Remove a concept, regenerating indexes and logging it.
 argument-hint: "[concept path or title] [--bundle <path>]"
-allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(date:*), Bash(cp:*), Bash(rm:*), Bash(rmdir:*), Bash(mktemp:*), Bash(diff:*)
+allowed-tools: Glob, Grep, Read, Bash(python3:*), Bash(date:*), Bash(cp:*), Bash(rm:*), Bash(rmdir:*), Bash(mktemp:*), Bash(diff:*)
 ---
 
 You are running `/llm-wiki:prune`. Remove **one** concept and keep the bundle conformant. Per OKF spec
@@ -46,8 +46,8 @@ Steps:
    do nothing). Either way reproduce on the real bundle (the steps are deterministic: same `remove` →
    emptied-subdir cleanup → `index` → `log-append … --date "$today"`), then run the Doctor on the real
    bundle to confirm PASS — and verify the regenerated `index.md` no longer lists the removed concept (a
-   lingering `R4` to it means the index didn't refresh). Clean up only a real mirror (`rm -rf "$mirror"` —
-   never an unset path).
+   lingering `R4` to it means the index didn't refresh). If a write/step fails, report exactly what landed.
+   Clean up only a real mirror (`rm -rf "$mirror"` — never an unset path).
 
 Rollback: the deletion is recoverable from git history **only if the concept was previously committed**
 (a never-committed concept is not) — in an auto mode, the inbound-link report in step 3 is your cue to

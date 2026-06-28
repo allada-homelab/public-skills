@@ -31,6 +31,8 @@ Joined with [customers](./customers.md) on `customer_id` (many orders → one cu
 ## Broken links are tolerated on read
 
 When reading, a link whose target is missing must not stop navigation — note it and continue. When
-*writing*, `/llm-wiki:capture` runs a report-only link check and surfaces any dangling link in the
-confirm diff so you can fix it before committing. (The Doctor also reports broken links as `R4`
-link-health **warnings** — surfaced in its report, never blocking, since OKF tolerates dangling links.)
+*writing*, `/llm-wiki:capture` runs a report-only link check. In **curated mode** (or when explicitly
+requested), the dangling link surfaces in the confirm diff so it can be fixed before committing; in
+**auto mode** (the default), the broken link surfaces only as a non-blocking R4 warning. (The Doctor
+reports broken links as `R4` link-health **warnings** — never blocking, since OKF tolerates dangling
+links.)

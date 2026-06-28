@@ -1,5 +1,5 @@
 ---
-description: Tend the llm-wiki — emit a curation digest (conformance, broken links, staleness, gaps, orphans) and propose maintenance. Read-only.
+description: Emit a read-only curation digest and propose maintenance.
 argument-hint: "[--bundle <path>]"
 allowed-tools: Glob, Grep, Read, Bash(python3:*), Bash(git:*)
 ---
@@ -31,7 +31,8 @@ Steps:
 4a. **Anchor freshness sweep** (the proactive complement to `/llm-wiki:query`'s lazy per-read verify).
    For each concept with a `## Verify` anchor + `verified:` stamp, run the cheap git gate against its
    anchored file(s): `git -C "${CLAUDE_PROJECT_DIR}" log --since="<verified>" -1 --format=%H --
-   <anchor-file>`. **Non-empty (or the file no longer resolves)** → the anchored code changed since last
+   <anchor-file>` (the same freshness gate `/llm-wiki:query` step 5 uses — keep byte-identical).
+   **Non-empty (or the file no longer resolves)** → the anchored code changed since last
    verified → list as **needs re-verification** (a `refine` candidate; or offer to dispatch a
    `wiki-verifier`). Empty → fresh, skip. Also flag **anchor quality**: a *code-grounded* concept with no
    `## Verify`, or a weak one (prose-only "see the code", a bare `file:line`), is a curation gap to

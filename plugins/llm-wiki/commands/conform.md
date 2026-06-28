@@ -1,7 +1,7 @@
 ---
-description: Run the OKF Doctor over a bundle and report conformance (read-only).
+description: Check a bundle's OKF conformance with the Doctor (read-only).
 argument-hint: "[bundle-or-file-path] [--json]"
-allowed-tools: Glob, Read, Bash(python3:*)
+allowed-tools: Bash(python3:*)
 ---
 
 You are running `/llm-wiki:conform`. This is the user-facing surface of the Doctor. **Read-only — never
@@ -20,8 +20,8 @@ Steps:
    - `0` → PASS (zero errors; warnings, if any, are advisory).
    - `1` → FAIL — list the reported violations and offer to fix them via `/llm-wiki:capture` /
      (Phase 2) refine, but do not modify anything now.
-   - `2` → operational error (bad path, or a bare `index.md` was passed — pass the bundle directory).
-     Surface the message verbatim.
+   - `2` → operational error — typically a bad path or a bare `index.md` (pass the bundle directory), but
+     also any other usage error. Surface the message verbatim rather than assuming the cause.
 
 Do not validate a bare `index.md` by itself — its root-vs-subdir rule needs bundle context; pass the
 containing bundle directory instead.

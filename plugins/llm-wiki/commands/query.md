@@ -1,7 +1,7 @@
 ---
-description: Answer a question grounded in the llm-wiki, with citations, a gap flag, and trust-but-verify confirmation.
+description: Answer a wiki question with cited sources (updates a consult counter).
 argument-hint: "<question> [--bundle <path>]"
-allowed-tools: Glob, Grep, Read, Write, Bash(git:*), Task
+allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(git:*), Task
 ---
 
 You are running `/llm-wiki:query`. Answer the user's question from concepts you actually read, with
@@ -34,7 +34,8 @@ Steps:
    - **Freshness gate (cheap, sync).** If the concept has a `## Verify` anchor + `verified:` stamp and the
      project is a git repo, check whether any anchored file changed since the stamp — let git do the date
      math (handles timezones): `git -C "${CLAUDE_PROJECT_DIR}" log --since="<verified>" -1 --format=%H --
-     <anchor-file>`. **Empty (no commit since) → trust, do nothing.** No anchor / not a git repo /
+     <anchor-file>` (this freshness gate is shared with `/llm-wiki:tend` step 4a — keep the two
+     byte-identical). **Empty (no commit since) → trust, do nothing.** No anchor / not a git repo /
      unresolvable here → label the claim **couldn't-verify** (and flag a missing/weak anchor as a curation
      gap); never refuse, never auto-edit.
    - **Changed → dispatch a background verifier.** Spawn the `wiki-verifier` subagent (Task tool, Sonnet)
@@ -45,8 +46,13 @@ Steps:
      or `STALE: <concept> — wiki says X; current state shows Y` + propose `/llm-wiki:refine <concept>`.
    - **Lightweight, always:** check the named anchor and *only* that — a weak/missing anchor is a curation
      signal, never license to re-investigate.
-6. **Consultation counter (auto by default).** As in `/llm-wiki:explore`: increment the consulted
-   concepts' counts in `<bundle-root>/.llm-wiki/consultations.json` — silently in an auto mode (the
-   default; treat the mode as `curated` only if `.claude/llm-wiki.local.md` contains a `mode: curated`
-   line, read it directly), or proposed-then-written-on-approval in `curated`/on request.
-   Corrupt/missing file → treat as `{}`; never let counter bookkeeping break the answer.
+6. **Consultation counter (auto by default).** Track which concepts were consulted this turn, then apply
+   the shared counter procedure below.
+   _Counter procedure (keep byte-identical with `/llm-wiki:explore` step 4; ideal home
+   `skills/wiki/references/consultation-counter.md` once that path is editable):_ resolve the mode once
+   with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/mode.py"` (an auto mode is the default). Increment each
+   consulted concept's count in `<bundle-root>/.llm-wiki/consultations.json` (create it as `{}` if absent;
+   this dotfile is invisible to the Doctor and to OKF consumers). In an auto mode write the increments
+   silently; in `curated`/on request, propose them first and write only on approval (if declined, results
+   stand and the counter is untouched). If the file is corrupt or missing, treat it as `{}` — never let
+   counter bookkeeping break the command.

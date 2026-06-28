@@ -1,5 +1,5 @@
 ---
-description: Bootstrap an llm-wiki from an existing repo — orchestrated multi-agent ingestion that builds a robust, conformant set of concepts.
+description: Bootstrap a wiki from an existing repo (multi-agent).
 argument-hint: "[repo-path] [--scope min|medium|high] [--bundle <path>] [--dry-run]"
 allowed-tools: Task, Glob, Grep, Read, Write, Bash(python3:*), Bash(date:*), Bash(cp:*), Bash(rm:*), Bash(mktemp:*), Bash(diff:*)
 ---
@@ -56,8 +56,9 @@ Steps:
 7. **Stage the batch in a mirror.** `mirror=$(mktemp -d)`; `cp -r "<bundle>/." "$mirror/"`. Write every
    new concept into the mirror at its `<dir>/<slug>.md` (Write creates section dirs). **Secret-scan each
    before trusting it:** `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/secret_scan.py" "$mirror/<relpath>"
-   --format json`; on any hit, **redact** the offending value to `<REDACTED>` in the staged file (never
-   persist a credential) and note it for the report. Then regenerate indexes and append **one** batched
+   --format json` — a **hit** is a non-zero `summary.findings` in the JSON (`secret_scan.py` always exits
+   0, so never key the redaction off `$?`); on any hit, **redact** the offending value to `<REDACTED>` in
+   the staged file (never persist a credential) and note it for the report. Then regenerate indexes and append **one** batched
    log entry (capture the date once — `today=$(date -u +%F)` — and reuse `$today` in step 9):
    - `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" index "$mirror"`
    - `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" log-append "$mirror" --kind Creation --message "Ingested <N> concepts from <repo> (scope <scope>): [<title>](./<relpath>), …" --date "$today"`

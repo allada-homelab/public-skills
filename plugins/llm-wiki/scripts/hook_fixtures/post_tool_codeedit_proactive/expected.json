@@ -1,3 +1,2 @@
-{ "exit_code": 0,
-  "stdout_contains": ["\"hookEventName\": \"PostToolUse\"", "additionalContext", "capture", "foo.py"],
+{ "exit_code": 0, "stdout_equals": "",
   "files_present": ["llm-wiki/.llm-wiki/capture-pending"] }

@@ -47,19 +47,19 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   ```bash
   bash plugins/llm-wiki/scripts/fixtures/run_fixtures.sh
   ```
-  Expect `pass=24 fail=0 skip=0`.
+  Expect `pass=31 fail=0 skip=0`.
 - **Test the durability engine** (the `bundle_ops` golden corpus — run after any change to
   `bundle_ops.py`):
   ```bash
   bash plugins/llm-wiki/scripts/ops_fixtures/run_ops.sh
   ```
-  Expect `pass=19 fail=0`.
+  Expect `pass=31 fail=0`.
 - **Test the hooks** (the `hook_fixtures` corpus — run after any change to `mode.py` or a `hook_*` /
   `*_guard.py` script):
   ```bash
   bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh
   ```
-  Expect `pass=31 fail=0`.
+  Expect `pass=38 fail=0`.
 - **Validate a bundle**:
   ```bash
   python3 plugins/llm-wiki/scripts/doctor.py <bundle-dir> --mode strict --format text
@@ -92,8 +92,9 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   writes, `doctor_guard.py` denies non-conformant concept writes — scoped to bundle
   `Write|Edit|MultiEdit`), UserPromptSubmit (`hook_user_prompt.py` — a once-per-session *consult* nudge
   (session-marker-gated): the read loop's forcing function, symmetric to capture, not a per-turn line),
-  PostToolUse (`hook_post_tool.py` — nudge after a non-bundle code edit in an auto mode; mostly silent;
-  also drops the `.llm-wiki/capture-pending` marker the Stop hook gates on),
+  PostToolUse (`hook_post_tool.py` — a silent marker-dropper: after a non-bundle code edit in an auto
+  mode it drops the `.llm-wiki/capture-pending` marker the Stop hook gates on and emits nothing itself —
+  the capture prompt is the Stop hook's job, raised once at end-of-turn),
   Stop (`hook_stop.py` — the end-of-turn capture forcing function: in an auto mode, *only on a turn that
   changed real code* (gated by that marker), it blocks the stop once — `stop_hook_active`-guarded — so the
   model decides capture-or-stop at the non-disruptive moment; silent on pure-chat turns), and SessionEnd

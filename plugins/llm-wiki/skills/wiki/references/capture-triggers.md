@@ -6,13 +6,13 @@ session, or another person, would act on it). When one of these fires, capture i
 
 ## Failure modes (capture the trap + the way out)
 
-- **Failure→fix** — you tried an approach that failed and found the one that works. Capture the wrong
-  way, the right way, and *why*, so the mistake isn't repeated.
+- **Failure→fix** — an approach that failed and the one that works. Capture the wrong way, the right
+  way, and *why*, so the mistake isn't repeated.
 - **Surprising root cause** — the bug's cause was far from its symptom. Capture the symptom→cause
   mapping so the same symptom routes straight to the cause next time.
 - **Silent footgun** — a tool/API/config did the wrong thing *without erroring* (bypassed a check,
   swallowed an error, returned a misleading default). Silent ones are the most expensive — no error
-  trail leads you back. Capture the surprising behavior and the guard against it.
+  trail leads back. Capture the surprising behavior and the guard against it.
 - **False-done / verification gap** — a check passed but didn't actually prove the thing (a green
   build/compile, a test that doesn't exercise the path). Capture what the signal *doesn't* cover and
   what real confirmation requires.
@@ -25,8 +25,8 @@ session, or another person, would act on it). When one of these fires, capture i
 
 ## Also durable (not failure-shaped)
 
-- **Decision + rejected alternative** — a fork where you chose X over Y for a reason; capture the *why
-  not Y* so it isn't re-litigated.
+- **Decision + rejected alternative** — a fork where X was chosen over Y; capture the *why not Y* so
+  it isn't re-litigated.
 - **Convention / schema / how-it-works** — a stable interface, data shape, or mechanism others rely on.
 
 When nothing here fired, don't invent a finding — just stop.

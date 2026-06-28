@@ -1,7 +1,7 @@
 ---
-description: Bootstrap an empty, OKF v0.1-conformant llm-wiki bundle (one-time).
+description: Bootstrap an empty, OKF-conformant wiki bundle (one-time).
 argument-hint: "[target-path]"
-allowed-tools: Glob, Read, Write, Bash(python3:*), Bash(mktemp:*), Bash(rm:*)
+allowed-tools: Glob, Read, Write, Bash(python3:*), Bash(mktemp:*), Bash(cp:*), Bash(rm:*)
 ---
 
 You are running `/llm-wiki:init`. Create a new, conformant OKF v0.1 bundle. Use the `wiki` skill for
@@ -26,17 +26,20 @@ Steps:
 3. **Compose the file set in memory:**
    - `<target>/index.md` — frontmatter **exactly** `okf_version: "0.1"`, then a short heading and an
      (initially empty) bullet list.
-   - `<target>/log.md` — `# Directory Update Log`, then today's `## YYYY-MM-DD` heading and
-     `* **Initialization**: Bundle created.` (UTC date).
    - any chosen pack subdir `index.md` files (zero frontmatter).
-4. **Doctor gate (bundle mode).** Stage the composed files into a temporary mirror directory that
-   reproduces their bundle-relative paths, then run:
-   `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" <tmp-mirror> --mode strict --format json`.
-   If exit code ≠ 0, show the violations verbatim and stop — write nothing. Delete the mirror.
-5. **Apply.** In an auto mode, Write the gated files directly (no recap); in `curated`/on request,
-   display the full content of every file and Write only on explicit approval. Either way **root
-   `index.md` first**; if any write fails, stop and report exactly what landed (no partial-bundle cleanup
-   magic — fail loud).
+   `log.md` is **not** hand-authored — `bundle_ops log-append` generates it (with the correct UTC date)
+   in step 4.
+4. **Stage + Doctor gate (bundle mode).** Stage the composed files into a temporary mirror
+   (`mirror=$(mktemp -d)`) that reproduces their bundle-relative paths, then generate the log with the
+   deterministic engine (it computes the UTC date itself — no `date` call needed):
+   `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" log-append "$mirror" --kind Initialization --message "Bundle created."`.
+   Then gate: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "$mirror" --mode strict --format json`.
+   If exit code ≠ 0, show the violations verbatim, `rm -rf "$mirror"`, and stop — write nothing.
+5. **Apply.** Land *exactly the gated bytes* — `cp` each staged file from the mirror to its
+   `<target>/<relpath>` (creating the target dir; **root `index.md` first**). In an auto mode do this
+   directly (no recap); in `curated`/on request, display the full content of every file and copy only on
+   explicit approval. If any write fails, stop and report exactly what landed (no partial-bundle cleanup
+   magic — fail loud). Clean up the mirror (`rm -rf "$mirror"`).
 6. Report the bundle path and suggest `/llm-wiki:capture` to add the first concept.
 
 Use relative `./` links throughout. Never invent OKF rules — defer to the `wiki` skill and the Doctor.
