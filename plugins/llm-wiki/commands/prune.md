@@ -8,21 +8,18 @@ You are running `/llm-wiki:prune`. Remove **one** concept and keep the bundle co
 §5 broken links are *tolerated*: inbound links to the removed concept are **reported, never silently
 rewritten or deleted**. Use the `wiki` skill for format rules.
 
-**Apply policy — auto by default.** Resolve the mode once with `python3
-"${CLAUDE_PLUGIN_ROOT}/scripts/mode.py"`. In an **auto** mode (`proactive`/`max` — the default) apply
-the removal directly: **no confirmation prompt and no prose recap**. Show the diff and wait for approval
-**only** when the mode is `curated`, or when the user explicitly asks. The inbound-link warning (step 3)
-is surfaced regardless of mode. The safety net on this path is the staged Doctor gate (blocking) and
-git-reversibility — the apply lands via `bundle_ops remove`/`cp` (Bash), so the PreToolUse guard floor
-(which covers *direct* bundle Write/Edit) does not fire here; prune only removes content, so no secret
-scan applies.
+**Writes always apply directly.** There is no confirm-first path: stage the removal on a mirror, gate it
+with the Doctor, and apply — **no confirmation prompt and no prose recap**. The inbound-link warning
+(step 3) is surfaced either way. The safety net is the staged Doctor gate (blocking) and
+git-reversibility; prune only removes content, so no secret scan applies.
 
 Arguments: `$ARGUMENTS` may carry a concept path/title and an optional `--bundle <path>`.
 
 Steps:
 
 1. **Resolve the bundle root** (`--bundle`; else default `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk up).
-   None → stop: "No OKF bundle here. Run `/llm-wiki:init` first."
+   None → stop: there is no wiki here yet (one is created automatically on the first `/llm-wiki:capture`),
+   so there is nothing to prune.
 2. **Identify the target concept.** Grep/Glob from the hint; on ambiguity, list candidates and ask;
    none found → say so and stop. Never guess which concept to delete.
 3. **Warn about inbound links.** Grep the bundle for links to the concept (both `./…` and `/…` forms).
@@ -39,16 +36,14 @@ Steps:
    - `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" log-append "$mirror" --kind Update --message "Removed [<title>](./<relpath>)." --date "$today"`
 5. **Doctor gate.** `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "$mirror" --mode strict --format json`.
    Exit ≠ 0 → show violations, `rm -rf "$mirror"`, write nothing. The now-dangling inbound links appear
-   as `R4` WARNINGs (report-only, expected) — surface them so the user can `refine`/`reorganize` later.
-6. **Apply.** No secret scan is needed — prune only removes content. In an auto mode, apply now without
-   asking and **without a prose recap**; in `curated`/on request, first show `diff -ru "<bundle>"
-   "$mirror"` (the deleted file, regenerated indexes, log append) and apply only on approval (on decline,
-   do nothing). Either way reproduce on the real bundle (the steps are deterministic: same `remove` →
+   as `R4` WARNINGs (report-only, expected) — surface them so the user can `capture`/`reorganize` later.
+6. **Apply.** No secret scan is needed — prune only removes content. Apply now without asking and
+   **without a prose recap**. Reproduce on the real bundle (the steps are deterministic: same `remove` →
    emptied-subdir cleanup → `index` → `log-append … --date "$today"`), then run the Doctor on the real
    bundle to confirm PASS — and verify the regenerated `index.md` no longer lists the removed concept (a
    lingering `R4` to it means the index didn't refresh). If a write/step fails, report exactly what landed.
    Clean up only a real mirror (`rm -rf "$mirror"` — never an unset path).
 
 Rollback: the deletion is recoverable from git history **only if the concept was previously committed**
-(a never-committed concept is not) — in an auto mode, the inbound-link report in step 3 is your cue to
-slow down if the concept looks load-bearing.
+(a never-committed concept is not) — the inbound-link report in step 3 is your cue to slow down if the
+concept looks load-bearing.

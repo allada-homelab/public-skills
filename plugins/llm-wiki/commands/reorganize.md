@@ -9,26 +9,22 @@ subdirectories** — while keeping every link valid. This is the highest-blast c
 link-health **pre/post diff**: the operation must introduce **zero** newly-broken links. Use the `wiki`
 skill for format rules.
 
-**Apply policy — auto by default.** Resolve the mode once with `python3
-"${CLAUDE_PLUGIN_ROOT}/scripts/mode.py"`. In an **auto** mode (`proactive`/`max` — the default) apply
-the gated moves directly: **no confirmation prompt and no prose recap**. Show the plan/diff and wait for
-approval **only** when the mode is `curated`, or when the user explicitly asks to review. The safety net
-on this path is the link-health pre/post gate (`after ⊆ before`), the Doctor gate (blocking), the secret
-scan, and git-reversibility — the apply lands via `cp`/`move`, so the PreToolUse guard floor (which covers
-*direct* bundle Write/Edit) does **not** fire here. Auto-mode secret rule: if the secret scan flags a
-potential secret, **abort** — delete the mirror, write nothing, and report the finding (auto mode has no
-human prompt to fall back on).
+**Writes always apply directly.** There is no confirm-first path: stage the moves on a mirror, gate them,
+and apply — **no confirmation prompt and no prose recap**. The safety net is the link-health pre/post gate
+(`after ⊆ before`), the Doctor gate (blocking), the secret scan, and git-reversibility. Secret rule: if
+the secret scan flags a potential secret, **abort** — delete the mirror, write nothing, and report the
+finding.
 
 Arguments: `$ARGUMENTS` may describe the reorganization and carry `--bundle <path>`.
 
 Steps:
 
 1. **Resolve the bundle root** (`--bundle`; else default `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk up).
-   None → stop: "No OKF bundle here. Run `/llm-wiki:init` first."
+   None → stop: there is no wiki here yet (one is created automatically on the first `/llm-wiki:capture`),
+   so there is nothing to reorganize.
 2. **Plan the moves.** From the request, produce an explicit list of `from → to` bundle-relative paths
-   (a rename is a move within the same directory; a new subdirectory is created by its `to` path). In
-   `curated`/on request, show the plan and confirm the shape before staging if it is non-trivial; in an
-   auto mode, proceed without confirming the plan.
+   (a rename is a move within the same directory; a new subdirectory is created by its `to` path).
+   Proceed without confirming the plan.
 3. **Baseline link health.** Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "<bundle>" --mode
    strict --format json` and record the **set of already-broken links** (`before`). Identify each broken
    link by its **resolved target** (resolve the link relative to its containing file, or from the bundle
@@ -38,9 +34,9 @@ Steps:
    `normpath(join(dirname(file), rawlink))`, or from the bundle root for a leading-`/` link — and key
    both `before` and `after` on that. A bundle with no pre-existing broken links has an empty `before`;
    conformance does **not** guarantee this, since R4 broken links are tolerated WARNINGs. If this baseline
-   Doctor reports **errors** (R1/R2/R3 — not R4 warnings), the bundle is non-conformant: stop and conform
-   it first (`/llm-wiki:conform`), since the step-5 gate would otherwise block on those same errors and
-   surface them as the blocker.
+   Doctor reports **errors** (R1/R2/R3 — not R4 warnings), the bundle is non-conformant: stop and fix it
+   first (run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "<bundle>"` to see the violations), since
+   the step-5 gate would otherwise block on those same errors and surface them as the blocker.
 4. **Stage in a mirror.** `mirror=$(mktemp -d)`; `cp -r "<bundle>/." "$mirror/"`. For each planned move,
    in order: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" move "$mirror" --from <a> --to <b>`
    (this rewrites inbound links in **both** the `./` and `/` forms and the moved file's own relative
@@ -57,16 +53,11 @@ Steps:
    as step 3). Require `after ⊆ before`: if any link broke that wasn't already broken (the common case:
    `before` is empty, so `after` must be empty too), it is a **regression** — report each newly-broken
    link, `rm -rf "$mirror"`, write nothing.
-6. **Secret scan (always) + diff (when confirming).** Run `python3
-   "${CLAUDE_PLUGIN_ROOT}/scripts/secret_scan.py" <path> --format json` over each concept whose content
-   changed (and over the staged log bullet) — **always**, since a hit halts an auto-apply (see the apply
-   policy). When confirming
-   (`curated`/on request), render hits as a "⚠ Potential secrets" block (never block) and show `diff -ru
-   "<bundle>" "$mirror"`. In an auto mode skip the diff render and apply silently — but if a secret was
-   flagged, **abort**: `rm -rf "$mirror"`, write nothing, and report the finding (no human prompt exists
-   in auto mode).
-7. **Apply.** In an auto mode, apply now without asking and **without a prose recap**; in `curated`/on
-   request, apply only on approval (on decline, do nothing). Either way reproduce on the real bundle — the
+6. **Secret scan (always).** Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/secret_scan.py" <path> --format
+   json` over each concept whose content changed (and over the staged log bullet) — **always**, since a hit
+   halts the apply. If a secret was flagged, **abort**: `rm -rf "$mirror"`, write nothing, and report the
+   finding.
+7. **Apply.** Apply now without asking and **without a prose recap**. Reproduce on the real bundle — the
    moves are deterministic, so re-run the same `move`(s) in order → emptied-dir cleanup (step 4) → `index`
    → `log-append … --date "$today"` against `<bundle>`, then run the Doctor on the real bundle and re-check
    `after ⊆ before`. If a write/step fails, report exactly what landed. Clean up only a real mirror (`rm
