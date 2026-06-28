@@ -4,7 +4,9 @@
 The UserPromptSubmit / PostToolUse nudges fire *mid-turn*, where the model tends to defer
 capture in favour of the in-flight task, so durable findings slip by uncaptured. This hook
 fires when the turn is *finishing* — the non-disruptive moment to capture — and blocks the stop
-once to make the model actually decide: capture a durable finding now, or explicitly stop.
+once to make the model actually decide: draft a durable finding and dispatch the background
+`wiki-capturer` subagent to persist it (plus `wiki-verifier` for any anchor it touched), or
+explicitly stop. The mechanical write lives in the subagents; the main loop never blocks on them.
 
 Mechanism (Claude Code Stop-hook contract): emit `{"decision": "block", "reason": ...}` at exit
 0 to continue the turn with the reason injected; emit nothing to allow the stop. (The doc names
@@ -32,12 +34,16 @@ import os
 import sys
 
 NUDGE = (
-    "[llm-wiki] Before finishing this turn: if it established a durable, reusable finding (a "
-    "decision; a gotcha — e.g. a silent footgun, a surprising root cause, or a failure->fix where "
-    "one approach failed and another worked; a convention, schema, or how something works), capture "
-    "it to the wiki now via /llm-wiki:capture — it is secret-scanned, Doctor-gated, logged, and "
-    "git-reversible. In an auto mode apply it silently: do not announce or summarize what you saved. "
-    "If nothing durable happened this turn, just stop without capturing — do not invent a finding."
+    "[llm-wiki] Before finishing this turn, run the wiki's end-of-turn loop (fire-and-forget — do not "
+    "block on the subagents): "
+    "(1) If this turn established a durable, reusable finding (a decision; a gotcha — e.g. a silent "
+    "footgun, a surprising root cause, or a failure->fix where one approach failed and another worked; "
+    "a convention, schema, or how something works), DRAFT it now per the wiki skill and dispatch the "
+    "`wiki-capturer` subagent in the BACKGROUND to persist it through the gated apply engine. Do not "
+    "write the concept to the bundle inline, and do not announce or summarize what you saved. "
+    "(2) For any wiki concept whose `## Verify` anchor names a file you changed this turn, dispatch the "
+    "`wiki-verifier` subagent in the background to re-check it. "
+    "(3) If nothing durable changed this turn, just stop — do not invent a finding."
 )
 
 

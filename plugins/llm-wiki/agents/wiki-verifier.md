@@ -3,8 +3,10 @@ name: wiki-verifier
 description: >-
   Verify one llm-wiki concept against current state using its `## Verify` anchor, and report
   confirmed / stale / couldn't-verify. Dispatched in the background (on a cheaper model) by
-  /llm-wiki:query when a concept's anchored file changed since its `verified:` stamp, so the main
-  loop is never blocked. Self-heals the concept ONLY on an objective (executable) divergence.
+  /llm-wiki:query when a concept's anchored file changed since its `verified:` stamp, and also
+  dispatched proactively at end-of-turn by the main agent for any anchor naming a file changed this
+  turn, so the main loop is never blocked. Self-heals the concept ONLY on an objective (executable)
+  divergence.
 tools: Read, Grep, Glob, Bash, Write
 model: sonnet
 color: yellow

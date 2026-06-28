@@ -101,6 +101,23 @@ verify the spot — don't re-investigate from scratch (that defeats the point).
 A concept records a **`## Verify`** anchor and a `verified:` stamp to make that spot-check cheap and
 targeted; the freshness gate and self-heal are owned by `/llm-wiki:query`.
 
+## The always-on loop (read first, persist in the background)
+
+The wiki is always-on — there is no mode to enable. The main agent runs this loop itself:
+
+- **Read first, without asking.** Before any non-trivial work, consult the wiki via `/llm-wiki:query`
+  **proactively and without asking the user** — reading the wiki first is the default expectation, not
+  an opt-in. Treat it as a first-class source alongside `CLAUDE.md` and READMEs.
+- **The main agent owns judgment.** At the end of work *you* decide what (if anything) is durable and
+  reusable, and you draft the concept per this skill. A subagent never makes that call.
+- **Persist in the background.** Dispatch the **`wiki-capturer`** subagent (background) to write your
+  drafted concept through the gated `bundle_ops apply` engine — don't write it to the bundle inline and
+  don't block on it. It persists what you handed it; it does not re-curate.
+- **Verify touched anchors.** For any concept whose `## Verify` anchor names a file you changed this
+  turn, dispatch the **`wiki-verifier`** subagent (background) to re-check it.
+
+The Stop hook nudges this loop at end-of-turn, but it is the model's standing behavior, not the hook's.
+
 ## Verify anchors
 
 Authoring rules — what makes a good anchor, the free-text-not-a-link constraint, repo-root-relative

@@ -20,9 +20,10 @@ import sys
 # re-used by the UserPromptSubmit nudge (hook_user_prompt.py imports it) so the two cannot drift.
 # Phrased to begin lower-case so it reads as a clause joined onto each hook's own lead-in.
 CONSULT_GUIDANCE = (
-    "consult it before non-trivial work via `/llm-wiki:query` or `/llm-wiki:explore`; trust it as a "
-    "curated summary, then verify a load-bearing claim against current state before acting (the "
-    "concept says where to look, so it's quick); capture durable findings as you go."
+    "consult it before any non-trivial work via `/llm-wiki:query` — proactively and WITHOUT asking the "
+    "user first (reading the wiki first is the default expectation, not opt-in); trust it as a curated "
+    "summary, then verify a load-bearing claim against current state before acting (the concept says "
+    "where to look, so it's quick); capture durable findings as you go."
 )
 
 
