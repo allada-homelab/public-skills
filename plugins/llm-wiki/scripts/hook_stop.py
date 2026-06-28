@@ -3,9 +3,8 @@
 
 The UserPromptSubmit / PostToolUse nudges fire *mid-turn*, where the model tends to defer
 capture in favour of the in-flight task, so durable findings slip by uncaptured. This hook
-fires when the turn is *finishing* — the non-disruptive moment to capture — and, in an auto
-mode, blocks the stop once to make the model actually decide: capture a durable finding now,
-or explicitly stop.
+fires when the turn is *finishing* — the non-disruptive moment to capture — and blocks the stop
+once to make the model actually decide: capture a durable finding now, or explicitly stop.
 
 Mechanism (Claude Code Stop-hook contract): emit `{"decision": "block", "reason": ...}` at exit
 0 to continue the turn with the reason injected; emit nothing to allow the stop. (The doc names
@@ -13,8 +12,8 @@ Mechanism (Claude Code Stop-hook contract): emit `{"decision": "block", "reason"
 redundant `hookSpecificOutput.additionalContext` carrying the same text.) Gated by the
 `.llm-wiki/capture-pending` marker that the PostToolUse hook drops on a real-code edit: with no
 marker (a pure-chat turn that changed nothing) this hook stays silent, so it does not force a
-continuation on every turn. Also silent for curated mode and when no bundle exists. Reads
-`$CLAUDE_PROJECT_DIR` (falls back to the event JSON's `cwd`).
+continuation on every turn. Also silent when no bundle exists. Reads `$CLAUDE_PROJECT_DIR`
+(falls back to the event JSON's `cwd`).
 
 The model is the judge: a deterministic hook cannot know whether a durable finding occurred,
 so the reason text gives a clean "nothing durable → just stop" out.
@@ -31,8 +30,6 @@ or non-conformant write, since every capture still passes the PreToolUse secret/
 import json
 import os
 import sys
-
-from mode import resolve_mode
 
 NUDGE = (
     "[llm-wiki] Before finishing this turn: if it established a durable, reusable finding (a "
@@ -58,8 +55,6 @@ def main():
     project = _project_dir(event)
     if not os.path.isfile(os.path.join(project, "llm-wiki", "index.md")):
         return 0  # no bundle here — contribute nothing
-    if resolve_mode(project) not in ("proactive", "max"):
-        return 0  # only force the end-of-turn check in an auto mode
 
     marker = os.path.join(project, "llm-wiki", ".llm-wiki", "capture-pending")
     if not os.path.exists(marker):
