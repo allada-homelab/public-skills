@@ -466,3 +466,38 @@ strata**, where the effect is largest and measurable; **≥50 items + Wilcoxon/B
 still over-fetches (`map-first` *hurt* several items) — recall/precision balance is the first thing
 to optimize. *(All four runs used Sonnet/Haiku Explore subagents; ~16–80 concurrent Opus trips
 transient server rate-limiting, so Opus stays in small throttled waves.)*
+
+### The corrective run — a REAL wiki + gotcha-recall (the test we should have run first)
+
+All the above tested a **blind synthetic map** against **file-finding** tasks — both wrong. `agents-scaffold`'s
+own `llm-wiki` is **empty**; the real curated bundle is **`homelab/llm-wiki` (78 hard-won gotcha
+concepts** — version traps, silent failures, surprising root causes). Re-ran with the right substrate
+and task: 12 **symptom-only** questions (Opus-phrased, leakage-checked) whose gold = the concept's
+captured root cause; **with-wiki** (read `homelab/llm-wiki`) vs **ablated** (homelab repo, no wiki);
+**Opus judge** vs the gold (Sonnet SUT).
+
+| | correct | mean key-facts surfaced |
+|---|---|---|
+| ablated (repo, no wiki) | 11/12 (92%) | 83% |
+| **with-wiki** | **12/12 (100%)** | **100%** |
+
+**Why even ablated scores 92% (a remaining confound): homelab is infrastructure-as-*code* — the fixes
+are committed in the repo** (the `ansible.builtin.replace` stripping `-RpvU`, the `pg_read_all_data`
+grant, the `ServerSideDiff` annotation), so a strong agent greps the repo and reconstructs the cause.
+The wiki is **redundant with the code for already-fixed gotchas.**
+
+**Where the wiki uniquely wins (its irreducible value):**
+- **Knowledge not recoverable from code:** `signoz-log-wedge-zookeeper-fsync` — ablated **wrong** (2/6,
+  chased the "obvious" cardinality suspect); with-wiki **right** (6/6). The causal chain (ZooKeeper WAL
+  fsync stalling on a 3-replica Longhorn volume → ClickHouse session expiry → readonly tables) is
+  *runtime* knowledge the IaC doesn't reveal. The one flip.
+- **Completeness: +17% facts (83→100%)** — even when ablated was "correct" it missed caveats the wiki
+  carried (the durability gap, the *second* Alertmanager, the "it's NOT the obvious suspect" steer).
+
+**Synthesis (the actual answer to "does llm-wiki help"):** value is real but **conditional** — it
+concentrates at the intersection of **(a) a weaker agent**, **(b) knowledge not in the code** (subtle
+runtime root causes, the *why*, not-yet-committed fixes), and **(c) completeness/caveats**. It adds
+little when a strong agent + the code already hold the answer. *llm-wiki pays off for what the code
+can't tell you.* Caveats: N=12, not significant; the IaC-encodes-fixes confound *understates* the
+value for uncommitted knowledge. **Cleanest next test:** items provably **not** in the repo
+(runtime-only / pre-fix / "why is this set oddly") and/or a weaker SUT — to isolate the irreducible value.
