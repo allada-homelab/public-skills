@@ -439,3 +439,30 @@ strata, single-hop as a small control; scale to **≥50 items/stratum + Wilcoxon
 throttle Opus; the optimizer's first target is the read-prompt's **recall/precision balance**. The
 three generators backing these strata ship in the harness: `items.py` (single-hop control),
 `pr_items.py` (change-set / explain), `dep_items.py` (reverse-dependency / impact).
+
+### Follow-up runs — concept (absent-identifier) + model-dependence (Sonnet vs Haiku)
+
+Ran the 10 PR-derived items as **absent-identifier capability questions** (no symbol names; gold =
+the same PR file sets). Results (best-with-wiki minus the fixed no-wiki baseline, per item; 95% CI =
+paired bootstrap):
+
+| SUT | ablated mean | wiki uplift | 95% CI | significant? |
+|---|---|---|---|---|
+| **Sonnet** (strong) | 0.63 | **+0.059** | [−0.033, +0.177] | **no** (CI ∋ 0) |
+| **Haiku** (weak) | 0.54 | **+0.134** (~2.3×) | [−0.020, +0.359] | **no** (CI ∋ 0) |
+
+- A strong Sonnet greps the capability's content words and finds files **with or without** the wiki;
+  it clearly helped only where the agent was otherwise *lost* (pr1175 frontend: 0.00 → 0.50).
+- The weaker Haiku is worse without the wiki and **gains ~2.3×** the uplift — vivid case pr1467
+  (Haiku **0.00 → 1.00**, lost without the map).
+
+**Finding (directional, confirm at N≥50): the wiki's value scales *inversely* with SUT strength and
+concentrates where the no-wiki baseline is LOW** — it *rescues a lost agent* (weaker model,
+unfamiliar / un-greppable territory) far more than it improves an already-succeeding strong one.
+Product implication if confirmed: the wiki lets a cheaper model navigate closer to a stronger one.
+
+**Refined P2b plan:** run the significance test on a **weaker SUT (Haiku)** and **low-baseline
+strata**, where the effect is largest and measurable; **≥50 items + Wilcoxon/BH**; the read-prompt
+still over-fetches (`map-first` *hurt* several items) — recall/precision balance is the first thing
+to optimize. *(All four runs used Sonnet/Haiku Explore subagents; ~16–80 concurrent Opus trips
+transient server rate-limiting, so Opus stays in small throttled waves.)*
