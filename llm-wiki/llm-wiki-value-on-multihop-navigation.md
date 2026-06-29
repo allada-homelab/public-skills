@@ -1,45 +1,53 @@
 ---
 type: Decision
-title: llm-wiki value shows on multi-hop navigation, not single-hop grep lookups
-description: An end-to-end optimizer experiment found the wiki's measurable retrieval uplift concentrates on multi-hop new-developer navigation (finding the full set of files for a change), not single-hop grep-able lookups where a strong agent already wins.
+title: Where llm-wiki's value concentrates — knowledge the code can't tell you
+description: Optimizer experiments show the wiki's measurable value concentrates at the intersection of a weaker agent, knowledge not recoverable from the code (subtle runtime root causes and the why), and answer completeness — it pays off for what the code cannot tell you, not for file-finding or fixes already committed in the repo.
 tags:
   - optimizer
   - evaluation
   - retrieval
-verified: 2026-06-28
+verified: 2026-06-29
 ---
-# llm-wiki value shows on multi-hop navigation, not single-hop grep lookups
+# Where llm-wiki's value concentrates — knowledge the code can't tell you
 
-The first end-to-end run of the self-optimizer harness (over the private `agents-scaffold` repo, a
-blind architecture wiki, a Sonnet SUT with-wiki vs wiki-ablated) gave a clear, actionable result:
+A series of optimizer experiments (with-wiki vs wiki-ablated, over real code) converged on a clear,
+conditional answer to "does the wiki help?". The value is **real but concentrated**, at the
+intersection of three conditions:
 
-- **Single-hop Locate — "where is `X` defined?" — is grep-trivial.** A grep-capable agent already
-  scores ~0.97 F1 *without* the wiki, so the wiki adds ~**+0.03** (noise) and every read-prompt
-  candidate ceilings out. Single-hop is a poor discriminator — it can measure neither the wiki's value
-  nor a prompt's quality.
-- **Multi-file "new-developer change-set" tasks — "which source files are involved in ⟨this change⟩?"
-  — are where the wiki earns its keep.** Mean uplift **+0.083**, and **strongly inverse to
-  difficulty**: ~0 where the no-wiki baseline is already high (nameable, localized), but **+0.14 to
-  +0.32 on the low-baseline items** where a developer must connect scattered files across subsystems.
+1. **A weaker agent.** Uplift scales inversely with SUT strength. On absent-identifier navigation
+   questions, Sonnet gained ~+0.06 (noise, CI ∋ 0) but the weaker Haiku gained ~+0.13 — a strong model
+   greps well enough that the wiki adds little; a weaker one is rescued by the map.
+2. **Knowledge not recoverable from the code.** Single-hop "where is X defined" is grep-trivial
+   (~+0.03). The wiki's edge appears on the *non-obvious*: in a gotcha-recall test over a real
+   78-concept bundle, an agent with the repo but no wiki still got 11/12 root causes right — because
+   the repo is infrastructure-as-**code** and the fixes are committed there. The one it got **wrong**
+   (a ZooKeeper-fsync → ClickHouse-readonly causal chain) is *runtime* knowledge the code never
+   encodes — and the wiki flipped it right. The wiki is redundant with the code for already-fixed,
+   code-encoded gotchas; it is decisive for the *why* and for runtime behavior.
+3. **Completeness.** Even when an ablated agent gets the gist, it misses caveats the wiki carries —
+   in the gotcha test, with-wiki surfaced **100%** of the key facts vs **83%** ablated (durability
+   gaps, a second alert path, "it's NOT the obvious suspect" steers).
 
 ## Why
 
-The identifier is *in* a single-hop question, so grep shortcuts it. A change-set / "how does X work"
-question names the *intent*, not the files — so finding the complete set requires navigating complex
-relationships, which a curated subsystem map accelerates. The wiki helps **most where the task is
-hardest**, which is exactly the value proposition.
+What is in the code, a strong agent can rediscover by reading it. What the wiki uniquely holds is
+what *isn't* in the code: a surprising root cause, a version-interaction trap, a decision and its
+rejected alternative, the lesson learned from a running system. **llm-wiki pays off for what the code
+can't tell you.**
 
 ## How to apply
 
-- Evaluate and optimize the wiki on **multi-hop / new-developer / concept (absent-identifier)** tasks;
-  keep single-hop Locate only as a small control stratum.
-- The read-prompt must **balance recall vs precision** — a "read the wiki, then enumerate the complete
-  set" prompt over-fetched and *lost* to a plainer prompt. That recall/precision balance is the first
-  thing the optimizer should tune.
+- Evaluate and optimize the wiki on **knowledge-not-in-code** tasks (subtle root causes, the *why*,
+  runtime behavior, not-yet-committed fixes) and on **weaker agents** — not on file-finding, where a
+  strong agent + grep already win.
+- Don't expect measurable uplift where a strong agent plus the codebase already hold the answer.
+
+*(Caveats: experiment N's were small (≤20/run) and not yet statistically significant; the
+infrastructure-as-code confound — committed fixes — likely *understates* the wiki's value for
+uncommitted knowledge.)*
 
 ## Verify
-- docs/llm-wiki/optimizer/self-optimizer-design.md — section 11 (P2a outcome & learnings) records the run and the numbers
-- plugins/llm-wiki-optimizer/harness — the eval harness (pr_items.py change-set generator, report.py file-level scoring) that produced them
+- docs/llm-wiki/optimizer/self-optimizer-design.md — section 11 (P2a outcome & learnings) records every run and this synthesis
 
 ## Related
-- See [Retrieval is agentic-read-markdown — llm-wiki has no search engine](./retrieval-is-agentic-read-markdown.md) — why the wiki's value is navigation, not vector retrieval.
+- See [Retrieval is agentic-read-markdown — llm-wiki has no search engine](./retrieval-is-agentic-read-markdown.md) — the wiki is read agentically; its value is recall of curated knowledge, not vector retrieval.

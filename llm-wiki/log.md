@@ -1,5 +1,9 @@
 # Directory Update Log
 
+## 2026-06-29
+
+* **Update**: Refined [Where llm-wiki's value concentrates — knowledge the code can't tell you](./llm-wiki-value-on-multihop-navigation.md) after the gotcha-recall experiment.
+
 ## 2026-06-28
 
 * **Creation**: Added [llm-wiki value shows on multi-hop navigation, not single-hop grep lookups](./llm-wiki-value-on-multihop-navigation.md) from the first optimizer run.
