@@ -178,7 +178,13 @@ helper with a parameter over adding a near-duplicate sibling. **Look beyond the
 diff:** when a change introduces a new mechanism for a common job, the codebase
 often already has the simpler established idiom for that job in sibling files —
 go find it before accepting the new one, and point the author at it ("we already
-do this with X in [sibling] — can we just use that here?").
+do this with X in [sibling] — can we just use that here?"). And **finding the
+precedent is the start of the question, not the end of it:** when a change adds a
+new shared helper that consolidates its own call sites but a near-identical block
+still lives elsewhere, "nice, this follows the existing idiom" is praise that
+stops one step too early — the follow-up is whether that pre-existing block should
+now route through the new helper too, so the change consolidates the duplication
+instead of leaving a third near-copy to drift out of sync.
 
 > **code:** a new `_fetch_active_users` next to an existing `_fetch_all_users`
 > **comment:** "why is this a separate helper from `_fetch_all_users`? can we

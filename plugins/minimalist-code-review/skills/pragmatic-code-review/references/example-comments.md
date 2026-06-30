@@ -92,6 +92,13 @@ Each example is: a short description of the code, then the comment.
 > "this looks duplicated from the helper in the other module — can we import the
 > existing one?"
 
+> **code:** a new shared `save_result(...)` helper that two tools now call, while
+> a third place still hand-rolls the same write-then-append-a-path-line dance.
+> "nice that this folds the two tools into one helper — and it mirrors the block
+> already in [other module]. since it's now the canonical version, should that
+> third copy route through it too? otherwise we've got three near-identical
+> persist paths that'll drift."
+
 ## Performance & query cost
 
 > **code:** `.where(is_authorized_for(user_id, tenant_id))` as the first filter in
