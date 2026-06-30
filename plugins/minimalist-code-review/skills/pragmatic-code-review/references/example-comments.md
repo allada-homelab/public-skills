@@ -40,6 +40,26 @@ Each example is: a short description of the code, then the comment.
 > **code:** a `TypeAlias` introduced for a type used directly in two places.
 > "ooc — why is this typealias necessary instead of using the type directly?"
 
+> **code:** a new wrapper primitive added to drain in-flight work before
+> teardown, justified by a crash if teardown races the work — added in the same
+> PR as a lock that already serializes teardown against that work.
+> "doesn't the lock you added already prevent the crash here? with it in place a
+> late access raises a clean exception, not a segfault — so what's the wrapper
+> defending against on top of the lock? if there's a real gap, can we get a test
+> that reproduces the crash *with* the lock but *without* the wrapper? i'd rather
+> not ship the mechanism on a plausible story alone."
+
+> **code:** that same draining wrapper applied at a call site where the wrapped
+> function touches none of the resource it's meant to protect.
+> "this path doesn't touch the resource the wrapper guards, so the wrapper buys
+> nothing here — can we just use the plain call? (we already do exactly that in
+> [sibling files])."
+
+> **code:** a guard added for an input shape, where the function is only ever
+> called from one place that always passes the valid shape.
+> "can this shape actually reach here? the only caller always passes a valid one
+> — if so this guard is defending a case that can't occur, and we can drop it."
+
 ## Determinism & types
 
 > **code:** a `@validator` that does `if not isinstance(data, dict): return data`
