@@ -8,6 +8,8 @@ and read back with `/llm-wiki:query`.
 
 ## Concepts
 
+* [A plugin can't declare a host-tool dependency (Workflow, etc.) — guard it with a fail-loud runtime precondition](./host-tool-dependency-not-declarable.md) — plugin.json and .mcp.json have no field to require a host-provided tool like the Workflow orchestration engine, so a plugin whose core path invokes one must check availability at runtime and stop loudly if it's absent — otherwise the command silently no-ops and the whole plugin looks inert.
+* [A toggleable plugin hook ships as a disabled .example.json, not a commented-out hook](./disabled-hook-ships-as-example-file.md) — hooks.json is strict JSON (no comments) and a plugin's live hooks.json loads wholesale, so a hook you want present-but-off can't be commented out — ship it as a separate hooks/<name>.example.json plus its script, enabled by copying to hooks.json (dropping the _comment key) and running /reload-plugins.
 * [llm-wiki autonomy — zero-config always-auto with a guard floor](./phase-3-autonomy-architecture.md) — How llm-wiki autonomy works — five deterministic hook events, always-on auto (no modes), a PreToolUse guard floor, and background Sonnet subagents that persist and validate.
 * [OKF Doctor — strict-producer rule set](./doctor-rule-set.md) — The conformance rules doctor.py enforces (R1/R2/R3a–c plus R4 link-health), its strict/lenient modes, and exit codes.
 * [Plugin versioning — unpinned for git-SHA auto-update](./plugin-versioning.md) — Why plugin.json omits the version field — Claude Code falls back to the git commit SHA, so every commit auto-updates installed users during active development.

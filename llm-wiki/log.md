@@ -1,5 +1,10 @@
 # Directory Update Log
 
+## 2026-07-02
+
+* **Creation**: Add gotcha: plugins can't declare host-tool dependencies in manifest — use fail-loud runtime precondition instead
+* **Creation**: Capture gotcha: toggleable plugin hooks ship as disabled .example.json, not commented-out hooks.json entries
+
 ## 2026-06-29
 
 * **Update**: Refined [Where llm-wiki's value concentrates — knowledge the code can't tell you](./llm-wiki-value-on-multihop-navigation.md) after the gotcha-recall experiment.
