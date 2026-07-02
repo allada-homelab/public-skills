@@ -18,7 +18,7 @@
     },
     {
       "name": "get-shit-done",
-      "description": "Get complex or fan-out work done — decompose a task, delegate each subtask to the cheapest capable model (Sonnet/Opus) under an Opus/Fable orchestrator, research in the background (web + context7), fan out through a tested dynamic workflow, and adversarially verify before done.",
+      "description": "Get complex or fan-out work done — decompose a task, delegate each subtask to the cheapest capable model (Sonnet/Opus) under an Opus/Fable orchestrator, concurrent research (web + context7), fan out through a checked dynamic workflow, and adversarially verify before done.",
       "category": "development",
       "source": "./plugins/get-shit-done"
     }

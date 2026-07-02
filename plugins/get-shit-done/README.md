@@ -4,7 +4,8 @@ Get complex or fan-out work done. `/get-shit-done:run <task>` turns a big task i
 fan-out: an **Opus/Fable orchestrator** decomposes it, delegates each subtask to the **cheapest capable
 model** (Sonnet for well-scoped work, Opus for hard reasoning), runs **concurrent Sonnet research** (web +
 context7), fans out through a **checked dynamic workflow**, and runs an **always-on adversarial verify**
-pass before reporting done. Autonomous once invoked — no per-step approval; it stops only on a genuine
+pass — two Opus critics on distinct lenses (completeness / regressions), seeing only the requirements and
+the changed-file list, each returning a three-state verdict — before reporting done. Autonomous once invoked — no per-step approval; it stops only on a genuine
 blocker.
 
 ## Requirements
@@ -33,7 +34,7 @@ blocker.
 | `skills/get-shit-done/SKILL.md` | The method (the loop, when-not-to-fan-out, verification). |
 | `skills/get-shit-done/references/triage-rubric.md` | Which model tier + effort per subtask. |
 | `skills/get-shit-done/references/workflow-cookbook.md` | Authoring fan-out beyond the spine (migration/worktree, judge panel, loop-until-dry). |
-| `workflows/gsd.workflow.js` | The spine (static-checked + smoke-tested): research ∥ plan → tiered implement → Opus adversarial verify. |
+| `workflows/gsd.workflow.js` | The spine (static-checked + smoke-tested): research ∥ plan → tiered implement (returns a changed-file list) → two-lens Opus adversarial verify (three-state verdicts). |
 | `hooks/auto-trigger.example.json` + `scripts/gsd_autotrigger.py` | Optional, **disabled** auto-trigger nudge. |
 | `scripts/checks.sh` | Static conformance gate (`bash …/checks.sh` → `PASS`). |
 

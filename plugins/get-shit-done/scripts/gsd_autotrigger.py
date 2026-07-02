@@ -21,7 +21,7 @@ import sys
 SIGNALS = [
     r"\bfan[ -]?out\b",
     r"\bin parallel\b",
-    r"\bmigrat(e|ion)\b",
+    r"\bmigrat(e|ion)\b.{0,40}\b(all|every|across|codebase|repo)\b",
     r"\brefactor\b.{0,40}\b(across|everywhere|all|codebase|repo)\b",
     r"\b(implement|build|design)\b.{0,60}\b(feature|system|pipeline|service|end[ -]to[ -]end)\b",
     r"\bmulti[ -]step\b",
@@ -42,7 +42,7 @@ def main() -> int:
     nudge = (
         "[get-shit-done] This looks like complex or fan-out work. Consider "
         "`/get-shit-done:run <task>` to decompose it, delegate subtasks by "
-        "complexity (Sonnet/Opus), research in the background, and adversarially "
+        "complexity (Sonnet/Opus), concurrent research, and adversarially "
         "verify before done."
     )
     print(json.dumps({

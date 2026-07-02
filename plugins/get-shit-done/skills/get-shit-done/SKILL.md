@@ -39,8 +39,9 @@ value clears that.
    anything else, warn (`/model opus`) and continue — only subagents tier down; you stay put.
 2. **Plan & triage.** Decompose the task into the smallest set of **independently-executable, file-disjoint**
    subtasks. Front-load ambiguity *now* (an ambiguous brief handed down-tier comes back wrong-shaped). For
-   each subtask write a self-contained brief — inputs, exact deliverable, done-criteria, and an explicit
-   *what NOT to touch* — then assign `tier` + `effort` per **`references/triage-rubric.md`**. Remember:
+   each subtask write a self-contained brief — a `title`, inputs, exact deliverable, done-criteria, an
+   explicit *what NOT to touch*, and optionally the `files` it will touch (the spine serializes any overlap)
+   — then assign `tier` + `effort` per **`references/triage-rubric.md`**. Remember:
    **subagents inherit Opus** unless you set `"sonnet"` explicitly — that override is where the efficiency
    lives.
 3. **Fan out through the spine.** Invoke the `Workflow` tool with `scriptPath` =
@@ -75,15 +76,19 @@ claim against the real API before relying on it.
 
 ## Adversarial verification (always on)
 
-Every implemented unit is checked by independent **Opus** verifiers before it counts as done (the gate is
-where correctness is decided, so it always gets the strongest critic — even for Sonnet-tier work). Keep the critic
-**independent**: it sees the requirements + the artifact, **never the implementer's reasoning trace**, and
-inspects the real changes rather than trusting the self-report. **Any** refutation withholds "confirmed"
-and flags the unit for you to adjudicate — a lone skeptic is enough, because confident-but-wrong output
-survives lenient majority votes. It's single-pass-then-escalate: no generator↔verifier refinement loop
-(which risks infinite back-and-forth or silent timeout-approval). For richer checks, route the verify
-phase to a purpose-built reviewer (`pr-review-toolkit:code-reviewer`, `silent-failure-hunter`) — see the
-cookbook.
+Every implemented unit is checked by **two independent Opus** verifiers before it counts as done (the gate
+is where correctness is decided, so it always gets the strongest critic — even for Sonnet-tier work). Keep
+the critics **independent**: each sees the requirements + the implementer's changed-file list, **never its
+narrative or reasoning trace**, and inspects the real changes rather than trusting the self-report. The two
+run **distinct lenses** — one checks *completeness* against the brief, the other checks *regressions &
+side-effects* beyond the listed files. Each returns a three-state verdict: `confirmed`, `refuted` (concrete
+evidence of a defect), or `couldnt_verify` (couldn't positively confirm — not a refutation). Confirmation
+requires **two live positive verdicts**; **any** refutation, any `couldnt_verify`, or a dead verifier
+withholds "confirmed" and flags the unit for you to adjudicate — a lone skeptic is enough, because
+confident-but-wrong output survives lenient majority votes. It's single-pass-then-escalate: no
+generator↔verifier refinement loop (which risks infinite back-and-forth or silent timeout-approval). For
+richer checks, route the verify phase to a purpose-built reviewer (`pr-review-toolkit:code-reviewer`,
+`silent-failure-hunter`) — see the cookbook.
 
 ## Utilize all tools
 

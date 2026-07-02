@@ -28,6 +28,9 @@ blocker (missing task, an unsafe/irreversible action that needs confirmation, or
    worktree isolation, so two units editing the same file would clobber each other (last write wins). For
    unavoidable overlap, use the cookbook's worktree-isolation variant instead of the spine.
    For each, assign per the rubric:
+   - `title`: a short human-readable name (the spine uses it in agent labels and verify prompts).
+   - `files` (optional): the files the subtask will touch — the spine uses it to detect collisions and
+     serialize implement→verify for any overlap.
    - `tier`: `"sonnet"` for well-scoped, mechanical, or clearly-specified work; `"opus"` for open-ended,
      high-stakes, or hard-reasoning work. **Default is Opus** (subagents inherit your model), so you MUST
      set `"sonnet"` explicitly wherever it suffices — that is where the efficiency comes from.
@@ -52,6 +55,9 @@ blocker (missing task, an unsafe/irreversible action that needs confirmation, or
 5. **Synthesize & report.** When the workflow returns, report what landed: confirmed units, any the verify
    pass flagged (with why), and the remaining steps that are the user's to run. Follow the repo's
    done-discipline — name what you confirmed vs. inferred, and never claim a green result you did not observe.
+   If the invocation errors mid-run or returns partial results, do not rerun from scratch — fix the cause,
+   then resume with `Workflow({ scriptPath, resumeFromRunId: "<runId from the failed run>" })`; completed
+   agents replay from cache.
 
 For tasks whose shape does not fit the spine (a migration sweep, a judge-panel design bake-off, a
 loop-until-dry audit), see `references/workflow-cookbook.md` and author a custom workflow script instead.
