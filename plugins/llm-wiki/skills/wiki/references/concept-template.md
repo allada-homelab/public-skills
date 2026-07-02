@@ -5,7 +5,7 @@ filling it in (and keeping the frontmatter shape) passes strict-producer mode on
 
 ```markdown
 ---
-type: "<concept type, e.g. Reference | Runbook | Decision | BigQuery Table>"
+type: <concept type — prefer a canonical lowercase token: reference | runbook | decision | gotcha | convention | howto | schema | metric | note>
 title: <Human-readable name>
 description: <One-line summary surfaced in index.md.>
 tags:
@@ -27,7 +27,10 @@ verified: <YYYY-MM-DDThh:mm:ssZ>
 
 Rules to keep while editing:
 
-- `type` must stay present and non-empty (R2). Everything else is optional.
+- `type` must stay present and non-empty (R2). Prefer a canonical lowercase token — `concept`,
+  `decision`, `gotcha`, `convention`, `runbook`, `architecture`, `howto`, `reference`, `schema`,
+  `metric`, `api`, `dataset`, `table`, `evaluation`, `note`; the Doctor's R5 warns (report-only, never
+  blocks) on anything else. Everything else is optional.
 - Keep frontmatter to scalars and simple `- item` lists — no nested maps or flow `[...]` (R1).
 - Use relative `./name.md` links (see `linking.md`).
 - Omit any optional field you don't have rather than leaving an empty placeholder.
@@ -45,7 +48,7 @@ that worked**, so the next session doesn't repeat the mistake:
 
 ```markdown
 ---
-type: Gotcha
+type: gotcha
 title: <Short name for the trap>
 description: <The wrong approach and the right one, in one line.>
 tags:
@@ -71,7 +74,7 @@ Minimal valid concept (the floor):
 
 ```markdown
 ---
-type: Reference
+type: reference
 ---
 # Whatever
 Body.

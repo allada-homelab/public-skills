@@ -11,6 +11,10 @@ You are running `/llm-wiki:query`. This command **reads** the wiki two ways — 
 - **Browse mode** (a starting point, or "explore/browse the wiki"): navigate by **progressive
   disclosure** — read `index.md` listings and follow links from a starting point, not every file.
 
+Prefer reading the preloaded/inline `index.md` for plain orientation; reach for this command when a
+**load-bearing** claim is about to drive an action — its value over a raw read is the freshness gate +
+background `wiki-verifier` dispatch (the trust-but-verify step).
+
 Use the `wiki` skill for the format (see its "Reading is trust-but-verify" + "Verify anchors" sections).
 The bundle stays **read-only** here: query never writes a concept — it may run a read-only `git` freshness
 check and dispatch a background `wiki-verifier` (which owns any self-heal).

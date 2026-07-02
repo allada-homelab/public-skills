@@ -19,6 +19,7 @@ import json
 import os
 import sys
 
+import _hook_common
 from hook_session_start import CONSULT_GUIDANCE  # single source of the consult guidance (no drift)
 
 CONSULT = (
@@ -27,19 +28,15 @@ CONSULT = (
 )
 
 
-def _project_dir(event):
-    return os.environ.get("CLAUDE_PROJECT_DIR") or event.get("cwd") or os.getcwd()
-
-
 def main():
     try:
         event = json.loads(sys.stdin.read() or "{}")
     except ValueError:
         event = {}
-    project = _project_dir(event)
-    if not os.path.isfile(os.path.join(project, "llm-wiki", "index.md")):
+    project = _hook_common.project_dir(event)
+    if not _hook_common.bundle_exists(project):
         return 0  # no bundle here — contribute nothing
-    marker = os.path.join(project, "llm-wiki", ".llm-wiki", "last-session")
+    marker = os.path.join(_hook_common.bundle_root(project), ".llm-wiki", "last-session")
     token = str(event.get("session_id") or "__nosession__")
     try:
         with open(marker, encoding="utf-8") as fh:

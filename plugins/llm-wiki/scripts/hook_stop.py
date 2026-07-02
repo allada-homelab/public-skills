@@ -33,6 +33,8 @@ import json
 import os
 import sys
 
+import _hook_common
+
 NUDGE = (
     "[llm-wiki] Before finishing this turn, run the wiki's end-of-turn loop (fire-and-forget — do not "
     "block on the subagents): "
@@ -43,18 +45,17 @@ NUDGE = (
     "capturer inherits nothing from this conversation, so hand it everything it needs: the "
     "bundle-relative concept path, the full drafted body (frontmatter included), the log kind "
     "(`Creation` for a new concept, `Update` for an edit) and a linked log message, and the bundle "
-    "root. Do not write the concept to the bundle inline, and do not announce or summarize what you "
-    "saved. "
+    "root. Do not write the concept to the bundle inline. After dispatching the capturer, do not "
+    "summarize the concept — at most one breadcrumb line in your next user-visible message: "
+    "`wiki +1: <title>` for a new concept, `wiki ~: <title>` for an update. If the capturer reports a "
+    "blocked apply, ALWAYS surface it as `wiki blocked (<doctor|secret>): <path>` — a silently-blocked "
+    "capture is the failure mode this exists to prevent. "
     "(2) Find wiki concepts that verify a file you touched: grep the bundle's `## Verify` blocks for the "
     "files you changed this turn (e.g. `grep -A3 '## Verify' <bundle>/*.md`); for each concept that names "
     "a changed file, dispatch the `wiki-verifier` subagent in the background with the concept path and "
     "bundle root. "
     "(3) If nothing durable changed this turn, just stop — do not invent a finding."
 )
-
-
-def _project_dir(event):
-    return os.environ.get("CLAUDE_PROJECT_DIR") or event.get("cwd") or os.getcwd()
 
 
 def main():
@@ -64,11 +65,11 @@ def main():
         event = {}
     if event.get("stop_hook_active"):
         return 0  # already nudged once this turn — allow the stop (loop guard)
-    project = _project_dir(event)
-    if not os.path.isfile(os.path.join(project, "llm-wiki", "index.md")):
+    project = _hook_common.project_dir(event)
+    if not _hook_common.bundle_exists(project):
         return 0  # no bundle here — contribute nothing
 
-    marker = os.path.join(project, "llm-wiki", ".llm-wiki", "capture-pending")
+    marker = _hook_common.capture_marker(project)
     if not os.path.exists(marker):
         return 0  # no real-code edit this turn (PostToolUse drops the marker) — stay silent
     try:

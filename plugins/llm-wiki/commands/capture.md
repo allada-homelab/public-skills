@@ -14,7 +14,8 @@ below). Use the `wiki` skill for format rules and `references/concept-template.m
 concept, then hand it to `bundle_ops apply`, which stages on a throwaway mirror, regenerates the index,
 appends the log, **Doctor-gates** (strict, blocking), and **secret-scans** — and only on a clean gate
 does it touch the live bundle. A block leaves the live bundle byte-for-byte untouched. The gate is the
-safety net; do not add a per-write prompt or a prose recap of what you saved.
+safety net; do not add a per-write prompt — surface the outcome as at most one breadcrumb (step 7),
+never a prose recap of what you saved.
 
 > **⚠️ NEVER put a secret in a concept.** No API keys, access keys, tokens, passwords, SSH/PEM
 > private keys, or credential-bearing connection strings — **not even as an "example"**. The bundle
@@ -78,7 +79,8 @@ Steps:
 
    `apply` owns staging, index regen, log append, the Doctor gate, the secret scan, and the commit — do
    **not** re-author or `cp` the file yourself. It prints a one-line JSON status to stdout. Branch on it:
-   - **`applied`** (exit 0) → done. The concept, index, and log are committed; no prose recap needed.
+   - **`applied`** (exit 0) → done. The concept, index, and log are committed; surface the one-line
+     breadcrumb (step 7) — never a prose recap of the body.
    - **`blocked:doctor`** (exit 1) → the draft is non-conformant and **nothing was written**. Show the
      Doctor violations (on stderr) verbatim, fix the draft, and re-run `apply`. The Doctor wins — if your
      draft and the Doctor disagree, the Doctor is right.
@@ -88,6 +90,10 @@ Steps:
    - **`error:post-commit`** (exit 1, rare) → the post-commit Doctor re-check failed *after* mutating the
      live bundle (normally a concurrent-write race). The JSON carries a `hint`; recover with
      `git checkout -- <bundle-dir>`, then re-run `apply`.
-7. **Clean up** the temp file (`rm` it). Report the outcome tersely.
+7. **Clean up** the temp file (`rm` it), then surface the outcome as **at most one breadcrumb line** in
+   your next user-visible message — `wiki +1: <title>` for a new concept, `wiki ~: <title>` for an update,
+   or `wiki blocked (<doctor|secret>): <path>` if the gate blocked it and you could not resolve it. Never a
+   prose recap or summary of the concept body — but a block must **always** be surfaced (a silently-
+   vanishing capture is the worst failure mode of a persistence tool).
 
 Defer all conformance judgments to the Doctor — if your draft and the Doctor disagree, the Doctor wins.

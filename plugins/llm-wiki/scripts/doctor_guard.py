@@ -14,14 +14,8 @@ import json
 import os
 import sys
 
+import _hook_common
 from doctor import check_concept
-
-
-def _under(path_abs, root_abs):
-    try:
-        return os.path.commonpath([root_abs, path_abs]) == root_abs
-    except ValueError:
-        return False
 
 
 def main():
@@ -35,9 +29,9 @@ def main():
     fp = tool_input.get("file_path")
     if not fp or not fp.endswith(".md") or os.path.basename(fp) in ("index.md", "log.md"):
         return 0  # not a concept file (reserved files are engine-owned)
-    project = os.environ.get("CLAUDE_PROJECT_DIR") or event.get("cwd") or os.getcwd()
-    bundle = os.path.realpath(os.path.join(project, "llm-wiki"))
-    if not _under(os.path.realpath(fp), bundle):
+    project = _hook_common.project_dir(event)
+    bundle = os.path.realpath(_hook_common.bundle_root(project))
+    if not _hook_common.under(os.path.realpath(fp), bundle):
         return 0
 
     content = tool_input.get("content", "")

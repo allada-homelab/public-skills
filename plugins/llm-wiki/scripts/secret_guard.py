@@ -21,14 +21,14 @@ import json
 import os
 import sys
 
+import _hook_common
 from secret_scan import scan
 
 
 def _bundle_root(event):
-    project = os.environ.get("CLAUDE_PROJECT_DIR") or event.get("cwd") or os.getcwd()
     # realpath resolves symlinks so a write reaching the bundle via a symlinked path
     # can't slip past the under-bundle check (it leaves a non-existent tail intact)
-    return os.path.realpath(os.path.join(project, "llm-wiki"))
+    return os.path.realpath(_hook_common.bundle_root(_hook_common.project_dir(event)))
 
 
 def _introduced_text(tool_name, tool_input):
@@ -41,13 +41,6 @@ def _introduced_text(tool_name, tool_input):
         # every edit's replacement lands in the file — scan them all
         return "\n".join(e.get("new_string", "") for e in tool_input.get("edits", []))
     return ""
-
-
-def _under(path_abs, root_abs):
-    try:
-        return os.path.commonpath([root_abs, path_abs]) == root_abs
-    except ValueError:
-        return False  # different drives / unrelated roots
 
 
 def _deny(reason):
@@ -68,7 +61,7 @@ def main():
     if not fp:
         return 0
     fp_abs = os.path.realpath(fp)
-    if not _under(fp_abs, _bundle_root(event)):
+    if not _hook_common.under(fp_abs, _bundle_root(event)):
         return 0  # not a bundle write — not our concern
 
     # confirmed in-bundle: from here we fail CLOSED — a scanner error denies, not allows

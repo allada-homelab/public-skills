@@ -53,7 +53,13 @@ These are exactly what the Doctor enforces. Author to them:
 - **R1 — Parseable frontmatter.** Every concept file opens with a `---` YAML frontmatter block that
   parses. Keep it simple: `key: value` scalars and simple `- item` lists.
 - **R2 — Non-empty `type`.** Every concept's frontmatter has a `type` field with a non-empty value.
-  `type` is any label the producer defines (e.g. `Reference`, `Runbook`, `BigQuery Table`).
+  `type` is any label the producer defines; OKF only requires it be non-empty.
+  - *Prefer the canonical vocabulary* (lowercase, single token, hyphens ok): `concept`, `decision`,
+    `gotcha`, `convention`, `runbook`, `architecture`, `howto`, `reference`, `schema`, `metric`, `api`,
+    `dataset`, `table`, `evaluation`, `note`. Consistent types keep grouping and `tend` analytics stable.
+  - The Doctor's **R5** is a **report-only WARNING** (never an ERROR, never blocks a write) on anything
+    off this list — matched case-insensitively, so `Decision` is fine but a freeform two-word type like
+    `Architecture Decision` gets nudged toward `architecture` or `decision`.
 - **R3 — Reserved-file structures.**
   - A **subdirectory** `index.md` has **zero frontmatter**.
   - The **root** `index.md` may carry **only** `okf_version: "0.1"` in frontmatter (nothing else), and
@@ -106,14 +112,20 @@ The wiki is always-on — there is no mode to enable. The main agent runs this l
 
 - **Read first, without asking.** Before any non-trivial work, consult the wiki via `/llm-wiki:query`
   **proactively and without asking the user** — reading the wiki first is the default expectation, not
-  an opt-in. Treat it as a first-class source alongside `CLAUDE.md` and READMEs.
+  an opt-in. Treat it as a first-class source alongside `CLAUDE.md` and READMEs. Prefer the
+  preloaded/inline `index.md` for plain orientation; reach for `/llm-wiki:query` when a **load-bearing**
+  claim is about to drive an action — its value over a raw read is the freshness gate + background
+  `wiki-verifier` dispatch (the trust-but-verify step).
 - **The main agent owns judgment.** At the end of work *you* decide what (if anything) is durable and
   reusable, and you draft the concept per this skill. A subagent never makes that call.
 - **Persist in the background.** Dispatch the **`wiki-capturer`** subagent (background) to write your
   drafted concept through the gated `bundle_ops apply` engine — don't write it to the bundle inline and
   don't block on it. It inherits nothing, so its brief must carry the whole payload: the bundle-relative
   concept path, the full drafted body bytes, the log kind (`Creation`|`Update`) with its linked log
-  message, and the bundle root. It persists what you handed it; it does not re-curate.
+  message, and the bundle root. It persists what you handed it; it does not re-curate. Once it returns,
+  surface **at most one breadcrumb** in your next message — `wiki +1: <title>` for a new concept,
+  `wiki ~: <title>` for an update, or `wiki blocked (<doctor|secret>): <path>` if it reported a block —
+  never a prose recap of the concept body; a block must **always** be surfaced.
 - **Verify touched anchors.** Grep the bundle's `## Verify` blocks for the files you changed this turn;
   for each matching concept, dispatch one **`wiki-verifier`** subagent (background) — brief it with the
   concept path and the bundle root — to re-check it.

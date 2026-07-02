@@ -19,6 +19,8 @@ Rules (see docs/llm-wiki/phases/phase-1-tech-plan.md §5):
     R3b  root index.md frontmatter keys ⊆ {okf_version}, and okf_version == "0.1"
     R3c  log.md: ISO YYYY-MM-DD headings, newest-first, bold **Update/Creation/Initialization** bullets
     R4   internal markdown links resolve (WARNING only — broken links are tolerated per OKF spec §5)
+    R5   concept `type` is in the canonical vocabulary (WARNING only — OKF §3 only requires a
+         non-empty type; R5 is a curation nudge to keep grouping/analytics stable, never an ERROR)
 """
 import json
 import os
@@ -35,6 +37,16 @@ ATX_HEADING_RE = re.compile(r"^(#+)\s+(.*)$")
 # ATX level (H1/H3) where they'd otherwise skip the H2 date-section checks entirely.
 DATE_CANDIDATE_RE = re.compile(r"^\d{4}-\d{1,2}-\d{1,2}\b")
 LOG_PREFIXES = ("**Update**", "**Creation**", "**Initialization**")
+# R5: the canonical concept-type vocabulary (matched case-insensitively). Lowercase single
+# tokens (hyphens ok) are the house style; `bigquery table` is the one compound kept because it
+# is OKF's own reference example type and is entrenched in the fixture corpus. Widening the set
+# beats warning on (and thus rewriting) the frozen example fixtures.
+CANONICAL_TYPES = frozenset({
+    "concept", "decision", "gotcha", "convention", "runbook", "architecture", "howto",
+    "reference", "schema", "metric", "api", "dataset", "table", "evaluation", "note",
+    "bigquery table",
+})
+
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 EXTERNAL_SCHEMES = ("http://", "https://", "mailto:", "ftp://", "tel:", "//")
 # A line opening/closing a fenced code block (``` or ~~~). Toggled per-line so log/link
@@ -149,6 +161,15 @@ def check_concept(text, relpath, findings):
     if invalid:
         findings.append(_f("ERROR", "R2", relpath, _key_lookup(text, "type")[0],
                            "Concept frontmatter must contain a non-empty `type` field (a string, not a list)."))
+        return
+    # R5 (report-only): a valid non-empty type that drifts from the canonical vocabulary. Matched
+    # case-insensitively — a case-only variant (`Table` vs `table`) is tolerated silently so the
+    # OKF-example fixture corpus stays green; only genuinely off-vocabulary values (e.g. two-word
+    # `Architecture Decision`) get the nudge.
+    if val.strip().lower() not in CANONICAL_TYPES:
+        findings.append(_f("WARNING", "R5", relpath, _key_lookup(text, "type")[0],
+                           'type "%s" is not in the canonical vocabulary — prefer one of: %s'
+                           % (val.strip(), ", ".join(sorted(CANONICAL_TYPES)))))
 
 
 def check_root_index(text, relpath, findings):

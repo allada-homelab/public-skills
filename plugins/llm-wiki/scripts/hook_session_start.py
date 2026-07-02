@@ -14,7 +14,14 @@ Reads `$CLAUDE_PROJECT_DIR` (falls back to the event JSON's `cwd`, else cwd).
 """
 import json
 import os
+import re
 import sys
+
+import _hook_common
+
+# A root-index concept bullet: `* [Title](./path.md) — description`. The captured group keeps the
+# bullet through the link's closing `)`, so the titles-only cap can drop the ` — description` tail.
+_CONCEPT_BULLET = re.compile(r"^(\s*[*-] \[[^\]]*\]\([^)]*\))")
 
 # Shared start-of-session "consult the wiki" guidance, used here in the SessionStart preload and
 # re-used by the UserPromptSubmit nudge (hook_user_prompt.py imports it) so the two cannot drift.
@@ -51,6 +58,20 @@ def _bundle_summary(bundle_dir):
     return count, sorted(tags)
 
 
+def _titles_only(index):
+    """Return (body, n_bullets): each concept bullet trimmed to `* [Title](./path.md)` (drop the
+    ` — description` tail); non-bullet lines (headings, prose, blanks) pass through untouched."""
+    out, n = [], 0
+    for line in index.split("\n"):
+        m = _CONCEPT_BULLET.match(line)
+        if m:
+            n += 1
+            out.append(m.group(1))
+        else:
+            out.append(line)
+    return "\n".join(out), n
+
+
 def _event():
     try:
         event = json.loads(sys.stdin.read() or "{}")
@@ -61,15 +82,26 @@ def _event():
 
 def main():
     event = _event()
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or event.get("cwd") or os.getcwd()
-    index_path = os.path.join(project_dir, "llm-wiki", "index.md")
+    project_dir = _hook_common.project_dir(event)
+    index_path = os.path.join(_hook_common.bundle_root(project_dir), "index.md")
     try:
         with open(index_path, "r", encoding="utf-8") as fh:
             index = fh.read()
     except OSError:
-        return 0  # no bundle here — contribute nothing
+        # No bundle here. On a fresh `startup` only, leave one terse pointer so a new repo discovers
+        # the plugin; stay silent on resume/clear/compact, and create no marker/state file.
+        if event.get("source") == "startup":
+            json.dump({"hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": (
+                    "[llm-wiki] No knowledge bundle in this repo yet — /llm-wiki:ingest --dry-run "
+                    "previews bootstrapping one from the codebase; /llm-wiki:capture saves findings "
+                    "as you go."
+                ),
+            }}, sys.stdout)
+        return 0  # no bundle — otherwise contribute nothing
 
-    count, tags = _bundle_summary(os.path.join(project_dir, "llm-wiki"))
+    count, tags = _bundle_summary(_hook_common.bundle_root(project_dir))
     summary = "**%d concept%s**%s" % (
         count, "" if count == 1 else "s",
         (" · tags: " + ", ".join(tags)) if tags else "",
@@ -83,7 +115,18 @@ def main():
         # not the whole index body, so we don't grow with the bundle or partially undo compaction.
         context = head + "Re-read `llm-wiki/index.md` if you need the full concept map."
     else:
-        context = head + "Root index (`llm-wiki/index.md`):\n\n" + index
+        body, n_bullets = _titles_only(index)
+        # A large root index defeats the point of a lean preload — cap it to titles-only past either
+        # bound, and nudge toward the maintenance commands that keep the preload small.
+        if n_bullets > 40 or len(index.encode("utf-8")) > 16384:
+            head += (
+                "index shown titles-only (%d concepts) — full descriptions in %s\n"
+                "bundle is large — /llm-wiki:reorganize into sections keeps this preload lean; "
+                "/llm-wiki:tend for a health digest.\n\n" % (n_bullets, index_path)
+            )
+            context = head + "Root index (`llm-wiki/index.md`):\n\n" + body
+        else:
+            context = head + "Root index (`llm-wiki/index.md`):\n\n" + index
     json.dump({"hookSpecificOutput": {
         "hookEventName": "SessionStart",
         "additionalContext": context,

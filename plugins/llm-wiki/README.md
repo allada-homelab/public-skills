@@ -48,7 +48,9 @@ talk about capturing to a wiki or knowledge base.
   PreToolUse hook. Honors `pragma: allowlist secret` and skips obvious placeholders so documentation
   examples don't false-positive.
 - **Autonomy hooks (`hooks/hooks.json` + `scripts/`)** — five events: **SessionStart** preloads
-  the root index + an *N concepts · tags* summary + a consult reminder; **UserPromptSubmit** is a
+  the root index + an *N concepts · tags* summary + a consult reminder (titles-only above 40 concepts /
+  16KB, with a `reorganize`/`tend` nudge; or a one-time startup pointer to `/llm-wiki:capture` when no
+  bundle exists yet); **UserPromptSubmit** is a
   once-per-session **consult** nudge (the read loop's forcing function, symmetric to capture); a
   **PreToolUse** floor (`secret_guard.py` denies credential writes, `doctor_guard.py` denies
   non-conformant concept writes); **PostToolUse** drops the `.llm-wiki/capture-pending` marker; **Stop**
@@ -66,6 +68,16 @@ talk about capturing to a wiki or knowledge base.
 
 Default bundle location: `${CLAUDE_PROJECT_DIR}/llm-wiki`. Cross-links use relative `./` form so
 they resolve on GitHub.
+
+## Working in a team
+
+The bundle is plain git — no server, no lock, no external state. **Concept files rarely conflict**: one
+file is one concept, so parallel branches usually touch different files. The two regenerated artifacts,
+**`index.md`** and **`log.md`**, *will* conflict on parallel branches, but resolution is trivial:
+
+- **`index.md`** — take either side, then regenerate it from the merged concept files:
+  `python3 <plugin>/scripts/bundle_ops.py index <bundle>`.
+- **`log.md`** — union both sides' entries; the newest-first `## YYYY-MM-DD` date grouping merges cleanly.
 
 ## Development
 

@@ -44,24 +44,24 @@ do **not** re-curate or rewrite its content. You persist what you were given.
    blocking), and the **secret scan** — and only on a clean gate does it touch the live bundle. A block
    leaves the live bundle byte-for-byte untouched. Do **not** `cp` or hand-edit the live bundle yourself.
 3. **Branch on the JSON `status`:**
-   - **`applied`** (exit 0) → report `CAPTURED: <relpath>` and stop. Nothing else committed needs prose.
+   - **`applied`** (exit 0) → report `CAPTURED: <relpath> — <title>` and stop. Nothing else committed needs prose.
    - **`blocked:doctor`** (exit 1) → the draft is non-conformant; **nothing was written**. Read the
      `ERROR <rule> <file>:<line> <message>` lines from stderr and make the **minimal structural fix those
      ERRORs name** — e.g. add a missing `type:`, repair a malformed `## Verify` anchor, fix frontmatter
      that won't parse. Fix *only what the Doctor flagged*; never rewrite the substance the main agent
      authored. Re-write `$tmp` and re-run `apply` **exactly once**. If it applies, report `CAPTURED:
-     <relpath>`. If it is **still** blocked, report `CAPTURE-BLOCKED(doctor): <relpath> — <violations>`
+     <relpath> — <title>`. If it is **still** blocked, report `BLOCKED (doctor): <relpath> — <violations>`
      and write nothing.
    - **`blocked:secret`** (exit 1) → the secret scan flagged a credential; **nothing was written**.
      **Abort.** Never strip-and-guess (that risks landing a half-redacted credential). Report
-     `CAPTURE-BLOCKED(secret): <relpath> — <finding>` (the redacted preview from stderr, by name/location)
+     `BLOCKED (secret): <relpath> — <finding>` (the redacted preview from stderr, by name/location)
      so the main agent or a human removes the credential from the draft. A secret is theirs to fix, not
      yours to edit around.
 4. **Clean up** the temp file (`rm -f "$tmp"`) in every branch.
 
 ## Output (your final message — this is the report, not a chat reply)
 
-One terse status line: `CAPTURED: <relpath>` or `CAPTURE-BLOCKED(doctor|secret): <relpath> — <why>`.
+One terse status line: `CAPTURED: <relpath> — <title>` or `BLOCKED (<doctor|secret>): <relpath> — <one-line reason>`.
 The dispatcher relays it; keep it to the status.
 
 ## Guardrails

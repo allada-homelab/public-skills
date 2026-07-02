@@ -40,7 +40,9 @@ missing, fall back to the default `${CLAUDE_PROJECT_DIR}/llm-wiki`.
      - **Objective (`run:`) divergence → self-heal.** Author the *minimal* edit that makes the concept
        match the observed current state (update the stated value/behavior + re-stamp `verified:` to now),
        then apply it through the gated pipeline (step 4). Surface one line: `STALE-AUTOREFINED: <concept>
-       — was X; current state shows Y`.
+       — was X; current state shows Y`. When the diverged value is a count that grows with a corpus
+       (test/fixture pass counts, concept counts), heal to the *invariant* form (`fail=0`, or a `≥` floor)
+       instead of the new exact number — an exact count just goes stale again on the next addition.
      - **Judgment-only "looks stale" → report, do NOT write.** Return `STALE: <concept> — wiki says X;
        current state appears to show Y` and recommend `/llm-wiki:capture <concept>` (edit-in-place). A
        cheap model's reading must never silently rewrite curated knowledge.
