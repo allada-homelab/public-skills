@@ -82,8 +82,11 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
 - **Always-auto; zero-config.** Once a bundle exists, autonomy is on — there are no modes. The write
   commands (`capture`/`prune`/`reorganize`) apply directly with no per-write prompt and no prose recap;
   the safety net is the in-command Doctor gate (blocking) and secret scan (a **hard abort** on a hit),
-  plus git-reversibility. (The apply lands via `cp`, so the PreToolUse guard floor backstops *direct*
-  bundle Write/Edit, not the command path.) `query`/`tend` are read-only. `ingest` (bulk repo bootstrap)
+  plus git-reversibility. (The apply writes via plain file I/O — a staged `/tmp` mirror is gated, then the
+  live bundle is re-built with `open()`, never `cp`ed from the mirror — so the PreToolUse guard floor
+  backstops *direct* bundle Write/Edit, not the command path; a bundle write issued via Bash likewise
+  bypasses the guards and is covered only by the apply gate and git-reversibility.) `query`/`tend` are
+  read-only. `ingest` (bulk repo bootstrap)
   is autonomous once invoked: every concept is still secret-scanned and the whole batch is Doctor-gated
   before it lands, with `--dry-run` to preview and one git-reversible diff.
 - **Secret scan.** `secret_scan.py` surfaces credentials (honoring `pragma: allowlist secret` and

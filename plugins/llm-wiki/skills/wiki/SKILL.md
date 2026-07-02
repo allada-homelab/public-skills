@@ -111,9 +111,12 @@ The wiki is always-on — there is no mode to enable. The main agent runs this l
   reusable, and you draft the concept per this skill. A subagent never makes that call.
 - **Persist in the background.** Dispatch the **`wiki-capturer`** subagent (background) to write your
   drafted concept through the gated `bundle_ops apply` engine — don't write it to the bundle inline and
-  don't block on it. It persists what you handed it; it does not re-curate.
-- **Verify touched anchors.** For any concept whose `## Verify` anchor names a file you changed this
-  turn, dispatch the **`wiki-verifier`** subagent (background) to re-check it.
+  don't block on it. It inherits nothing, so its brief must carry the whole payload: the bundle-relative
+  concept path, the full drafted body bytes, the log kind (`Creation`|`Update`) with its linked log
+  message, and the bundle root. It persists what you handed it; it does not re-curate.
+- **Verify touched anchors.** Grep the bundle's `## Verify` blocks for the files you changed this turn;
+  for each matching concept, dispatch one **`wiki-verifier`** subagent (background) — brief it with the
+  concept path and the bundle root — to re-check it.
 
 The Stop hook nudges this loop at end-of-turn, but it is the model's standing behavior, not the hook's.
 

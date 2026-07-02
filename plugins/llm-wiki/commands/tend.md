@@ -29,8 +29,9 @@ Steps:
    anchored file(s): `git -C "${CLAUDE_PROJECT_DIR}" log --since="<verified>" -1 --format=%H --
    <anchor-file>` (the same freshness gate `/llm-wiki:query` step 5 uses — keep byte-identical).
    **Non-empty (or the file no longer resolves)** → the anchored code changed since last
-   verified → list as **needs re-verification** (a `capture` edit-in-place candidate; or offer to dispatch a
-   `wiki-verifier`). Empty → fresh, skip. Also flag **anchor quality**: a *code-grounded* concept with no
+   verified → list as **needs re-verification** (a `capture` edit-in-place candidate; or point the user at
+   `/llm-wiki:query <concept>`, whose read flow dispatches the verifier — `tend` is read-only and cannot
+   dispatch one itself). Empty → fresh, skip. Also flag **anchor quality**: a *code-grounded* concept with no
    `## Verify`, or a weak one (prose-only "see the code", a bare `file:line`), is a curation gap to
    backfill — **skip** concepts explicitly marked not-code-verifiable (they're confirm-exempt). All
    read-only/`git`-only; never write here.

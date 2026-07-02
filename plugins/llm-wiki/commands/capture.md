@@ -1,7 +1,7 @@
 ---
 description: Capture or update a finding as one conformant OKF concept (create-or-edit; the core loop).
 argument-hint: "[title or finding hint] [--into <subdir>] [--bundle <path>]"
-allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(rm:*)
+allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(mktemp:*), Bash(rm:*)
 ---
 
 You are running `/llm-wiki:capture`. Turn a finding from the current session into **one** conformant
@@ -63,15 +63,17 @@ Steps:
      non-empty `type`**, keep links in the relative `./` form. If the change alters a fact the concept's
      `## Verify` anchor covers, update the anchor too and **re-stamp `verified:`** to today (a capture that
      re-confirms a fact is the point at which it was last verified).
-5. **Write the composed content to a temp file** (outside the bundle), e.g. `/tmp/llm-wiki-capture.md`,
-   using the Write tool. This file is the exact bytes `apply` will gate and commit.
+5. **Write the composed content to a unique temp file** outside the bundle. Mint the path with
+   `tmp=$(mktemp /tmp/llm-wiki-capture-XXXXXX.md)` (a fixed path can collide with a concurrent background
+   `wiki-capturer`), then Write the bytes to `$tmp` with the Write tool. This file is the exact bytes
+   `apply` will gate and commit.
 6. **Apply through the gated engine.** Run, with `<relpath>` the concept's bundle-relative path,
    `<Creation|Update>` chosen by the create-vs-update branch from step 2, and a linked-title log message
    (`"Added [<title>](./<relpath>)."` for a create, `"Refined [<title>](./<relpath>)."` for an update, to
    match the existing log style):
 
    ```
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" apply "<bundle>" --concept "<relpath>" --content-file "<tmpfile>" --log-kind <Creation|Update> --log-message "Added [<title>](./<relpath>)."
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" apply "<bundle>" --concept "<relpath>" --content-file "$tmp" --log-kind <Creation|Update> --log-message "<Added|Refined> [<title>](./<relpath>)."
    ```
 
    `apply` owns staging, index regen, log append, the Doctor gate, the secret scan, and the commit — do
@@ -82,6 +84,10 @@ Steps:
      draft and the Doctor disagree, the Doctor is right.
    - **`blocked:secret`** (exit 1) → the secret scan flagged a credential and **nothing was written**.
      Report the redacted finding, strip the secret (reference it by name/location instead), and re-run.
+
+   - **`error:post-commit`** (exit 1, rare) → the post-commit Doctor re-check failed *after* mutating the
+     live bundle (normally a concurrent-write race). The JSON carries a `hint`; recover with
+     `git checkout -- <bundle-dir>`, then re-run `apply`.
 7. **Clean up** the temp file (`rm` it). Report the outcome tersely.
 
 Defer all conformance judgments to the Doctor — if your draft and the Doctor disagree, the Doctor wins.

@@ -55,8 +55,9 @@ Steps:
    link, `rm -rf "$mirror"`, write nothing.
 6. **Secret scan (always).** Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/secret_scan.py" <path> --format
    json` over each concept whose content changed (and over the staged log bullet) — **always**, since a hit
-   halts the apply. If a secret was flagged, **abort**: `rm -rf "$mirror"`, write nothing, and report the
-   finding.
+   halts the apply. A **hit** is a non-zero `summary.findings` in the JSON output (`secret_scan.py` always
+   exits 0, so never key the abort off `$?`). On any hit, **abort**: `rm -rf "$mirror"`, write nothing, and
+   report the finding.
 7. **Apply.** Apply now without asking and **without a prose recap**. Reproduce on the real bundle — the
    moves are deterministic, so re-run the same `move`(s) in order → emptied-dir cleanup (step 4) → `index`
    → `log-append … --date "$today"` against `<bundle>`, then run the Doctor on the real bundle and re-check

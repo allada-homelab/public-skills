@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Report-only secret scanner for the /llm-wiki plugin (Phase 1).
+"""Secret scanner for the /llm-wiki plugin.
 
 Scans one pending payload (a file path, or '-' for stdin) for credential-shaped
-content and reports findings. **Always exits 0 in Phase 1** — the calling command
-surfaces findings in the confirm-first diff; the human decides. Phase 3 re-wires the
-caller (a PreToolUse hook) to treat findings as blocking; this script is unchanged.
+content and reports findings. **Always exits 0 by design** — callers key off the
+`summary.findings` count in the JSON output, never the exit code. It is the scanner
+behind both the *blocking* PreToolUse `secret_guard` hook and the hard-abort gate
+inside `bundle_ops apply` (a hit there halts the write before anything lands).
 
 Usage:
     secret_scan.py <file-or-"-"> [--format text|json]
@@ -29,7 +30,7 @@ import re
 import sys
 
 SCHEMA = "okf-secret-scan/1"
-ENTROPY_MIN = 4.0          # bits/char — the one tunable knob (retuned in Phase 3)
+ENTROPY_MIN = 4.0          # bits/char — the one tunable knob
 ENTROPY_MIN_LEN = 20
 
 # (category, regex, high_confidence). A high-confidence labeled key (format-specific cloud/API

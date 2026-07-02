@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "llm-wiki",
-  "description": "An autonomous OKF v0.1 knowledge wiki for Claude Code — author, read, and maintain a curated knowledge bundle so each session starts smarter. Confirm-first commands (init/capture/explore/query/conform/refine/prune/reorganize/tend) over a deterministic Doctor, plus Phase 3 hooks: SessionStart preload, blocking secret/Doctor guards, and proactive auto-capture.",
+  "description": "An autonomous OKF v0.1 knowledge wiki for Claude Code — author, read, and maintain a curated knowledge bundle so each session starts smarter. Zero-config and always-on: six commands (query/capture/prune/reorganize/tend/ingest) compose a deterministic engine — writes apply directly, gated by a deterministic Doctor + secret scan and git-reversible; query/tend are read-only. Hooks give session-start index preload, blocking secret/Doctor guards, and end-of-turn capture.",
   "author": { "name": "David Allada", "email": "davidanilallada@gmail.com" },
   "license": "MIT",
   "keywords": ["okf", "knowledge", "wiki", "open-knowledge-format", "hooks", "autonomy"]
