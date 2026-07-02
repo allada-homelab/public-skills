@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "get-shit-done",
+  "description": "Get complex or fan-out work done: /get-shit-done:run decomposes a task, delegates each subtask to the cheapest capable model (Sonnet for well-scoped, Opus for hard) under an Opus/Fable orchestrator, runs concurrent Sonnet research (web + context7), and fans out through a checked dynamic workflow with an always-on Opus adversarial verification pass. Autonomous once invoked.",
+  "author": { "name": "David Allada", "email": "davidanilallada@gmail.com" },
+  "license": "MIT",
+  "keywords": ["orchestration", "workflow", "fan-out", "subagents", "delegation", "ultracode", "opus", "sonnet"]
+}
