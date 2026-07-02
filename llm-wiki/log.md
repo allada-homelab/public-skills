@@ -14,6 +14,7 @@
 
 ## 2026-06-27
 
+* **Creation**: Added [Post-compaction re-injection is a SessionStart-on-compact job, not PreCompact](./post-compaction-reinjection.md).
 * **Creation**: Added [Reading is trust-but-verify — the consult-then-confirm loop](./trust-but-verify-loop.md).
 
 ## 2026-06-25
