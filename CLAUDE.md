@@ -48,19 +48,25 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   ```bash
   bash plugins/llm-wiki/scripts/fixtures/run_fixtures.sh
   ```
-  Expect `pass=30 fail=0 skip=0`.
+  Expect `pass=31 fail=0 skip=0`.
 - **Test the durability engine** (the `bundle_ops` golden corpus — run after any change to
   `bundle_ops.py`):
   ```bash
   bash plugins/llm-wiki/scripts/ops_fixtures/run_ops.sh
   ```
-  Expect `pass=35 fail=0`.
+  Expect `pass=39 fail=0`.
 - **Test the hooks** (the `hook_fixtures` corpus — run after any change to a `hook_*` /
   `*_guard.py` script):
   ```bash
   bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh
   ```
-  Expect `pass=29 fail=0`.
+  Expect `pass=34 fail=0`.
+- **Drift gate** (cross-file consistency — run after touching a manifest description, a duplicated
+  convention, or the gate counts):
+  ```bash
+  bash scripts/drift_check.sh
+  ```
+  Cross-file consistency (manifests, duplicated conventions, gate counts); expect `PASS`.
 - **Validate a bundle**:
   ```bash
   python3 plugins/llm-wiki/scripts/doctor.py <bundle-dir> --mode strict --format text
@@ -69,14 +75,14 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
 ## Architecture & conventions
 
 - **Doctor is the conformance authority.** `doctor.py` deterministically enforces OKF v0.1
-  (rules R1/R2/R3a–c, plus report-only **R4** link-health). The `wiki` skill only makes drafts
+  (rules R1/R2/R3a–c, plus report-only **R4** link-health and **R5** type-vocabulary). The `wiki` skill only makes drafts
   *near*-conformant; if they disagree, the Doctor wins. Writes are staged to a `/tmp` bundle
   mirror and Doctor-gated in bundle mode *before* anything lands.
 - **Maintenance is deterministic.** `bundle_ops.py` (index regeneration, `log.md` appends,
   link-preserving moves, guarded remove) is the engine the write commands compose instead of
   hand-editing indexes/links. Its **`apply`** subcommand is the consolidated gated write — auto-init an
   absent bundle → stage a `/tmp` mirror → regenerate index/log → Doctor-gate → secret-scan → commit,
-  emitting a JSON status (`applied | blocked:doctor | blocked:secret`); `capture` and the background
+  emitting a JSON status (`applied | blocked:doctor | blocked:secret | error:post-commit`); `capture` and the background
   `wiki-capturer` both call it. `reorganize` gates on an R4 pre/post diff (`after ⊆ before` → zero
   newly-broken links).
 - **Always-auto; zero-config.** Once a bundle exists, autonomy is on — there are no modes. The write
@@ -94,7 +100,8 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   `bundle_ops apply` as a **hard abort** before any write lands, and the same scanner backs the
   *blocking* PreToolUse `secret_guard` hook.
 - **Autonomy is hook-driven, with a guard floor.** `hooks/hooks.json` wires five events:
-  SessionStart (preload root index + an *N concepts · tags* summary + a consult reminder), PreToolUse
+  SessionStart (preload root index + an *N concepts · tags* summary + a consult reminder; titles-only
+  above a size threshold, and a one-time bootstrap pointer when no bundle exists), PreToolUse
   (`secret_guard.py` denies credential writes, `doctor_guard.py` denies non-conformant concept writes —
   scoped to bundle `Write|Edit|MultiEdit`), UserPromptSubmit (`hook_user_prompt.py` — a once-per-session
   *consult* nudge (session-marker-gated): the read loop's forcing function, symmetric to capture),
