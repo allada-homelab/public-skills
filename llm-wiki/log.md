@@ -2,6 +2,9 @@
 
 ## 2026-07-02
 
+* **Update**: Auto-refined [llm-wiki autonomy — zero-config always-auto with a guard floor](./phase-3-autonomy-architecture.md) after verification.
+* **Creation**: Added [ops fixture expect_err must not start with a dash](./ops-fixture-expect-err-grep-flag-gotcha.md).
+* **Creation**: Added [apply commits by re-building on live, not copying the mirror](./apply-rebuilds-live-not-cp.md).
 * **Creation**: Add gotcha: plugins can't declare host-tool dependencies in manifest — use fail-loud runtime precondition instead
 * **Creation**: Capture gotcha: toggleable plugin hooks ship as disabled .example.json, not commented-out hooks.json entries
 

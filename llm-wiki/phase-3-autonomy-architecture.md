@@ -6,7 +6,7 @@ tags:
   - autonomy
   - hooks
 timestamp: 2026-06-14T00:00:00Z
-verified: 2026-06-28T05:51:41Z
+verified: 2026-07-02T00:00:00Z
 ---
 # llm-wiki autonomy — zero-config always-auto with a guard floor
 
@@ -47,7 +47,7 @@ case is a denied/aborted write, never a leaked secret or a non-conformant bundle
 
 ## Verify
 - plugins/llm-wiki/hooks/hooks.json — five wired events: SessionStart, PreToolUse, UserPromptSubmit, PostToolUse, Stop
-- run: `bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh | grep '^pass='` — expected: `pass=29 fail=0`
+- run: `bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh | grep '^pass='` — expected: `pass=30 fail=0`
 
 ## Related
 - See [OKF Doctor — strict-producer rule set](./doctor-rule-set.md) — the rules `doctor_guard` enforces at write time.
