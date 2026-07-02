@@ -40,8 +40,11 @@ def main():
     if not _under(os.path.realpath(fp), bundle):
         return 0
 
+    content = tool_input.get("content", "")
+    if content.startswith("﻿"):
+        content = content[1:]  # strip a leading UTF-8 BOM so R1's leading-`---` check sees line 1 (matches doctor.validate)
     findings = []
-    check_concept(tool_input.get("content", ""), os.path.basename(fp), findings)
+    check_concept(content, os.path.basename(fp), findings)
     errors = [f for f in findings if f["severity"] == "ERROR"]
     if errors:
         reason = "llm-wiki Doctor guard blocked this write: " + "; ".join(

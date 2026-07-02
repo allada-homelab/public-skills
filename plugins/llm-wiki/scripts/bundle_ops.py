@@ -503,8 +503,9 @@ def _build(bundle_root, concept_rel, content, kind, message, day):
 def cmd_apply(bundle_root, concept_rel, content_file, kind, message, day):
     """Consolidated gated write: stage on a /tmp mirror, regenerate index + log,
     Doctor-gate (strict) and secret-scan; only on a clean gate is the LIVE bundle
-    touched. A block leaves the live bundle byte-for-byte untouched. Emits a one-line
-    JSON status to stdout (applied | blocked:doctor | blocked:secret)."""
+    touched — re-built against the live tree (robust to concurrent applies), git-reversible.
+    A block leaves the live bundle byte-for-byte untouched. Emits a one-line JSON status
+    to stdout (applied | blocked:doctor | blocked:secret | error:post-commit)."""
     root_abs = os.path.abspath(bundle_root)
     dest_abs = os.path.normpath(os.path.join(root_abs, concept_rel))
     if os.path.basename(dest_abs) in RESERVED:
@@ -555,12 +556,20 @@ def cmd_apply(bundle_root, concept_rel, content_file, kind, message, day):
                               "errors": len(errors)}))
             return 1
 
-        sfindings = _secret_scan.scan(content.decode("utf-8", "replace"))
+        # Scan every input channel apply commits, not just the body: the log message
+        # lands in log.md and the concept path lands in index.md, both unscanned otherwise.
+        # (Title/description derive from content, already scanned.) Do NOT scan staged
+        # files — a grandfathered secret elsewhere must not block an unrelated apply.
+        sfindings = []
+        for channel, text in (("content", content.decode("utf-8", "replace")),
+                              ("log-message", message), ("concept-path", concept_rel)):
+            for f in _secret_scan.scan(text):
+                sfindings.append((channel, f))
         if sfindings:
             sys.stderr.write("secret scan blocked apply (%d finding(s)):\n" % len(sfindings))
-            for f in sfindings:
-                sys.stderr.write("SECRET %s line %d preview=%s\n"
-                                 % (f["category"], f["line"], f["preview"]))
+            for channel, f in sfindings:
+                sys.stderr.write("SECRET %s %s line %d preview=%s\n"
+                                 % (channel, f["category"], f["line"], f["preview"]))
             print(json.dumps({"status": "blocked:secret", "concept": concept_rel,
                               "findings": len(sfindings)}))
             return 1
@@ -579,6 +588,9 @@ def cmd_apply(bundle_root, concept_rel, content_file, kind, message, day):
             for f in lerr:
                 sys.stderr.write("ERROR %s %s:%d   %s\n"
                                  % (f["rule"], f["file"], f["line"], f["message"]))
+            print(json.dumps({"status": "error:post-commit", "concept": concept_rel,
+                              "hint": "live bundle mutated and failed validation - "
+                                      "restore with: git checkout -- %s" % root_abs}))
             return 1
         print(json.dumps({"status": "applied", "concept": concept_rel}))
         return 0
@@ -590,6 +602,17 @@ def cmd_apply(bundle_root, concept_rel, content_file, kind, message, day):
 
 def _opt(argv, name):
     return argv[argv.index(name) + 1] if name in argv and argv.index(name) + 1 < len(argv) else None
+
+
+def _bad_date(day):
+    # a provided --date must parse; an absent one is defaulted downstream
+    if not day:
+        return False
+    try:
+        date.fromisoformat(day)
+        return False
+    except ValueError:
+        return True
 
 
 def main(argv):
@@ -618,6 +641,9 @@ def main(argv):
             return 2
         kind, message, day = (_opt(rest, "--log-kind"), _opt(rest, "--log-message"),
                               _opt(rest, "--date"))
+        if _bad_date(day):
+            sys.stderr.write("error: --date must be an ISO date (YYYY-MM-DD)\n")
+            return 2
         if not day:
             day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         return cmd_apply(bundle_root, concept, content_file, kind, message, day)
@@ -636,6 +662,9 @@ def main(argv):
             # a single log bullet is one line; an embedded newline either orphans a
             # paragraph (silent R3 corruption) or spawns a stray bullet (R3c fail).
             sys.stderr.write("error: --message must be a single line (no newlines)\n")
+            return 2
+        if _bad_date(day):
+            sys.stderr.write("error: --date must be an ISO date (YYYY-MM-DD)\n")
             return 2
         if not day:
             day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
