@@ -76,6 +76,11 @@ mutation, never for read-only work. Merge branches in **dependency order** into 
 **full** test suite there once, then fast-forward — per-unit green checks don't prove a conflict-free
 merge. (The orchestrator's job after fan-out is *integration*, not more delegation.)
 
+The spine now offers this isolation directly — pass `isolate: true` in its `args` and every implementer
+runs in a worktree, with the orchestrator inheriting the merge exactly as above. Reach for this custom
+variant only when the task's **shape** differs (a Discover→Transform sweep over an unknown work-list), not
+merely to get isolation.
+
 ## Pattern: judge panel (wide solution space → generate N, score, synthesize)
 
 For design/architecture calls, generate independent attempts from different angles, score with parallel

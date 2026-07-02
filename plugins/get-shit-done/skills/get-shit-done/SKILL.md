@@ -31,28 +31,46 @@ context across pieces (if fixing one thing might fix another, or two units would
 coding tasks have fewer truly parallel pieces than they look. For those, a single focused agent (or just
 doing it inline) beats fan-out — parallelizing a dependency chain produces wasted or broken work. Fan-out
 pays on **breadth-first, low-dependency** work, and it costs ~15× a chat, so only fan out when the task's
-value clears that.
+value clears that. When you take the off-ramp and do it inline, say so in one line ("did this inline — too
+small to clear fan-out overhead") so the user knows nothing fanned out.
 
 ## The loop
 
 1. **Orchestrator-model guard.** State your model. GSD is tuned for Opus (or Fable). If you're on
    anything else, warn (`/model opus`) and continue — only subagents tier down; you stay put.
 2. **Plan & triage.** Decompose the task into the smallest set of **independently-executable, file-disjoint**
-   subtasks. Front-load ambiguity *now* (an ambiguous brief handed down-tier comes back wrong-shaped). For
-   each subtask write a self-contained brief — a `title`, inputs, exact deliverable, done-criteria, an
-   explicit *what NOT to touch*, and optionally the `files` it will touch (the spine serializes any overlap)
-   — then assign `tier` + `effort` per **`references/triage-rubric.md`**. Remember:
+   subtasks. Front-load ambiguity *now* (an ambiguous brief handed down-tier comes back wrong-shaped).
+   Ambiguity about *how* to build → decide and proceed; ambiguity about *what* to build (two materially
+   different deliverables) → ask **one** batched round *before* fanning out (guessing wrong on the *what*
+   costs ~15× a chat). For each subtask write a self-contained brief — a `title`, inputs, exact deliverable,
+   done-criteria, an explicit *what NOT to touch*, and optionally the `files` it will touch (the spine
+   serializes any overlap) — then assign `tier` + `effort` per **`references/triage-rubric.md`**. Remember:
    **subagents inherit Opus** unless you set `"sonnet"` explicitly — that override is where the efficiency
    lives.
 3. **Fan out through the spine.** Invoke the `Workflow` tool with `scriptPath` =
    `${CLAUDE_PLUGIN_ROOT}/workflows/gsd.workflow.js` and `args = { task, subtasks, researchTopics }`. The
    spine runs Research (concurrent Sonnet, web + context7) ∥ Plan, then per-subtask Implement at the
    assigned tier, then an Opus adversarial Verify pass — pipelined, no barrier between implement and verify.
-4. **Integrate.** After the workflow returns, *your* job is integration, not more delegation: read every
-   result, check whether any two units touched overlapping code, and run the **full** test/build suite once
-   across the merged result — per-unit green checks don't prove a conflict-free whole.
-5. **Report honestly.** Confirmed units vs. any the verify pass flagged (with why), plus the steps that are
-   the user's to run. Name what you confirmed vs. inferred; never claim a green result you didn't observe.
+   Point the user at the host's `/workflows` view for live progress. The spine **validates your `subtasks`
+   payload first** — title/prompt nonempty, `tier` sonnet|opus, `effort` in the enum, `files` an array of
+   strings — and returns an `invalid subtasks: …` error listing every defect instead of running; fix them
+   and re-invoke. When the units **can't** be made file-disjoint, the escape hatch is `--isolate` (pass
+   `"isolate": true` in `args`): every implementer gets its own git worktree, overlap-serialization is
+   skipped, and **you** then merge the worktree branches in dependency order and run the full suite on the
+   merged result. It costs a worktree per agent — default off.
+4. **Adjudicate flagged units.** For each unit in `flagged`, read its `refutedBy`/`unverified` evidence.
+   Trivial defect → fix inline; otherwise dispatch **exactly one** evidence-briefed retry (one implementer
+   at the rubric's tier, then one Opus verifier on the same criteria). One retry only — whatever is still
+   refuted escalates to the user with the evidence. The spine stays single-pass; you get one bounded round.
+5. **Integrate.** After the workflow returns, *your* job is integration, not more delegation: read every
+   result, check whether any two units' `changedFiles` overlap **in fact** (not just by declaration), and
+   run the **full** test/build suite once across the merged result — per-unit green checks don't prove a
+   conflict-free whole.
+6. **Report honestly.** Per unit: `title`, `tier`, verdict provenance ("2/2 Opus confirmed: completeness +
+   regressions", or the flagged evidence + what the retry did), and changed files; one research-provenance
+   line; if `serialized` is non-empty, disclose "ran sequentially due to declared file overlap"; if the run
+   stopped on the budget guard, say so. End with the steps that are the user's to run. Name what you
+   confirmed vs. inferred; never claim a green result you didn't observe.
 
 This is **autonomous** — no plan/cost-approval gate. Stop only on a genuine blocker: a missing task, an
 unsafe/irreversible action needing confirmation, or a hard tool failure. (`--dry-run` prints the plan
@@ -72,7 +90,9 @@ The spine's Research phase runs Sonnet agents that pull current docs and best-pr
 context7 (resolved through ToolSearch), concurrently with planning (it feeds Implement, so it's a
 concurrent prerequisite, not fire-and-forget), and feeds a compact summary into the
 implementer prompts. Treat those findings as **trust-but-verify** — an implementer confirms a load-bearing
-claim against the real API before relying on it.
+claim against the real API before relying on it. If the project has an llm-wiki bundle
+(`./llm-wiki/index.md`), the research phase reads it **first** — curated project-specific knowledge beats
+generic web results (the spine's research prompt does this when the bundle exists).
 
 ## Adversarial verification (always on)
 

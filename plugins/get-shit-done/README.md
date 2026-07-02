@@ -23,8 +23,28 @@ blocker.
 ```
 /get-shit-done:run implement rate limiting on the public API, with tests
 /get-shit-done:run migrate all call sites from old_client() to new_client()
-/get-shit-done:run --dry-run <task>     # print the decomposition + tiers, don't spawn
+/get-shit-done:run --dry-run <task>     # print the decomposition + tiers + run economics, don't spawn
+/get-shit-done:run --isolate <task>     # run each implementer in its own git worktree (overlapping-file tasks)
 ```
+
+## What you'll see
+
+- **Live progress** in the host's `/workflows` view — each research/implement/verify agent as it runs (and
+  where the `runId` lives if you need to resume after a session loss).
+- **A per-unit final report:** for each subtask, its verdict provenance — two independent Opus critics on
+  distinct lenses (completeness / regressions), each seeing only the requirements and the changed-file
+  list. That two-live-positive-verdicts bar is what "confirmed" means; anything less is flagged with the
+  evidence. If any units ran sequentially (declared file overlap), the report discloses it.
+- **Run economics:** a run spins up **~1 + 3×N agents** (one research pass + one implementer and two Opus
+  verifiers per subtask) and costs **~15× a chat**. Cap it with a budget directive in your message (e.g.
+  `+500k`) — the spine stops before fan-out if under ~30k tokens remain. `--dry-run` prints the estimate
+  first.
+
+## Composes with llm-wiki
+
+When the project has an [llm-wiki](../llm-wiki) knowledge bundle, GSD's research phase consults it before
+the web (curated project knowledge beats generic results), and durable gotchas surfaced by verification are
+natural `/llm-wiki:capture` candidates.
 
 ## What ships
 

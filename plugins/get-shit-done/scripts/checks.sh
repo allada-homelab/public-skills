@@ -38,11 +38,19 @@ if [ -e "$here/hooks/hooks.json" ]; then bad "hooks/hooks.json exists — auto-t
 # 5. Plugin is registered in the marketplace.
 if python3 -c "import json,sys; m=json.load(open(sys.argv[1])); sys.exit(0 if any(p.get('name')=='get-shit-done' for p in m.get('plugins',[])) else 1)" "$root/.claude-plugin/marketplace.json"; then ok "registered in marketplace.json"; else bad "not registered in marketplace.json"; fi
 
+# 6. Spine pure-logic unit tests (extracted from the fenced region; needs node).
+if command -v node >/dev/null 2>&1; then
+  if node "$here/scripts/spine_logic_test.mjs"; then ok "spine pure-logic tests pass"; else bad "spine pure-logic tests failed"; fi
+else
+  echo "skip: node not installed — cannot run spine_logic_test.mjs"
+  incomplete=1
+fi
+
 echo
 if [ "$fail" -ne 0 ]; then
   echo "FAILED"
 elif [ "$incomplete" -ne 0 ]; then
-  echo "PASS (incomplete: node missing — spine not syntax-checked)"
+  echo "PASS (incomplete: node missing — spine not syntax-checked, logic tests not run)"
 else
   echo "PASS"
 fi
