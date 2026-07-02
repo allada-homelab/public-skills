@@ -2,6 +2,15 @@
 
 ## 2026-07-02
 
+* **Update**: Refined [OKF Doctor — strict-producer rule set](./doctor-rule-set.md).
+* **Update**: Auto-refined [OKF Doctor — strict-producer rule set](./doctor-rule-set.md) after verification.
+* **Update**: Refined [Repo ingestion — orchestrated multi-agent bootstrap](./repo-ingestion-architecture.md).
+* **Update**: Refined [Plugin versioning — unpinned for git-SHA auto-update](./plugin-versioning.md).
+* **Update**: Refined [llm-wiki autonomy — zero-config always-auto with a guard floor](./phase-3-autonomy-architecture.md).
+* **Update**: Refined [llm-wiki autonomy — zero-config always-auto with a guard floor](./phase-3-autonomy-architecture.md).
+* **Creation**: Added [Verify anchors should not assert exact fixture counts](./verify-anchors-avoid-exact-counts.md).
+* **Update**: Auto-refined [llm-wiki autonomy — zero-config always-auto with a guard floor](./phase-3-autonomy-architecture.md) after verification.
+* **Creation**: Added [PostToolUse fires for subagent tool calls and /tmp writes — broad markers self-arm](./posttooluse-fires-for-subagents-and-tmp.md).
 * **Update**: Auto-refined [llm-wiki autonomy — zero-config always-auto with a guard floor](./phase-3-autonomy-architecture.md) after verification.
 * **Creation**: Added [ops fixture expect_err must not start with a dash](./ops-fixture-expect-err-grep-flag-gotcha.md).
 * **Creation**: Added [apply commits by re-building on live, not copying the mirror](./apply-rebuilds-live-not-cp.md).

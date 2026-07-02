@@ -1,5 +1,5 @@
 ---
-type: Architecture Decision
+type: architecture
 title: llm-wiki autonomy — zero-config always-auto with a guard floor
 description: How llm-wiki autonomy works — five deterministic hook events, always-on auto (no modes), a PreToolUse guard floor, and background Sonnet subagents that persist and validate.
 tags:
@@ -19,8 +19,10 @@ system — `proactive`/`curated`/`max` resolved by `mode.py` — was collapsed a
   credential writes; `doctor_guard.py` denies non-conformant concept writes (R1/R2).
 - **UserPromptSubmit** — a once-per-session consult nudge: read the wiki via `/llm-wiki:query` before
   non-trivial work, without asking.
-- **PostToolUse** — silently drops a `.llm-wiki/capture-pending` marker after a non-bundle code edit
-  (the signal the Stop hook gates on); it emits nothing itself.
+- **PostToolUse** — silently drops a `.llm-wiki/capture-pending` marker after a code edit **under the
+  project dir** (and outside the bundle — see
+  [PostToolUse fires for subagent tool calls and /tmp writes](./posttooluse-fires-for-subagents-and-tmp.md));
+  it emits nothing itself.
 - **Stop** — the end-of-turn forcing function: only on a turn that changed real code (the marker gate),
   it blocks the stop *once* (`stop_hook_active`-guarded) so the main agent runs the loop — draft a durable
   finding and dispatch the background `wiki-capturer`, dispatch `wiki-verifier` for any touched `## Verify`
@@ -47,7 +49,8 @@ case is a denied/aborted write, never a leaked secret or a non-conformant bundle
 
 ## Verify
 - plugins/llm-wiki/hooks/hooks.json — five wired events: SessionStart, PreToolUse, UserPromptSubmit, PostToolUse, Stop
-- run: `bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh | grep '^pass='` — expected: `pass=30 fail=0`
+- run: `bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh | grep '^pass='` — expected: `fail=0` (the gate is green; the exact pass count grows with the corpus — see [Verify anchors should not assert exact fixture counts](./verify-anchors-avoid-exact-counts.md))
 
 ## Related
 - See [OKF Doctor — strict-producer rule set](./doctor-rule-set.md) — the rules `doctor_guard` enforces at write time.
+</content>

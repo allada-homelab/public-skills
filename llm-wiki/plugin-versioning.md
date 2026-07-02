@@ -1,5 +1,5 @@
 ---
-type: Architecture Decision
+type: decision
 title: Plugin versioning — unpinned for git-SHA auto-update
 description: Why plugin.json omits the version field — Claude Code falls back to the git commit SHA, so every commit auto-updates installed users during active development.
 tags:

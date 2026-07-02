@@ -1,5 +1,5 @@
 ---
-type: Architecture Decision
+type: architecture
 title: Repo ingestion — orchestrated multi-agent bootstrap
 description: How /llm-wiki:ingest bootstraps a wiki from an existing repo — an orchestrator command fans out read-only Sonnet wiki-explorer subagents that return concept proposals, then writes one Doctor-gated autonomous batch.
 tags:

@@ -1,12 +1,12 @@
 ---
 type: Reference
 title: OKF Doctor — strict-producer rule set
-description: The conformance rules doctor.py enforces (R1/R2/R3a–c plus R4 link-health), its strict/lenient modes, and exit codes.
+description: The conformance rules doctor.py enforces (R1/R2/R3a–c plus R4 link-health and R5 type-vocabulary), its strict/lenient modes, and exit codes.
 tags:
   - doctor
   - conformance
   - okf
-verified: 2026-06-28T05:51:41Z
+verified: 2026-07-02T00:00:00Z
 ---
 # OKF Doctor — strict-producer rule set
 
@@ -27,6 +27,10 @@ pre-write gate for everything `/llm-wiki` authors; **lenient-consumer mode** is 
 - **R4 — Link health (WARNING only).** Internal markdown links (`/…` resolved from the bundle root, all
   others relative to the file) must resolve. Broken links are *tolerated* per spec §5, so R4 is a
   report-only WARNING that never changes the exit code — added in Phase 2.
+- **R5 — Canonical `type` vocabulary (WARNING only).** A concept's non-empty `type` (R2 already passed)
+  is checked case-insensitively against a fixed `CANONICAL_TYPES` set (e.g. `concept`, `decision`,
+  `gotcha`, `reference`, `table`, `bigquery table`, …). OKF §3 only requires a non-empty `type`, so a
+  drifted value is a curation nudge, not an error — R5 never changes the exit code.
 
 ## Modes & output
 
@@ -40,8 +44,9 @@ The Doctor is validation-only — it never writes. The maintenance commands (`/l
 engine — including its consolidated **`apply`** gated-write subcommand (stage on a mirror → regenerate
 index → append log → Doctor-gate → secret-scan → commit), which `capture` and the background
 `wiki-capturer` agent both call. `reorganize` additionally diffs R4 before/after a move to guarantee it
-introduces zero newly-broken links.
+introduces zero newly-broken links. Write gates key on ERROR only, so R4 and R5 (both WARNING-only)
+never block a write.
 
 ## Verify
-- plugins/llm-wiki/scripts/doctor.py — contains R1/R2/R3/R4 check implementations
-- run: `bash plugins/llm-wiki/scripts/fixtures/run_fixtures.sh | grep -E "pass=|fail="` — expected: `pass=30 fail=0 skip=0`
+- plugins/llm-wiki/scripts/doctor.py — contains R1/R2/R3/R4/R5 check implementations
+- run: `bash plugins/llm-wiki/scripts/fixtures/run_fixtures.sh | grep -E "pass=|fail="` — expected: `fail=0` (the corpus is green; the exact pass count grows with the corpus — see [Verify anchors should not assert exact fixture counts](./verify-anchors-avoid-exact-counts.md))
