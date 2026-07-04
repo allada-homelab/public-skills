@@ -1,0 +1,3 @@
+{ "exit_code": 0,
+  "stdout_contains": ["\"decision\": \"block\"", "\"reason\"", "wiki-capturer", "wiki-verifier"],
+  "files_absent": ["llm-wiki/.llm-wiki/capture-pending-sess-abc123"] }

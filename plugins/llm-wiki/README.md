@@ -53,7 +53,9 @@ talk about capturing to a wiki or knowledge base.
   bundle exists yet); **UserPromptSubmit** is a
   once-per-session **consult** nudge (the read loop's forcing function, symmetric to capture); a
   **PreToolUse** floor (`secret_guard.py` denies credential writes, `doctor_guard.py` denies
-  non-conformant concept writes); **PostToolUse** drops the `.llm-wiki/capture-pending` marker; **Stop**
+  non-conformant concept writes); **PostToolUse** drops the session-scoped
+  `.llm-wiki/capture-pending-<session_id>` marker (so a concurrent session or background process in
+  the same project can't arm another session's nudge; SessionStart sweeps stale ones); **Stop**
   (`hook_stop.py`) is the end-of-turn forcing function — *only on a turn that changed real code* (gated by
   that marker), it blocks the stop once so the model decides capture-or-stop, drafting + dispatching
   `wiki-capturer`/`wiki-verifier` in the background. Autonomy is on whenever the bundle exists — no config.

@@ -12,10 +12,11 @@ Mechanism (Claude Code Stop-hook contract): emit `{"decision": "block", "reason"
 0 to continue the turn with the reason injected; emit nothing to allow the stop. (The doc names
 `decision: "block"` + `reason` as the canonical Stop blocking channel, so we emit only that — no
 redundant `hookSpecificOutput.additionalContext` carrying the same text.) Gated by the
-`.llm-wiki/capture-pending` marker that the PostToolUse hook drops on a real-code edit: with no
-marker (a pure-chat turn that changed nothing) this hook stays silent, so it does not force a
-continuation on every turn. Also silent when no bundle exists. Reads `$CLAUDE_PROJECT_DIR`
-(falls back to the event JSON's `cwd`).
+session-scoped `.llm-wiki/capture-pending-<session_id>` marker that the PostToolUse hook drops on a
+real-code edit: with no marker for *this* session (a pure-chat turn that changed nothing) this hook
+stays silent, so it does not force a continuation on every turn — and a marker armed by a
+concurrent session or background process in the same project is not ours to consume. Also silent
+when no bundle exists. Reads `$CLAUDE_PROJECT_DIR` (falls back to the event JSON's `cwd`).
 
 The model is the judge: a deterministic hook cannot know whether a durable finding occurred,
 so the reason text gives a clean "nothing durable → just stop" out.
@@ -69,7 +70,7 @@ def main():
     if not _hook_common.bundle_exists(project):
         return 0  # no bundle here — contribute nothing
 
-    marker = _hook_common.capture_marker(project)
+    marker = _hook_common.capture_marker(project, event.get("session_id"))
     if not os.path.exists(marker):
         return 0  # no real-code edit this turn (PostToolUse drops the marker) — stay silent
     try:

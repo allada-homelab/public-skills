@@ -2,8 +2,8 @@
 """PostToolUse marker-dropper — record that real code changed this turn (deterministic, silent).
 
 When a Write/Edit touches a file that is *under the project dir* but *outside the bundle* (i.e. real
-project code/docs, which often encodes a durable decision or convention), drop the
-`.llm-wiki/capture-pending` marker that the **Stop** hook gates on, so the end-of-turn capture check
+project code/docs, which often encodes a durable decision or convention), drop the session-scoped
+`.llm-wiki/capture-pending-<session_id>` marker that the **Stop** hook gates on, so the end-of-turn capture check
 fires only on turns that actually changed real code, not on every turn. This hook emits nothing to
 the transcript — the capture nudge is the Stop hook's job, raised once at the non-disruptive
 end-of-turn moment rather than mid-turn where the model defers it. Stays silent — and writes no
@@ -49,7 +49,9 @@ def main():
     if _hook_common.under(fp_real, os.path.realpath(_hook_common.bundle_root(project))):
         return 0  # the write IS into the bundle — not a trigger
 
-    _mark_capture_pending(_hook_common.capture_marker(project))  # gate signal for the Stop hook: real code changed
+    # gate signal for the Stop hook: real code changed — scoped to this session's id so a
+    # concurrent session/process in the same project can't arm another session's nudge
+    _mark_capture_pending(_hook_common.capture_marker(project, event.get("session_id")))
     return 0
 
 

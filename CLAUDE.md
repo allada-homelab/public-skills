@@ -60,7 +60,7 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   ```bash
   bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh
   ```
-  Expect `pass=34 fail=0`.
+  Expect `pass=38 fail=0`.
 - **Drift gate** (cross-file consistency — run after touching a manifest description, a duplicated
   convention, or the gate counts):
   ```bash
@@ -105,8 +105,10 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   (`secret_guard.py` denies credential writes, `doctor_guard.py` denies non-conformant concept writes —
   scoped to bundle `Write|Edit|MultiEdit`), UserPromptSubmit (`hook_user_prompt.py` — a once-per-session
   *consult* nudge (session-marker-gated): the read loop's forcing function, symmetric to capture),
-  PostToolUse (`hook_post_tool.py` — after a non-bundle code edit it drops the `.llm-wiki/capture-pending`
-  marker the Stop hook gates on and emits nothing itself — the capture prompt is the Stop hook's job),
+  PostToolUse (`hook_post_tool.py` — after a non-bundle code edit it drops the session-scoped
+  `.llm-wiki/capture-pending-<session_id>` marker the Stop hook gates on and emits nothing itself — the
+  capture prompt is the Stop hook's job; session scoping keeps a concurrent session or background
+  process from arming another session's nudge, and SessionStart sweeps stale markers),
   and Stop (`hook_stop.py` — the end-of-turn forcing function: *only on a turn that changed real code*
   (gated by that marker), it blocks the stop once — `stop_hook_active`-guarded — so the model decides
   capture-or-stop at the non-disruptive moment, drafting + dispatching `wiki-capturer`/`wiki-verifier` in

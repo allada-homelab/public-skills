@@ -13,8 +13,12 @@ Callers pass an already-parsed `event` dict / resolved `project` path — event 
 each hook because its error policy genuinely differs between them.
 """
 import os
+import re
 
 BUNDLE_DIRNAME = "llm-wiki"
+
+# session_id lands in a filename — keep only filename-safe chars so a malformed id can't traverse
+_SESSION_ID_UNSAFE = re.compile(r"[^A-Za-z0-9_-]")
 
 
 def project_dir(event):
@@ -34,10 +38,20 @@ def bundle_exists(project):
     return os.path.isfile(os.path.join(bundle_root(project), "index.md"))
 
 
-def capture_marker(project):
+def capture_marker(project, session_id=None):
     """The `capture-pending` marker path — PostToolUse drops it, Stop consumes it. One definition
-    so the producer and consumer cannot drift."""
-    return os.path.join(bundle_root(project), ".llm-wiki", "capture-pending")
+    so the producer and consumer cannot drift.
+
+    Session-scoped (`capture-pending-<session_id>`): the marker is on-disk per *project*, but its
+    meaning is per *session* ("this session's turn changed real code") — an unscoped name lets any
+    concurrent Claude process in the project (a headless background job, a parallel session) arm
+    another session's Stop nudge, and lets a killed session's stale marker fire on the next
+    session's first stop. Falls back to the legacy unsuffixed name when the event carries no
+    `session_id` (older CLIs) — producer and consumer then still pair on the same path."""
+    name = "capture-pending"
+    if session_id:
+        name += "-" + _SESSION_ID_UNSAFE.sub("_", str(session_id))
+    return os.path.join(bundle_root(project), ".llm-wiki", name)
 
 
 def under(path_abs, root_abs):

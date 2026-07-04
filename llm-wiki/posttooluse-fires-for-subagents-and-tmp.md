@@ -7,7 +7,7 @@ tags:
   - hooks
   - autonomy
   - subagents
-timestamp: 2026-07-02
+timestamp: 2026-07-04
 ---
 
 # PostToolUse fires for subagent tool calls and /tmp writes — broad markers self-arm
@@ -37,5 +37,6 @@ machinery will trip it.
 ## Verify
 
 - `plugins/llm-wiki/scripts/hook_post_tool.py` — the marker-drop path requires the written file to be
-  under the project dir (not merely outside the bundle) before creating `capture-pending`.
-</content>
+  under the project dir (not merely outside the bundle) before creating the session-scoped
+  `capture-pending-<session_id>` marker (`_hook_common.capture_marker`; falls back to the unsuffixed
+  `capture-pending` name only when the event carries no `session_id`).

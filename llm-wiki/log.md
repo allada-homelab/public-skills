@@ -1,5 +1,14 @@
 # Directory Update Log
 
+## 2026-07-04
+
+* **Update**: Updated [Capture marker is session-scoped](./capture-marker-is-project-scoped.md) — added the empirically verified fact that subagent tool calls carry the parent session's session_id, closing the design's one open assumption.
+* **Update**: Auto-refined [PostToolUse fires for subagent tool calls and /tmp writes — broad markers self-arm](./posttooluse-fires-for-subagents-and-tmp.md) after verification.
+* **Creation**: Captured [Hook fixtures can't test age-based behavior](./hook-fixture-cp-resets-mtimes.md) — the harness's plain `cp -r` resets bundle mtimes, discovered while adding the stale-marker sweep fixtures.
+* **Update**: Auto-refined [Post-compaction re-injection is a SessionStart-on-compact job, not PreCompact](./post-compaction-reinjection.md) after verification.
+* **Update**: Updated [Capture marker is session-scoped](./capture-marker-is-project-scoped.md) — the project-scoped-marker gotcha was fixed by embedding the session_id in the marker filename (2026-07-04); concept now documents the fixed design and the remaining by-design deferral.
+* **Creation**: Captured [Capture marker is project-scoped, not session-scoped](./capture-marker-is-project-scoped.md) — why the Stop nudge can fire on a pure-chat turn and why "Stop hook error" is not a crash.
+
 ## 2026-07-02
 
 * **Update**: Refined [OKF Doctor — strict-producer rule set](./doctor-rule-set.md).

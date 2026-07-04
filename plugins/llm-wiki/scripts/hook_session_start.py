@@ -16,8 +16,13 @@ import json
 import os
 import re
 import sys
+import time
 
 import _hook_common
+
+# a stale session-scoped marker is pure litter (hook_stop only consumes its own session's);
+# a day is comfortably past any live session while still bounding the accumulation
+_MARKER_MAX_AGE_S = 86400
 
 # A root-index concept bullet: `* [Title](./path.md) — description`. The captured group keeps the
 # bullet through the link's closing `)`, so the titles-only cap can drop the ` — description` tail.
@@ -72,6 +77,31 @@ def _titles_only(index):
     return "\n".join(out), n
 
 
+def _sweep_stale_markers(project):
+    """Hygiene for `capture-pending*` markers left by dead sessions: a session-scoped marker is
+    never consumed by any other session (hook_stop reads only its own), and a legacy unsuffixed
+    one can linger from a killed pre-session-scoping session — either would otherwise sit forever
+    (legacy: until it fires a phantom nudge on an old CLI that pairs on the unsuffixed name).
+    Legacy goes immediately; session-scoped only past _MARKER_MAX_AGE_S, so a *concurrent* live
+    session's armed marker survives another session starting up. Best-effort: bookkeeping never
+    breaks a SessionStart."""
+    marker_dir = os.path.dirname(_hook_common.capture_marker(project))
+    try:
+        names = os.listdir(marker_dir)
+    except OSError:
+        return
+    now = time.time()
+    for name in names:
+        if not name.startswith("capture-pending"):
+            continue
+        path = os.path.join(marker_dir, name)
+        try:
+            if name == "capture-pending" or now - os.path.getmtime(path) > _MARKER_MAX_AGE_S:
+                os.remove(path)
+        except OSError:
+            pass
+
+
 def _event():
     try:
         event = json.loads(sys.stdin.read() or "{}")
@@ -100,6 +130,11 @@ def main():
                 ),
             }}, sys.stdout)
         return 0  # no bundle — otherwise contribute nothing
+
+    if event.get("source") != "compact":
+        # not on compact: that's mid-session, and on a no-session_id CLI the sweep would eat the
+        # session's own in-flight legacy marker
+        _sweep_stale_markers(project_dir)
 
     count, tags = _bundle_summary(_hook_common.bundle_root(project_dir))
     summary = "**%d concept%s**%s" % (
