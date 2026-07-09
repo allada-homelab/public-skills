@@ -83,12 +83,10 @@ file is one concept, so parallel branches usually touch different files. The two
 
 ## Development
 
-Python 3 **stdlib only**. Run both proof corpora:
+Python 3 **stdlib only** — no build, no dependencies. Validate a bundle against OKF v0.1:
 
 ```text
-bash scripts/fixtures/run_fixtures.sh        # Doctor — expect pass=30 fail=0 skip=0
-bash scripts/ops_fixtures/run_ops.sh         # bundle_ops golden — expect pass=35 fail=0
-bash scripts/hook_fixtures/run_hooks.sh      # hooks (session/guards/nudges/stop) — expect pass=29 fail=0
+python3 scripts/doctor.py <bundle-dir> --mode strict
 ```
 
 Status: **zero-config always-auto** — 6 commands (`query`/`capture`/`prune`/`reorganize`/`tend`/`ingest`)

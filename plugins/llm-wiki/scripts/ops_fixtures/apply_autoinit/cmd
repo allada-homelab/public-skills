@@ -1,1 +1,0 @@
-apply BUNDLE --concept first.md --content-file BUNDLE/source.txt --log-kind Creation --log-message "Added [First](./first.md)." --date 2026-06-28

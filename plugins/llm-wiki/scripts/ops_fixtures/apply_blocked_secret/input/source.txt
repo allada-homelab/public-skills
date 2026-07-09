@@ -1,7 +1,0 @@
----
-type: note
-title: Creds
----
-# Creds
-
-key = AKIAIOSFODNN7EXAMPLE

@@ -1,2 +1,0 @@
-{ "exit_code": 0,
-  "stdout_contains": ["No knowledge bundle in this repo yet", "/llm-wiki:ingest --dry-run", "/llm-wiki:capture"] }

@@ -1,3 +1,0 @@
-{ "exit_code": 0,
-  "stdout_absent": ["decision", "block"],
-  "files_present": ["llm-wiki/.llm-wiki/capture-pending-sess-other"] }

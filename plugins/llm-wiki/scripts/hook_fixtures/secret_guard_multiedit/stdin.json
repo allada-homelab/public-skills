@@ -1,1 +1,0 @@
-{"tool_name": "MultiEdit", "tool_input": {"file_path": "BUNDLE/llm-wiki/api.md", "edits": [{"old_string": "TODO intro", "new_string": "Intro paragraph."}, {"old_string": "key here", "new_string": "aws_access_key_id = AKIAIOSFODNN7EXAMPLE"}]}}

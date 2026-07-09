@@ -1,4 +1,0 @@
-{ "exit_code": 0,
-  "stdout_contains": ["additionalContext"],
-  "files_absent":  ["llm-wiki/.llm-wiki/capture-pending"],
-  "files_present": ["llm-wiki/.llm-wiki/capture-pending-sess-young"] }

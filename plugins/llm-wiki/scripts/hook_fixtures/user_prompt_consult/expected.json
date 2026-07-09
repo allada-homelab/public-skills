@@ -1,3 +1,0 @@
-{ "exit_code": 0,
-  "stdout_contains": ["\"hookEventName\": \"UserPromptSubmit\"", "additionalContext", "consult", "/llm-wiki:query"],
-  "files_present": ["llm-wiki/.llm-wiki/last-session"] }

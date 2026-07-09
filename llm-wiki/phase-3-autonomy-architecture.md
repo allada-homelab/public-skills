@@ -49,7 +49,6 @@ case is a denied/aborted write, never a leaked secret or a non-conformant bundle
 
 ## Verify
 - plugins/llm-wiki/hooks/hooks.json — five wired events: SessionStart, PreToolUse, UserPromptSubmit, PostToolUse, Stop
-- run: `bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh | grep '^pass='` — expected: `fail=0` (the gate is green; the exact pass count grows with the corpus — see [Verify anchors should not assert exact fixture counts](./verify-anchors-avoid-exact-counts.md))
 
 ## Related
 - See [OKF Doctor — strict-producer rule set](./doctor-rule-set.md) — the rules `doctor_guard` enforces at write time.

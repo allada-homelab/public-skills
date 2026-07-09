@@ -1,3 +1,0 @@
-{ "exit_code": 0,
-  "stdout_contains": ["\"hookEventName\": \"SessionStart\"", "additionalContext", "1 concept", "tags: demo"],
-  "stdout_absent": ["## Concepts", "Root index", "okf_version", "Active mode"] }

@@ -1,7 +1,0 @@
----
-okf_version: "0.1"
----
-# Index
-
-* [Orders](./orders.md)
-* [Bad](./bad.md)

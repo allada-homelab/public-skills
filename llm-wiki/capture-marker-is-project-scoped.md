@@ -24,4 +24,3 @@ Facts for diagnosing "the llm-wiki Stop hook errored on a turn where nothing cha
 
 - `plugins/llm-wiki/scripts/_hook_common.py` — `capture_marker()` appends `-<sanitized session_id>` when given one; the unsuffixed name is only the no-session_id fallback.
 - `plugins/llm-wiki/scripts/hook_stop.py` — the marker path is built with the event's `session_id`, and the `stop_hook_active` early-return precedes the marker check.
-- `bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh` → `fail=0`, and the corpus contains `stop_foreign_marker_silent` and `session_start_sweeps_stale_markers`.

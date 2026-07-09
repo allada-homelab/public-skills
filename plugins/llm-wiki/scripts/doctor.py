@@ -39,8 +39,7 @@ DATE_CANDIDATE_RE = re.compile(r"^\d{4}-\d{1,2}-\d{1,2}\b")
 LOG_PREFIXES = ("**Update**", "**Creation**", "**Initialization**")
 # R5: the canonical concept-type vocabulary (matched case-insensitively). Lowercase single
 # tokens (hyphens ok) are the house style; `bigquery table` is the one compound kept because it
-# is OKF's own reference example type and is entrenched in the fixture corpus. Widening the set
-# beats warning on (and thus rewriting) the frozen example fixtures.
+# is OKF's own reference example type.
 CANONICAL_TYPES = frozenset({
     "concept", "decision", "gotcha", "convention", "runbook", "architecture", "howto",
     "reference", "schema", "metric", "api", "dataset", "table", "evaluation", "note",

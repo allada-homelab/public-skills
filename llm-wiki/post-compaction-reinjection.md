@@ -35,7 +35,6 @@ survival-guaranteed channel for landing text in the freshly-compacted window. `P
 ## Verify
 - plugins/llm-wiki/hooks/hooks.json — SessionStart block has no `matcher` (match-all → fires on `compact`)
 - plugins/llm-wiki/scripts/hook_session_start.py:148-151 — the `source == "compact"` branch
-- plugins/llm-wiki/scripts/hook_fixtures/session_start_compact/ — unit-tests the compact payload
 
 ## Related
 - See [Phase 3 autonomy — hook-driven, auto-default with a guard floor](./phase-3-autonomy-architecture.md) — the six wired hook events this refines.

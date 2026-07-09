@@ -1,10 +1,14 @@
 # Directory Update Log
 
+## 2026-07-09
+
+* **Update**: Removed the llm-wiki test-fixture corpora (Doctor/bundle_ops/hook fixtures) and pruned the three now-obsolete fixture-harness concepts.
+
 ## 2026-07-04
 
 * **Update**: Updated [Capture marker is session-scoped](./capture-marker-is-project-scoped.md) — added the empirically verified fact that subagent tool calls carry the parent session's session_id, closing the design's one open assumption.
 * **Update**: Auto-refined [PostToolUse fires for subagent tool calls and /tmp writes — broad markers self-arm](./posttooluse-fires-for-subagents-and-tmp.md) after verification.
-* **Creation**: Captured [Hook fixtures can't test age-based behavior](./hook-fixture-cp-resets-mtimes.md) — the harness's plain `cp -r` resets bundle mtimes, discovered while adding the stale-marker sweep fixtures.
+* **Creation**: Captured Hook fixtures can't test age-based behavior — the harness's plain `cp -r` resets bundle mtimes, discovered while adding the stale-marker sweep fixtures.
 * **Update**: Auto-refined [Post-compaction re-injection is a SessionStart-on-compact job, not PreCompact](./post-compaction-reinjection.md) after verification.
 * **Update**: Updated [Capture marker is session-scoped](./capture-marker-is-project-scoped.md) — the project-scoped-marker gotcha was fixed by embedding the session_id in the marker filename (2026-07-04); concept now documents the fixed design and the remaining by-design deferral.
 * **Creation**: Captured [Capture marker is project-scoped, not session-scoped](./capture-marker-is-project-scoped.md) — why the Stop nudge can fire on a pure-chat turn and why "Stop hook error" is not a crash.
@@ -17,11 +21,11 @@
 * **Update**: Refined [Plugin versioning — unpinned for git-SHA auto-update](./plugin-versioning.md).
 * **Update**: Refined [llm-wiki autonomy — zero-config always-auto with a guard floor](./phase-3-autonomy-architecture.md).
 * **Update**: Refined [llm-wiki autonomy — zero-config always-auto with a guard floor](./phase-3-autonomy-architecture.md).
-* **Creation**: Added [Verify anchors should not assert exact fixture counts](./verify-anchors-avoid-exact-counts.md).
+* **Creation**: Added Verify anchors should not assert exact fixture counts.
 * **Update**: Auto-refined [llm-wiki autonomy — zero-config always-auto with a guard floor](./phase-3-autonomy-architecture.md) after verification.
 * **Creation**: Added [PostToolUse fires for subagent tool calls and /tmp writes — broad markers self-arm](./posttooluse-fires-for-subagents-and-tmp.md).
 * **Update**: Auto-refined [llm-wiki autonomy — zero-config always-auto with a guard floor](./phase-3-autonomy-architecture.md) after verification.
-* **Creation**: Added [ops fixture expect_err must not start with a dash](./ops-fixture-expect-err-grep-flag-gotcha.md).
+* **Creation**: Added ops fixture expect_err must not start with a dash.
 * **Creation**: Added [apply commits by re-building on live, not copying the mirror](./apply-rebuilds-live-not-cp.md).
 * **Creation**: Add gotcha: plugins can't declare host-tool dependencies in manifest — use fail-loud runtime precondition instead
 * **Creation**: Capture gotcha: toggleable plugin hooks ship as disabled .example.json, not commented-out hooks.json entries

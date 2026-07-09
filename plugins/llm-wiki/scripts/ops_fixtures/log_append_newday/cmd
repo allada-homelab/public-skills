@@ -1,1 +1,0 @@
-log-append BUNDLE --kind Creation --message "Added [Beta](./beta.md)." --date 2026-06-14

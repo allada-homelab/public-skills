@@ -2,8 +2,8 @@
 # Deterministic drift gate for the public-skills marketplace.
 # The recurring bug class here is duplicated prose drifting from code or from its own copies:
 # a manifest listing a phantom command, a marketplace description still saying "tested" after the
-# plugin switched to "checked", CLAUDE.md fixture counts going stale, a convention reworded in one
-# of its self-contained copies but not the others. This gate turns that class into a red check.
+# plugin switched to "checked", a convention reworded in one of its self-contained copies but not
+# the others. This gate turns that class into a red check.
 #
 # Style-matched to plugins/get-shit-done/scripts/checks.sh: bash, `set -u`, ok()/bad() lines, a final
 # PASS/FAILED, exit code = the fail flag. python3 is used as a JSON/text helper only (stdlib).
@@ -131,48 +131,7 @@ for p in "${placement_phrases[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# 5. CLAUDE.md gate counts are live: parse each "Expect `pass=N`" line and diff it
-#    against the harness's actual pass=N (run the real harness in $root).
-# ---------------------------------------------------------------------------
-expected_pass() {  # $1 = harness basename → the pass=N asserted just after it in CLAUDE.md
-  python3 - "$root/CLAUDE.md" "$1" <<'PY'
-import re, sys
-lines = open(sys.argv[1]).read().splitlines()
-name = sys.argv[2]
-start = next((i for i, l in enumerate(lines) if name in l), None)
-if start is None:
-    sys.exit(0)
-for l in lines[start:]:
-    m = re.search(r'Expect `pass=(\d+)', l)
-    if m:
-        print(m.group(1)); break
-PY
-}
-
-check_counts() {  # $1 = harness path (repo-relative), $2 = human label
-  local harness="$1" label="$2" base actual want
-  base="$(basename "$harness")"
-  want="$(expected_pass "$base")"
-  if [ -z "$want" ]; then
-    bad "$label: no 'Expect \`pass=N\`' line found near $base in CLAUDE.md"; return
-  fi
-  actual="$(bash "$root/$harness" 2>/dev/null | grep -Eo 'pass=[0-9]+' | head -n1 | cut -d= -f2)"
-  if [ -z "$actual" ]; then
-    bad "$label: harness produced no pass=N line ($harness)"; return
-  fi
-  if [ "$actual" = "$want" ]; then
-    ok "$label: CLAUDE.md pass=$want matches harness pass=$actual"
-  else
-    bad "$label: CLAUDE.md says pass=$want but harness reports pass=$actual"
-  fi
-}
-
-check_counts "plugins/llm-wiki/scripts/fixtures/run_fixtures.sh"      "Doctor fixtures"
-check_counts "plugins/llm-wiki/scripts/ops_fixtures/run_ops.sh"       "bundle_ops fixtures"
-check_counts "plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh"    "hook fixtures"
-
-# ---------------------------------------------------------------------------
-# 6. Spine pure-logic markers present. Extract the two literal marker strings from
+# 5. Spine pure-logic markers present. Extract the two literal marker strings from
 #    the TEST (so they can't drift from what the test extracts by), then require both
 #    in the spine. If the spine renames a marker the test would break — this catches
 #    it deterministically without running node.

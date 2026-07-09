@@ -49,4 +49,3 @@ never block a write.
 
 ## Verify
 - plugins/llm-wiki/scripts/doctor.py — contains R1/R2/R3/R4/R5 check implementations
-- run: `bash plugins/llm-wiki/scripts/fixtures/run_fixtures.sh | grep -E "pass=|fail="` — expected: `fail=0` (the corpus is green; the exact pass count grows with the corpus — see [Verify anchors should not assert exact fixture counts](./verify-anchors-avoid-exact-counts.md))

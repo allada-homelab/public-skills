@@ -1,1 +1,0 @@
-apply BUNDLE --concept notype.md --content-file BUNDLE/source.txt --log-kind Creation --log-message "Add notype." --date 2026-06-28

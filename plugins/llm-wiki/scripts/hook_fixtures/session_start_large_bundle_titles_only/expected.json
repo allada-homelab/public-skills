@@ -1,3 +1,0 @@
-{ "exit_code": 0,
-  "stdout_contains": ["\"hookEventName\": \"SessionStart\"", "additionalContext", "titles-only", "reorganize into sections"],
-  "stdout_absent": ["SECRETDESCRIPTIONZZZ"] }

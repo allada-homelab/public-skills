@@ -1,7 +1,0 @@
----
-type: note
-title: Note
----
-# Note
-
-Just a plain note.

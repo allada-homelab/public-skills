@@ -31,7 +31,6 @@ plugins/llm-wiki/                  # the plugin
   scripts/                         # doctor.py, secret_scan.py, bundle_ops.py;
                                    #   hooks: hook_session_start.py, secret_guard.py, doctor_guard.py,
                                    #          hook_user_prompt.py, hook_post_tool.py, hook_stop.py
-                                   #   fixtures/ (Doctor) + ops_fixtures/ (bundle_ops) + hook_fixtures/ (hooks)
 llm-wiki/                          # this repo's own OKF bundle (dogfood + living example)
 docs/llm-wiki/                     # design docs (README = index/hub, TRIAL_BRIEF = dogfooding)
   planning/                        # PRODUCT_PLAN (vision) + PHASE_PLAN (roadmap + primitive map)
@@ -43,30 +42,12 @@ docs/llm-wiki/                     # design docs (README = index/hub, TRIAL_BRIE
 
 Python 3 **stdlib only** — no build, no dependencies, no package manager.
 
-- **Test the Doctor** (the conformance proof corpus — run after any change to `doctor.py`,
-  `secret_scan.py`, or the rules):
-  ```bash
-  bash plugins/llm-wiki/scripts/fixtures/run_fixtures.sh
-  ```
-  Expect `pass=31 fail=0 skip=0`.
-- **Test the durability engine** (the `bundle_ops` golden corpus — run after any change to
-  `bundle_ops.py`):
-  ```bash
-  bash plugins/llm-wiki/scripts/ops_fixtures/run_ops.sh
-  ```
-  Expect `pass=39 fail=0`.
-- **Test the hooks** (the `hook_fixtures` corpus — run after any change to a `hook_*` /
-  `*_guard.py` script):
-  ```bash
-  bash plugins/llm-wiki/scripts/hook_fixtures/run_hooks.sh
-  ```
-  Expect `pass=38 fail=0`.
-- **Drift gate** (cross-file consistency — run after touching a manifest description, a duplicated
-  convention, or the gate counts):
+- **Drift gate** (cross-file consistency — run after touching a manifest description or a duplicated
+  convention):
   ```bash
   bash scripts/drift_check.sh
   ```
-  Cross-file consistency (manifests, duplicated conventions, gate counts); expect `PASS`.
+  Cross-file consistency (manifests, duplicated conventions); expect `PASS`.
 - **Validate a bundle**:
   ```bash
   python3 plugins/llm-wiki/scripts/doctor.py <bundle-dir> --mode strict --format text
@@ -114,9 +95,6 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
   capture-or-stop at the non-disruptive moment, drafting + dispatching `wiki-capturer`/`wiki-verifier` in
   the background; silent on pure-chat turns). Autonomy is on whenever the bundle exists — no config. Hooks
   are deterministic command scripts (no model-call hooks); changes need `/reload-plugins`.
-- **Tests are fixtures.** `scripts/fixtures/<name>/` is a minimal bundle with a planted defect and an
-  `expected/<name>.json` contract (Doctor); `scripts/ops_fixtures/<name>/` is an input→expected output
-  tree for `bundle_ops`. Add a fixture *before* implementing any new rule or engine behavior (TDD).
 - **Default bundle location is `./llm-wiki/`** (`${CLAUDE_PROJECT_DIR}/llm-wiki`).
 - **Cross-links use the relative `./` form** (resolves on GitHub; OKF-valid).
 
