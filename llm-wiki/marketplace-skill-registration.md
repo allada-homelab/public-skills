@@ -8,7 +8,7 @@ tags:
   - marketplace
   - skills
 timestamp: 2026-06-25T00:00:00Z
-verified: 2026-06-26T21:36:34Z
+verified: 2026-07-17T00:00:00Z
 ---
 # Registering a skill in the public-skills marketplace
 
@@ -18,8 +18,9 @@ skills directly**. A skill ships *inside* a plugin at `skills/<skill-name>/SKILL
 
 ## Steps to add a standalone skill
 
-1. Create `plugins/<plugin-name>/.claude-plugin/plugin.json` — omit the `version` field
-   (matching the git-SHA auto-update convention; see related).
+1. Create `plugins/<plugin-name>/.claude-plugin/plugin.json` — set an explicit `version`
+   and bump it on every user-visible change (see related; the earlier omit-for-SHA-updates
+   convention was reversed 2026-07-17).
 2. Place the skill at `plugins/<plugin-name>/skills/<skill-name>/SKILL.md` (plus any
    `references/`).
 3. Add an entry to the `plugins` array in `.claude-plugin/marketplace.json`:
@@ -38,4 +39,4 @@ the family, not the single skill. Example (verified 2026-06-25): the plugin
 - run: `python3 -c "import json;print('plugins' in json.load(open('.claude-plugin/marketplace.json')))"` — expected: `True`
 
 ## Related
-- [Plugin versioning — unpinned for git-SHA auto-update](./plugin-versioning.md) — why the new plugin.json omits `version`.
+- [Plugin versioning — pinned; every user-visible change requires a version bump](./plugin-versioning.md) — why `version` is pinned and must be bumped per change.
