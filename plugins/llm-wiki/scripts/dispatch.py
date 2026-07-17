@@ -1,5 +1,6 @@
 """Select the controller job that authorizes a protected Agent or Skill dispatch."""
 
+import os
 import re
 
 
@@ -43,6 +44,35 @@ def target_name(event):
     return value.rsplit(":", 1)[-1] if isinstance(value, str) else None
 
 
+def _startable_fallback(controller, feature):
+    """The unique startable (pending, unexpired, this-run) job of `feature` in the session store.
+
+    The id-scan below is brittle in real use — the orchestrator may drop the envelope, rewrap a
+    request path, or quote an older cycle's job id alongside the current one — and every one of
+    those shapes used to dead-end in an opaque deny. Falling back to the store grants no new
+    authority: the job was still controller-issued, feature-matched, budget-reserved, and
+    session-scoped; this only resolves it by feature instead of requiring its id in the text.
+    Ambiguity (two startable jobs of one feature) still returns None — never guess."""
+    try:
+        names = os.listdir(controller.jobs_dir)
+    except OSError:
+        return None
+    live = []
+    for name in names:
+        if not name.endswith(".json"):
+            continue
+        packet = controller.get(name[:-len(".json")])
+        if (
+            packet is not None
+            and packet.get("run_id") == controller.run_id
+            and packet.get("payload", {}).get("feature") == feature
+            and packet["payload"].get("state") == "pending"
+            and packet["payload"].get("deadline", 0) >= controller.now()
+        ):
+            live.append(packet)
+    return live[0] if len(live) == 1 else None
+
+
 def select_job(controller, event):
     """Pick the unique job matching the dispatch target, ignoring nested pre-issued child records."""
     feature = _TARGET_FEATURE.get(target_name(event))
@@ -62,4 +92,6 @@ def select_job(controller, event):
             and packet.get("payload", {}).get("feature") == feature
         ):
             matches.append(packet)
-    return matches[0] if len(matches) == 1 else None
+    if len(matches) == 1:
+        return matches[0]
+    return _startable_fallback(controller, feature)

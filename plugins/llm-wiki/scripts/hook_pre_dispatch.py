@@ -40,7 +40,14 @@ def main():
     controller = JobController(_hook_common.project_dir(event), event.get("session_id"))
     packet = select_job(controller, event)
     if packet is None:
-        _deny("llm-wiki controller requires one target-matching issued job for this dispatch.")
+        if event.get("tool_name") == "Skill":
+            _deny("llm-wiki controller has no startable recall job for this dispatch — recall "
+                  "runs from a prompt-issued candidate envelope. For ad-hoc wiki consultation "
+                  "use the read-only /llm-wiki:query instead; do not retry this dispatch.")
+        else:
+            _deny("llm-wiki controller has no startable issued job for `%s` — the request "
+                  "expired or was already consumed. Skip this dispatch (do not retry) and "
+                  "surface `wiki stale-result` if a breadcrumb was expected." % target)
         return 0
     state = packet["payload"]["state"]
     if state == "pending" and controller.start(packet["packet_id"]):
@@ -52,7 +59,9 @@ def main():
         and packet["payload"]["feature"] == "recall"
     ):
         return 0  # the enclosing forked Skill started this one internal route resolution
-    _deny("llm-wiki controller rejected a job that is not startable.")
+    _deny("llm-wiki controller rejected job `%s` (state: %s) — it is not startable (expired, "
+          "blocked, or already dispatched). Skip this dispatch; do not retry."
+          % (packet["packet_id"], state))
     return 0
 
 
