@@ -28,6 +28,25 @@ def _marker_count(marker):
         return 1
 
 
+def _write_request(project, session_id, job, request):
+    """Persist the code-owned request packet to session state and return its path, or None on
+    failure. The Stop reason then carries only this path — inlining the full JSON dumped kilobytes
+    of packet into the transcript on every blocked stop (visually noisy and token-costly). The
+    dispatched agent Reads the packet itself, exactly as it already does for
+    `evidence_packet_path`; on a failed write the caller falls back to the inline form so the
+    dispatch is never lost."""
+    try:
+        directory = os.path.join(
+            _hook_common.session_state_dir(project, session_id), "requests")
+        os.makedirs(directory, exist_ok=True)
+        path = os.path.join(directory, "%s.json" % public_job_record(job)["packet_id"])
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(request, fh, sort_keys=True, separators=(",", ":"))
+        return path
+    except (OSError, KeyError, TypeError, ValueError):
+        return None
+
+
 def _prepare_impact(project, event, evidence, evidence_path, settings):
     if (
         not evidence["payload"]["changed_paths"]
@@ -56,6 +75,14 @@ def _prepare_impact(project, event, evidence, evidence_path, settings):
         "matches": matches,
         "matched_concepts": sorted(set(item["concept"] for item in matches)),
     }
+    path = _write_request(project, event.get("session_id"), job, request)
+    if path is not None:
+        return (
+            "Dispatch `llm-wiki:wiki-sentinel` in the background with the code-owned impact request "
+            "at `%s` — pass that path verbatim; the agent Reads the packet itself, so do not inline "
+            "or restate it. Do not wait. Surface only a returned high-confidence direct anchor as "
+            "`IMPACT: <concept> — <changed path>`; shadow findings stay silent." % path
+        )
     return (
         "Dispatch `llm-wiki:wiki-sentinel` in the background. Do not wait. Surface only a returned "
         "high-confidence direct anchor as `IMPACT: <concept> — <changed path>`; shadow findings stay silent.\n"
@@ -105,6 +132,15 @@ def _prepare_scribe(project, event, evidence, evidence_path, settings):
         "expected_head": evidence["payload"]["current_head"],
         "source_hashes": source_hashes,
     }
+    path = _write_request(project, event.get("session_id"), job, request)
+    if path is not None:
+        return (
+            "Dispatch `llm-wiki:wiki-capturer` (Wiki Scribe) in the background with the code-owned "
+            "scribe request at `%s` — pass that path verbatim plus only a terse task summary and "
+            "observed outcome from this turn; the agent Reads the packet itself. Do not draft the "
+            "concept yourself and do not wait. Later surface exactly one breadcrumb: `wiki +1`, "
+            "`wiki ~`, `wiki skipped`, `wiki stale-result`, or `wiki blocked`." % path
+        )
     return (
         "Dispatch `llm-wiki:wiki-capturer` (Wiki Scribe) in the background. Add only a terse task "
         "summary and observed outcome from this turn to the code-owned request; do not draft the concept "
