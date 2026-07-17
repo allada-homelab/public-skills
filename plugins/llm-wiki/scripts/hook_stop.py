@@ -1,84 +1,148 @@
 #!/usr/bin/env python3
-"""Stop hook — the end-of-turn capture forcing function (reliable auto-capture trigger).
+"""Stop hook: finalize evidence, then schedule bounded Sentinel and Scribe jobs once per change batch."""
 
-The UserPromptSubmit / PostToolUse nudges fire *mid-turn*, where the model tends to defer
-capture in favour of the in-flight task, so durable findings slip by uncaptured. This hook
-fires when the turn is *finishing* — the non-disruptive moment to capture — and blocks the stop
-once to make the model actually decide: draft a durable finding and dispatch the background
-`wiki-capturer` subagent to persist it (plus `wiki-verifier` for any anchor it touched), or
-explicitly stop. The mechanical write lives in the subagents; the main loop never blocks on them.
-
-Mechanism (Claude Code Stop-hook contract): emit `{"decision": "block", "reason": ...}` at exit
-0 to continue the turn with the reason injected; emit nothing to allow the stop. (The doc names
-`decision: "block"` + `reason` as the canonical Stop blocking channel, so we emit only that — no
-redundant `hookSpecificOutput.additionalContext` carrying the same text.) Gated by the
-session-scoped `.llm-wiki/capture-pending-<session_id>` marker that the PostToolUse hook drops on a
-real-code edit: with no marker for *this* session (a pure-chat turn that changed nothing) this hook
-stays silent, so it does not force a continuation on every turn — and a marker armed by a
-concurrent session or background process in the same project is not ours to consume. Also silent
-when no bundle exists. Reads `$CLAUDE_PROJECT_DIR` (falls back to the event JSON's `cwd`).
-
-The model is the judge: a deterministic hook cannot know whether a durable finding occurred,
-so the reason text gives a clean "nothing durable → just stop" out.
-
-Loop guard: the load-bearing guard is *marker consumption* — this hook removes the
-`capture-pending` marker before emitting `block`, so the forced re-fire finds no marker and
-allows the stop (one nudge per change-batch, regardless of whether `stop_hook_active` is
-delivered). `stop_hook_active` is a secondary fast-path: when present and true on the re-fire we
-exit 0 immediately, but it may not always be delivered (Claude Code issue #54360 tracked a past
-propagation bug), which is exactly why the marker — not `stop_hook_active` — is what makes the
-guard robust. The worst case if both regressed is a repeated end-of-turn nudge — never an unsafe
-or non-conformant write, since every capture still passes the PreToolUse secret/Doctor guard floor.
-"""
 import json
 import os
 import sys
 
 import _hook_common
-
-NUDGE = (
-    "[llm-wiki] Before finishing this turn, run the wiki's end-of-turn loop (fire-and-forget — do not "
-    "block on the subagents): "
-    "(1) If this turn established a durable, reusable finding (a decision; a gotcha — e.g. a silent "
-    "footgun, a surprising root cause, or a failure->fix where one approach failed and another worked; "
-    "a convention, schema, or how something works), DRAFT it now per the wiki skill and dispatch the "
-    "`wiki-capturer` subagent in the BACKGROUND to persist it through the gated apply engine. The "
-    "capturer inherits nothing from this conversation, so hand it everything it needs: the "
-    "bundle-relative concept path, the full drafted body (frontmatter included), the log kind "
-    "(`Creation` for a new concept, `Update` for an edit) and a linked log message, and the bundle "
-    "root. Do not write the concept to the bundle inline. After dispatching the capturer, do not "
-    "summarize the concept — at most one breadcrumb line in your next user-visible message: "
-    "`wiki +1: <title>` for a new concept, `wiki ~: <title>` for an update. If the capturer reports a "
-    "blocked apply, ALWAYS surface it as `wiki blocked (<doctor|secret>): <path>` — a silently-blocked "
-    "capture is the failure mode this exists to prevent. "
-    "(2) Find wiki concepts that verify a file you touched: grep the bundle's `## Verify` blocks for the "
-    "files you changed this turn (e.g. `grep -A3 '## Verify' <bundle>/*.md`); for each concept that names "
-    "a changed file, dispatch the `wiki-verifier` subagent in the background with the concept path and "
-    "bundle root. "
-    "(3) If nothing durable changed this turn, just stop — do not invent a finding."
-)
+from catalog import load_catalog, rank_candidates
+from evidence_ledger import EvidenceLedger
+from impact import build_reverse_map, match_impacts
+from job_state import JobController, public_job_record
+from trust_boundary import delimit
 
 
-def main():
+def _consume(marker):
     try:
-        event = json.loads(sys.stdin.read() or "{}")
-    except ValueError:
-        event = {}
-    if event.get("stop_hook_active"):
-        return 0  # already nudged once this turn — allow the stop (loop guard)
-    project = _hook_common.project_dir(event)
-    if not _hook_common.bundle_exists(project):
-        return 0  # no bundle here — contribute nothing
-
-    marker = _hook_common.capture_marker(project, event.get("session_id"))
-    if not os.path.exists(marker):
-        return 0  # no real-code edit this turn (PostToolUse drops the marker) — stay silent
-    try:
-        os.remove(marker)  # consume it — nudge at most once per change-batch
+        os.remove(marker)
     except OSError:
         pass
 
-    json.dump({"decision": "block", "reason": NUDGE}, sys.stdout)
+
+def _marker_count(marker):
+    try:
+        with open(marker, encoding="utf-8") as handle:
+            return int(handle.read().strip())
+    except (OSError, ValueError):
+        return 1
+
+
+def _prepare_impact(project, event, evidence, evidence_path, settings):
+    if (
+        not evidence["payload"]["changed_paths"]
+        or settings["autonomy"] == "off"
+        or "impact" in settings["autonomy_disabled"]
+    ):
+        return None
+    bundle = _hook_common.bundle_root(project)
+    matches = match_impacts(build_reverse_map(bundle), evidence["payload"]["changed_paths"])
+    if not matches:
+        return None
+    controller = JobController(project, event.get("session_id"))
+    job, _duplicate = controller.propose(
+        feature="impact",
+        origin="hook:stop",
+        idempotency_key="impact:" + evidence["payload"]["revision"],
+        budgets={"calls": 1, "turns": 8, "seconds": 60, "descendants": 0},
+        role="worker",
+    )
+    if job["payload"]["state"] not in ("pending", "running"):
+        return None
+    request = {
+        "job": public_job_record(job),
+        "evidence_packet_path": evidence_path,
+        "bundle_root": bundle,
+        "matches": matches,
+        "matched_concepts": sorted(set(item["concept"] for item in matches)),
+    }
+    return (
+        "Dispatch `llm-wiki:wiki-sentinel` in the background. Do not wait. Surface only a returned "
+        "high-confidence direct anchor as `IMPACT: <concept> — <changed path>`; shadow findings stay silent.\n"
+        + delimit("impact_request", json.dumps(request, sort_keys=True, separators=(",", ":")))
+    )
+
+
+def _prepare_scribe(project, event, evidence, evidence_path, settings):
+    changed = evidence["payload"]["changed_paths"]
+    if (
+        not changed
+        or settings["autonomy"] == "off"
+        or "scribe" in settings["autonomy_disabled"]
+        or settings["capture_nudge"] == "off"
+    ):
+        return None
+    source_hashes = {
+        item["path"]: item["after_sha256"]
+        for item in changed
+        if isinstance(item.get("after_sha256"), str) and item["after_sha256"].startswith("sha256:")
+    }
+    if not source_hashes:
+        return None
+    controller = JobController(project, event.get("session_id"))
+    job, _duplicate = controller.propose(
+        feature="scribe",
+        origin="hook:stop",
+        idempotency_key="scribe:" + evidence["payload"]["revision"],
+        budgets={"calls": 1, "turns": 12, "seconds": 120, "descendants": 0},
+        role="publisher",
+    )
+    if job["payload"]["state"] not in ("pending", "running"):
+        return None
+    bundle = _hook_common.bundle_root(project)
+    query = " ".join(source_hashes)
+    related = [
+        {key: candidate[key] for key in ("path", "title", "description", "section_path")}
+        for candidate in rank_candidates(load_catalog(bundle), query, limit=8)
+    ]
+    request = {
+        "job": public_job_record(job),
+        "evidence_packet_id": evidence["packet_id"],
+        "evidence_packet_path": evidence_path,
+        "project": os.path.realpath(project),
+        "bundle_root": bundle,
+        "related_candidates": related,
+        "expected_head": evidence["payload"]["current_head"],
+        "source_hashes": source_hashes,
+    }
+    return (
+        "Dispatch `llm-wiki:wiki-capturer` (Wiki Scribe) in the background. Add only a terse task "
+        "summary and observed outcome from this turn to the code-owned request; do not draft the concept "
+        "yourself and do not wait. Later surface exactly one breadcrumb: `wiki +1`, `wiki ~`, "
+        "`wiki skipped`, `wiki stale-result`, or `wiki blocked`.\n"
+        + delimit("scribe_request", json.dumps(request, sort_keys=True, separators=(",", ":")))
+    )
+
+
+def main():
+    event = _hook_common.read_event()
+    if event is None or event.get("stop_hook_active"):
+        return 0
+    project = _hook_common.project_dir(event)
+    if not _hook_common.bundle_exists(project):
+        return 0
+
+    evidence, evidence_path = EvidenceLedger(project, event.get("session_id")).finalize()
+    marker = _hook_common.capture_marker(project, event.get("session_id"))
+    if not os.path.exists(marker):
+        return 0
+    settings = _hook_common.load_settings(project)
+    impact = _prepare_impact(project, event, evidence, evidence_path, settings)
+    scribe = _prepare_scribe(project, event, evidence, evidence_path, settings)
+    requests = [value for value in (impact, scribe) if value is not None]
+    if not requests:
+        if _marker_count(marker) < settings["capture_min_edits"]:
+            return 0
+        _consume(marker)
+        return 0
+
+    _consume(marker)
+    reason = (
+        "[llm-wiki] End-of-turn coprocessors are ready. Dispatch all prepared jobs in one parallel "
+        "batch; each is fire-and-forget and controller-bounded. If a request is absent, do not invent it.\n\n"
+        + "\n\n".join(requests)
+    )
+    json.dump({"decision": "block", "reason": reason}, sys.stdout)
     return 0
 
 

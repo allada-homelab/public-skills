@@ -1,7 +1,7 @@
 ---
 description: Capture or update a finding as one conformant OKF concept (create-or-edit; the core loop).
 argument-hint: "[title or finding hint] [--into <subdir>] [--bundle <path>]"
-allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(mktemp:*), Bash(rm:*)
+allowed-tools: Glob, Grep, Read, Write, Bash(python3:*), Bash(mktemp:*), Bash(rm:*), Bash(date:*)
 ---
 
 You are running `/llm-wiki:capture`. Turn a finding from the current session into **one** conformant
@@ -41,29 +41,27 @@ Steps:
    verification gap, a hidden precondition, stale knowledge, or a performance cliff — see
    `references/capture-triggers.md` for the full list), use the gotcha shape in
    `references/concept-template.md`: name what fails, what works, and *why*, so it is not repeated.
-3. **Decide placement (create only; default root).** Choose the target directory for `<slug>.md`:
+3. **Decide placement (create only; deterministic root fallback).** Choose the target directory for `<slug>.md`:
    - If `--into <subdir>` was given, use it — validate it stays inside the bundle (no `../` escape, no
      reserved names), creating intermediate dirs.
-   - Otherwise **default to the bundle root**, and choose a subdirectory *only* when you can name a real
-     reason:
-     - ✅ it clearly **joins an existing section** (a subdir it belongs to);
-     - ✅ it **joins/forms a cluster** — there are already ~3+ sibling concepts on the same sub-topic that
-       should become a section (consider `/llm-wiki:reorganize` for the existing ones);
-     - ✅ it is a **distinct domain/subsystem** with its own identity and expected growth.
-   - Do **not** create a brand-new subdirectory for a single concept, fold by type with thin contents,
-     or nest speculatively (prefer depth 1; rarely 2). When in doubt, root — and `/llm-wiki:reorganize`
-     into sections once a real cluster forms.
+   - Otherwise pass existing catalog section paths plus this finding's touched/Verify/resource paths to
+     `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/topology.py" select --sections-json '<json>'
+     --paths-json '<json>'`. A unique longest full section-token match may select an **existing** section;
+     ambiguous/no match returns `{"section":""}` and means bundle root. Never create a section from
+     inference; use `/llm-wiki:reorganize` once a real cluster forms.
    (For an _update_, the path is fixed — the concept stays where it is; renames/moves go through
    `/llm-wiki:reorganize`.)
 4. **Compose the concept content** (full file bytes — `apply` lands exactly what you write, nothing more):
    - **Create:** from the template; relative `./` links; a non-empty `type`. Cross-link to a related
      existing concept only if one exists; on the first capture into an empty bundle, add no cross-link. For
-     a **code-grounded** finding, include a `## Verify` anchor (a `file:symbol` or a `run:` check) and stamp
-     `verified: <today>` (today's UTC date); omit both for a genuinely non-code-verifiable finding.
+     a **code-grounded** finding, include a `## Verify` `file:symbol` anchor and stamp
+     `verified:` with the current full UTC datetime `YYYY-MM-DDThh:mm:ssZ` (`date -u +%Y-%m-%dT%H:%M:%SZ`,
+     matching `references/concept-template.md`); omit both for a genuinely non-code-verifiable finding.
    - **Update:** apply the user's change to the existing concept's body and/or frontmatter, **preserve a
      non-empty `type`**, keep links in the relative `./` form. If the change alters a fact the concept's
-     `## Verify` anchor covers, update the anchor too and **re-stamp `verified:`** to today (a capture that
-     re-confirms a fact is the point at which it was last verified).
+     `## Verify` anchor covers, update the anchor too and **re-stamp `verified:`** to the current full UTC
+     datetime `YYYY-MM-DDThh:mm:ssZ` (`date -u +%Y-%m-%dT%H:%M:%SZ`) — a capture that re-confirms a fact is
+     the point at which it was last verified.
 5. **Write the composed content to a unique temp file** outside the bundle. Mint the path with
    `tmp=$(mktemp /tmp/llm-wiki-capture-XXXXXX.md)` (a fixed path can collide with a concurrent background
    `wiki-capturer`), then Write the bytes to `$tmp` with the Write tool. This file is the exact bytes
@@ -86,6 +84,12 @@ Steps:
      draft and the Doctor disagree, the Doctor is right.
    - **`blocked:secret`** (exit 1) → the secret scan flagged a credential and **nothing was written**.
      Report the redacted finding, strip the secret (reference it by name/location instead), and re-run.
+     Two sub-cases: if the flag is a **false positive on a genuinely non-secret high-entropy string** (a
+     hash, a UUID, an opaque identifier), append ` # pragma: allowlist secret` to that exact line and
+     re-apply — the pragma silences only the entropy/generic backstop on its line. Anything matching a
+     **real named-key format** (AWS `AKIA…`, GCP `AIza…`, Slack/GitHub/OpenAI tokens, PEM blocks) must be
+     **REDACTED** instead: the pragma does **not** silence named-key patterns (they are always flagged),
+     so pragma-ing one only loops the block — remove the value.
 
    - **`error:post-commit`** (exit 1, rare) → the post-commit Doctor re-check failed *after* mutating the
      live bundle (normally a concurrent-write race). The JSON carries a `hint`; recover with

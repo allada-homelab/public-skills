@@ -19,7 +19,6 @@ verified: <YYYY-MM-DDThh:mm:ssZ>
 
 ## Verify
 - <file:symbol> — <what current state should show to confirm this>
-- run: <one-line grep/command> — expected: <result>
 
 ## Related
 - See [<Other concept>](./<other-concept>.md) — <how it relates>.
@@ -36,8 +35,8 @@ Rules to keep while editing:
 - Omit any optional field you don't have rather than leaving an empty placeholder.
 - **`## Verify` is the confirmation anchor** — free-form text, **not** a markdown link (a real link
   into repo code trips the Doctor's R4 link-health with false broken-link warnings). A good anchor is
-  *checkable*: a resolvable `file:symbol` (e.g. `scripts/doctor.py:parse_frontmatter`) or a runnable
-  `run: <one-liner> — expected: <result>`. **Never** prose-only ("see the code"); **never** a bare
+  *checkable*: a resolvable `file:symbol` (e.g. `scripts/doctor.py:parse_frontmatter`). `run:` anchors
+  are disabled and must not be authored. **Never** prose-only ("see the code"); **never** a bare
   `file:line` (line numbers rot on the first edit above them → false verdicts). Use **repo-root-relative
   paths**, resolved against `${CLAUDE_PROJECT_DIR}`. Pair with a **`verified:`** frontmatter stamp
   (ISO-8601) — when the anchor was last confirmed against current state. Omit both for a concept that is
@@ -67,7 +66,7 @@ verified: <YYYY-MM-DDThh:mm:ssZ>
 **Why.** <The underlying reason — so the fix generalizes instead of being cargo-culted.>
 
 ## Verify
-- <file:symbol or run: one-liner> — <what confirms the fix is still correct>
+- <file:symbol> — <what confirms the fix is still correct>
 ```
 
 Minimal valid concept (the floor):

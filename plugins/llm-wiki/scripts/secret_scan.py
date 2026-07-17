@@ -4,7 +4,7 @@
 Scans one pending payload (a file path, or '-' for stdin) for credential-shaped
 content and reports findings. **Always exits 0 by design** — callers key off the
 `summary.findings` count in the JSON output, never the exit code. It is the scanner
-behind both the *blocking* PreToolUse `secret_guard` hook and the hard-abort gate
+behind both the *blocking* PreToolUse write guard (`hook_pre_write.py`) and the hard-abort gate
 inside `bundle_ops apply` (a hit there halts the write before anything lands).
 
 Usage:
@@ -16,8 +16,12 @@ Two stages:
 
 Documentation suppression (a knowledge base legitimately contains example credentials):
     - A line carrying the `pragma: allowlist secret` inline marker (the detect-secrets
-      convention) is skipped entirely — the explicit, per-line opt-out, and the escape hatch
-      for format-valid example keys (`AKIA…EXAMPLE`) and illustrative ciphertext.
+      convention) suppresses Stage-2 entropy hits and low-confidence generic key=value shapes on
+      that line — but NOT the Stage-1 named high-confidence key formats (AWS/GCP/Slack/GitHub/
+      OpenAI keys, PEM blocks), which are always redacted regardless of the pragma. The pragma is
+      agent-authored content, so it is a smuggling channel: a named-format credential must not be
+      silenceable by a pragma the same write introduces. Even a format-valid example key
+      (`AKIA…EXAMPLE`) is reported — redact it or write it outside the bundle.
     - A finding whose matched value is an obvious human placeholder (`CHANGEME`,
       `REPLACE_WITH_…`, `<your-password-here>`, `…_HERE`, `XXXX`, `TODO`/`FIXME`) is dropped.
       Format-valid example keys are NOT placeholder-suppressed — use the pragma for those.
@@ -62,7 +66,10 @@ PATTERNS = [
 # labeled Stage-1 patterns catch the named high-value keys).
 TOKEN_RE = re.compile(r"[A-Za-z0-9+=_]{%d,}" % ENTROPY_MIN_LEN)
 
-# Inline "this is not a real secret" marker (detect-secrets convention) — skips the whole line.
+# Inline "this is not a real secret" marker (detect-secrets convention). Suppresses Stage-2
+# entropy and low-confidence generic shapes on its line only — it can NOT silence a Stage-1 named
+# key format (see the scan loop): named-key formats must be redacted, not pragma'd, because the
+# pragma is agent-authored content and thus a smuggling channel.
 PRAGMA_RE = re.compile(r"(?i)pragma:\s*allowlist\s+secret")
 
 # Obvious human placeholders — a matched value containing one of these is documentation, not a
@@ -108,9 +115,11 @@ def scan(text):
     findings = []
     seen = set()  # (line, value) to avoid double-reporting across stages
     for lineno, line in enumerate(text.split("\n"), 1):
-        if PRAGMA_RE.search(line):
-            continue  # explicitly marked "not a real secret" — skip the whole line
-        # Stage 1: labeled patterns.
+        pragma = bool(PRAGMA_RE.search(line))
+        # Stage 1: labeled patterns. Named high-confidence key formats run on EVERY line
+        # regardless of the pragma — named-key formats must be redacted, not pragma'd, because
+        # the pragma is agent-authored content and thus a smuggling channel. The pragma still
+        # suppresses low-confidence generic shapes here and the Stage-2 entropy gate below.
         for category, rx, high_confidence in PATTERNS:
             for m in rx.finditer(line):
                 value = m.group(m.lastindex) if m.lastindex else m.group(0)
@@ -118,13 +127,17 @@ def scan(text):
                 if key in seen:
                     continue
                 seen.add(key)
-                # High-confidence labeled keys are never placeholder-suppressed (only the
-                # per-line pragma can silence them); generic low-confidence shapes are.
-                if not high_confidence and PLACEHOLDER_RE.search(value):
-                    continue  # an obvious placeholder, not a leaked credential
+                if not high_confidence:
+                    # Generic low-confidence shapes: pragma silences them, else obvious human
+                    # placeholders are dropped. High-confidence keys skip both.
+                    if pragma or PLACEHOLDER_RE.search(value):
+                        continue
                 findings.append({"category": category, "detector": "pattern",
                                  "line": lineno, "preview": redact(value)})
-        # Stage 2: entropy gate on unmatched long tokens.
+        # Stage 2: entropy gate on unmatched long tokens — pragma-suppressed (a backstop, not a
+        # named format, so the explicit per-line opt-out still applies).
+        if pragma:
+            continue
         for m in TOKEN_RE.finditer(line):
             token = m.group(0)
             if (lineno, token) in seen:

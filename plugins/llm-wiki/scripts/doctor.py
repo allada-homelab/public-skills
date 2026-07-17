@@ -21,12 +21,15 @@ Rules (see docs/llm-wiki/phases/phase-1-tech-plan.md §5):
     R4   internal markdown links resolve (WARNING only — broken links are tolerated per OKF spec §5)
     R5   concept `type` is in the canonical vocabulary (WARNING only — OKF §3 only requires a
          non-empty type; R5 is a curation nudge to keep grouping/analytics stable, never an ERROR)
+    R6   Wiki-managed claim/evidence provenance is complete, stable, and objectively grounded
 """
 import json
 import os
 import re
 import sys
 from datetime import date
+
+from provenance import ProvenanceError, extract as extract_provenance, validation_errors as provenance_errors
 
 SCHEMA = "okf-doctor/1"
 KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$")
@@ -39,7 +42,8 @@ DATE_CANDIDATE_RE = re.compile(r"^\d{4}-\d{1,2}-\d{1,2}\b")
 LOG_PREFIXES = ("**Update**", "**Creation**", "**Initialization**")
 # R5: the canonical concept-type vocabulary (matched case-insensitively). Lowercase single
 # tokens (hyphens ok) are the house style; `bigquery table` is the one compound kept because it
-# is OKF's own reference example type.
+# is OKF's own reference example type and is entrenched in the fixture corpus. Widening the set
+# beats warning on (and thus rewriting) the frozen example fixtures.
 CANONICAL_TYPES = frozenset({
     "concept", "decision", "gotcha", "convention", "runbook", "architecture", "howto",
     "reference", "schema", "metric", "api", "dataset", "table", "evaluation", "note",
@@ -169,6 +173,23 @@ def check_concept(text, relpath, findings):
         findings.append(_f("WARNING", "R5", relpath, _key_lookup(text, "type")[0],
                            'type "%s" is not in the canonical vocabulary — prefer one of: %s'
                            % (val.strip(), ", ".join(sorted(CANONICAL_TYPES)))))
+    managed = str(fm.get("wiki_managed", "")).lower() == "true"
+    try:
+        provenance = extract_provenance(text)
+    except ProvenanceError as exc:
+        findings.append(_f("ERROR", "R6", relpath, 1, str(exc)))
+        return
+    if managed and provenance is None:
+        findings.append(_f("ERROR", "R6", relpath, 1,
+                           "Wiki-managed concept must contain a `## Wiki provenance` JSON block."))
+    elif provenance is not None:
+        line = next(
+            (n for n, value in enumerate(text.split("\n"), 1)
+             if value.strip() == "## Wiki provenance"),
+            1,
+        )
+        for message in provenance_errors(provenance):
+            findings.append(_f("ERROR", "R6", relpath, line, message))
 
 
 def check_root_index(text, relpath, findings):

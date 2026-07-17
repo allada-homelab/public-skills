@@ -1,94 +1,133 @@
-# llm-wiki
+# LLM Wiki
 
-An OKF-native knowledge wiki for Claude Code. Claude builds and tends a persistent, portable
-knowledge base for your project — a directory of markdown "concept" files in Google's
-[Open Knowledge Format (OKF) v0.1](../../docs/llm-wiki/reference/okf_spec.md) — so each session starts
-smarter than the last.
+llm-wiki is a knowledge coprocessor for Claude Code. It quietly turns a repository wiki into working
+memory: recall arrives before a task, deep reading happens in disposable contexts, code changes wake an
+impact radar and Scribe, and unanswered questions can become bounded background research. The result is
+a project that gets easier for agents to work in as a side effect of ordinary development.
 
-Everything the plugin writes is **OKF-conformant by construction** (a deterministic Doctor gates
-every write). The plugin is **zero-config and always-on auto**: once a bundle exists, autonomy is on —
-every write applies directly, gated by the Doctor and a secret scan, and is git-reversible. There are no
-modes to set.
+Knowledge stays portable and reviewable as Markdown in Google's
+[Open Knowledge Format (OKF) v0.1](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md).
+There is no server, vector database, or required setup ritual.
+
+```text
+prompt → metadata candidates → forked context capsule → grounded work
+       → changed-path evidence → impact radar + Scribe → better future recall
+                         GAP → bounded research → quarantine or Scribe
+```
+
+## What feels magical
+
+- **Proactive, context-clean recall.** A recursive metadata catalog selects likely concepts without
+  opening their bodies. Glimmer, Oracle, or Archaeologist then reads them in a `context: fork` Sonnet
+  context and returns only a ≤4 KB cited capsule. The main conversation gets the answer, not the
+  research exhaust.
+- **Adaptive depth and parallel evidence.** Deterministic routing chooses fast/direct, normal synthesis,
+  or deep history/contradiction work plus an implementer, debugger, reviewer, operator, newcomer, or
+  historian lens. Oracle and Archaeologist can fan out across disjoint wiki sections under hard budgets;
+  only one synthesizer speaks back.
+- **Change-impact radar.** Exact changed-path evidence is mapped back to concepts, Verify anchors, and
+  transitive concept links. A read-only background Sentinel separates direct high-confidence impact
+  from quiet shadow hypotheses.
+- **Background Scribe.** Normal project edits freeze an immutable evidence packet. Scribe decides whether
+  one finding is durable, deduplicates it, attaches stable claim/evidence provenance, and publishes at
+  most one concept through the deterministic gate—or silently skips.
+- **A self-filling knowledge loop.** An `insufficient_evidence` capsule may propose a structured gap.
+  The causal controller deduplicates it by normalized question, scope, and repository revision, then a
+  high-effort Sonnet researcher reads an exact safe source manifest. Objective code-plus-test findings
+  may flow to Scribe; policy, intent, security, production, weak, or conflicting conclusions are
+  quarantined outside recall.
+- **Monorepo-scale ingest.** Up to three read-only Sonnet Explorers inspect disjoint, code-owned manifests
+  in parallel. Explicit `--into` placement wins; otherwise only a unique match to existing topology is
+  used. One coordinator deduplicates and lands one provenance-backed, Doctor-gated batch.
+
+## Safety and autonomy
+
+Every autonomous job has a causal run/job ID, role, idempotency claim, deadline, call/turn/time budget,
+descendant limit, one retry, cancellation behavior, cooldown, and feature/global kill switch. Workers
+cannot publish. Plugin-origin writes do not recursively arm Scribe, impact, or gap work.
+
+Wiki, repository, diff, and model text are evidence, never instructions. Read-only coprocessors use
+explicit tool allowlists and a path hook that keeps them inside the repository and away from common or
+configured sensitive paths. `run:` Verify anchors are disabled. Every plugin-owned publication passes:
+
+1. current HEAD/source-hash preflight;
+2. stable observed/inferred/contested provenance with objective roots;
+3. credential/secret scanning;
+4. strict deterministic OKF Doctor validation;
+5. one locked, git-reversible bundle apply.
+
+Background work is best-effort and session-scoped in v1. llm-wiki does not promise same-PR or cross-session
+completion, and the preflight does not claim a race-free compare-and-swap boundary.
 
 ## Install
 
 ```text
-/plugin marketplace add allada-homelab/public-skills
-/plugin install llm-wiki@public-skills
+/plugin install llm-wiki@<your-marketplace>
 /reload-plugins
 ```
 
+Once a `llm-wiki/index.md` exists, recall and learning are on by default. The first explicit capture
+or ingest can initialize the bundle.
+
 ## Commands
 
-| Command | What it does |
+The coprocessor loop is automatic; these seven commands are the manual control surface.
+
+| Command | Purpose |
 |---|---|
-| `/llm-wiki:query <question> [--bundle <path>]` | Answer a question from the wiki with citations (flags a gap if unanswerable), or browse from a point via `index.md` progressive disclosure. Read-only. |
-| `/llm-wiki:capture [hint] [--into <subdir>] [--bundle <path>]` | Upsert a finding as one conformant concept — **create or edit** decided by file existence (dedupe-checked, Doctor-gated, secret-scanned). |
-| `/llm-wiki:prune [concept] [--bundle <path>]` | Remove a concept; dangling inbound links are *reported*, not rewritten. |
-| `/llm-wiki:reorganize [what] [--bundle <path>]` | Move/rename concepts (incl. into subdirectories) with a zero-broken-links gate. |
-| `/llm-wiki:tend [--bundle <path>]` | Read-only curation digest (conformance, broken links, staleness, gaps) proposing maintenance. |
-| `/llm-wiki:ingest [repo] [--scope min\|medium\|high] [--dry-run]` | Bootstrap a whole wiki from an existing repo: an orchestrator fans out read-only Sonnet `wiki-explorer` subagents, then writes one Doctor-gated batch of concepts. |
+| `/llm-wiki:query <question>` | Compile a cited answer in an isolated context, or browse indexes directly. |
+| `/llm-wiki:capture [finding] [--into section]` | Explicitly upsert one Doctor/secret-gated concept. |
+| `/llm-wiki:ingest [repo] [--scope min\|medium\|high] [--into section] [--dry-run]` | Bootstrap grounded concepts with bounded parallel Explorers and one batch publication. |
+| `/llm-wiki:tend` | Produce a read-only curation and conformance digest. |
+| `/llm-wiki:prune [concept]` | Remove one concept and report dangling inbound links. |
+| `/llm-wiki:reorganize [what]` | Move/rename concepts while rewriting links. |
+| `/llm-wiki:resolve` | Repair engine-owned `index.md`/`log.md` merge conflicts and re-run Doctor. |
 
-The `llm-wiki:wiki` **skill** carries the OKF authoring/reading rules and auto-activates when you
-talk about capturing to a wiki or knowledge base.
+All accept `--bundle <path>` where relevant. The default is
+`${CLAUDE_PROJECT_DIR}/llm-wiki`.
 
-## How it works
+## Configuration
 
-- **Doctor (`scripts/doctor.py`)** — deterministic OKF v0.1 validator (rules R1/R2/R3a–c, plus
-  report-only **R4** link-health). It is the conformance authority: the skill makes drafts
-  *near*-conformant, the Doctor makes them *conformant*. Writes are staged to a temp bundle mirror and
-  validated before anything is written.
-- **Durability engine (`scripts/bundle_ops.py`)** — deterministic index regeneration, `log.md` appends,
-  and link-preserving concept moves. The write commands compose it instead of hand-editing indexes or
-  links. Its **`apply`** subcommand is the consolidated gated write — auto-init an absent bundle → stage a
-  mirror → regenerate index/log → Doctor-gate → secret-scan → commit, returning a JSON status; `capture`
-  and the background `wiki-capturer` both call it.
-- **Secret scan (`scripts/secret_scan.py`)** — credential scan (regex + entropy). Runs inside
-  `bundle_ops apply` as a hard abort before any write lands, and the same scanner backs a *blocking*
-  PreToolUse hook. Honors `pragma: allowlist secret` and skips obvious placeholders so documentation
-  examples don't false-positive.
-- **Autonomy hooks (`hooks/hooks.json` + `scripts/`)** — five events: **SessionStart** preloads
-  the root index + an *N concepts · tags* summary + a consult reminder (titles-only above 40 concepts /
-  16KB, with a `reorganize`/`tend` nudge; or a one-time startup pointer to `/llm-wiki:capture` when no
-  bundle exists yet); **UserPromptSubmit** is a
-  once-per-session **consult** nudge (the read loop's forcing function, symmetric to capture); a
-  **PreToolUse** floor (`secret_guard.py` denies credential writes, `doctor_guard.py` denies
-  non-conformant concept writes); **PostToolUse** drops the session-scoped
-  `.llm-wiki/capture-pending-<session_id>` marker (so a concurrent session or background process in
-  the same project can't arm another session's nudge; SessionStart sweeps stale ones); **Stop**
-  (`hook_stop.py`) is the end-of-turn forcing function — *only on a turn that changed real code* (gated by
-  that marker), it blocks the stop once so the model decides capture-or-stop, drafting + dispatching
-  `wiki-capturer`/`wiki-verifier` in the background. Autonomy is on whenever the bundle exists — no config.
-- **Repo ingestion (`/llm-wiki:ingest` + `agents/wiki-explorer.md`)** — bootstraps a whole wiki from an
-  existing repo: the command orchestrates read-only **Sonnet** `wiki-explorer` subagents that return
-  structured concept proposals, then synthesizes and writes one **Doctor-gated, secret-scanned** batch
-  (flat-first; `--scope min|medium|high`; `--dry-run` to preview). Autonomous once invoked, one
-  git-reversible diff. Playbook in `skills/wiki/references/ingestion.md`.
-- **Always-auto; zero-config** — once a bundle exists the write commands apply directly with no prompt
-  and no prose recap; there are no modes. Every write still passes a secret scan and the Doctor gate, and
-  is logged + git-reversible (`ingest` adds a `--dry-run` to preview the batch first).
+Defaults are intentionally useful. Optional flat YAML frontmatter in
+`.claude/llm-wiki.local.md` can tune:
 
-Default bundle location: `${CLAUDE_PROJECT_DIR}/llm-wiki`. Cross-links use relative `./` form so
-they resolve on GitHub.
+```yaml
+---
+capture_nudge: on
+capture_min_edits: 1
+sensitive_paths: private/, fixtures/secrets/
+autonomy: on
+autonomy_disabled: impact
+autonomy_max_calls: 12
+autonomy_max_turns: 120
+autonomy_max_seconds: 480
+autonomy_max_descendants: 4
+autonomy_max_depth: 2
+autonomy_cooldowns: scribe=30,gap=300,impact=30
+---
+```
 
-## Working in a team
+All plugin-owned reasoning agents declare `model: sonnet`; deterministic parsing, ranking, hashing,
+state, gating, and publication use Python instead of a cheaper model. Installation/environment model
+overrides still participate in Claude Code precedence, so organizations requiring a strict floor must
+also enforce their managed model policy. A one-hop Sonnet→Opus escalation path is deliberately deferred.
 
-The bundle is plain git — no server, no lock, no external state. **Concept files rarely conflict**: one
-file is one concept, so parallel branches usually touch different files. The two regenerated artifacts,
-**`index.md`** and **`log.md`**, *will* conflict on parallel branches, but resolution is trivial:
+## Storage and team workflow
 
-- **`index.md`** — take either side, then regenerate it from the merged concept files:
-  `python3 <plugin>/scripts/bundle_ops.py index <bundle>`.
-- **`log.md`** — union both sides' entries; the newest-first `## YYYY-MM-DD` date grouping merges cleanly.
+One Markdown file is one concept. Recursive `index.md` files provide progressive disclosure; `log.md`
+is chronological; relative `./` links form the knowledge graph. Generated session/controller/evidence
+state lives under gitignored `llm-wiki/.llm-wiki/`.
+
+Concept files usually merge independently. `/llm-wiki:resolve` union-merges `log.md`, regenerates
+indexes, and re-gates the bundle when engine-owned files conflict. Human-edited concept conflicts still
+need human reconciliation. Because the wiki is ordinary git content, rollback is a normal revert.
 
 ## Development
 
-Python 3 **stdlib only** — no build, no dependencies. Validate a bundle against OKF v0.1:
+The runtime and deterministic engine are Python 3 stdlib only. The network-free gate is:
 
-```text
-python3 scripts/doctor.py <bundle-dir> --mode strict
+```bash
+python3 -B evals/run.py --deterministic
 ```
 
-Status: **zero-config always-auto** — 6 commands (`query`/`capture`/`prune`/`reorganize`/`tend`/`ingest`)
-over the deterministic `bundle_ops` engine, with background `wiki-capturer`/`wiki-verifier` persist +
-verify. Roadmap and design in [../../docs/llm-wiki](../../docs/llm-wiki/).
+Shared bounded v1 packet contracts are in `scripts/packet_contracts.py`.

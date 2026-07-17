@@ -6,7 +6,7 @@ Every concept file opens with a YAML frontmatter block delimited by `---`, then 
 
 - **`type`** *(required, non-empty)* — what kind of concept this is. Any string; the producer chooses
   the vocabulary. Examples: `Reference`, `Runbook`, `Decision`, `Convention`, `Gotcha`, `BigQuery Table`,
-  `Metric`, `Service`, `API`. This is the **only** field OKF requires.
+  `Metric`, `Architecture`, `API`. This is the **only** field OKF requires.
 
 ## Recommended (optional)
 

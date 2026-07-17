@@ -5,22 +5,50 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook_session_start.py"
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook_session_start.py",
+            "timeout": 10
           }
         ]
       }
     ],
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|MultiEdit",
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/secret_guard.py"
-          },
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook_pre_write.py",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Grep|Glob",
+        "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/doctor_guard.py"
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook_pre_read.py",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook_pre_bash.py",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Agent|Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook_pre_dispatch.py",
+            "timeout": 5
           }
         ]
       }
@@ -30,18 +58,30 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook_user_prompt.py"
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook_user_prompt.py",
+            "timeout": 5
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Write|Edit|MultiEdit",
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook_post_tool.py"
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook_post_tool.py",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Agent|Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook_post_dispatch.py",
+            "timeout": 5
           }
         ]
       }
@@ -51,7 +91,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook_stop.py"
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook_stop.py",
+            "timeout": 5
           }
         ]
       }

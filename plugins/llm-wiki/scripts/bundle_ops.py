@@ -35,17 +35,41 @@ authority (run it after).
         The consolidated gated write. Auto-initializes an absent bundle, stages the
         concept on a /tmp mirror (index regen + log append), Doctor-gates (strict) and
         secret-scans it, and only on a clean gate copies the result onto the LIVE bundle
-        (a block leaves it byte-for-byte untouched). Emits a one-line JSON status
-        (applied | blocked:doctor | blocked:secret). Exit 1 on a gate block.
+        (a block leaves its concepts/index/log byte-for-byte untouched; only the
+        transient `.llm-wiki/` state dir and its `.gitignore` guard may appear).
+        Emits a one-line JSON status (applied | blocked:doctor | blocked:secret).
+        Exit 1 on a gate block.
 
-Exit codes: 0 ok; 1 gate block (apply); 2 usage / operational error.
+    bundle_ops.py batch-apply <bundle-root> --manifest <prepared-manifest.json>
+                  [--date YYYY-MM-DD]
+        Apply a bounded set of already provenance-stamped concepts under one bundle lock, one
+        mirror/Doctor/secret gate, one index regeneration, and one log entry.
+
+    bundle_ops.py linkcheck <bundle-root>
+        Report every internal markdown link as one JSON object on stdout:
+        {"status": "ok", "links": [{file, line, raw, resolved, exists}]}. External
+        schemes and bare #anchors are skipped. Report-only: exit 0 even when links
+        are broken.
+
+    bundle_ops.py merge <bundle-root>
+        Resolve git conflict markers in log.md (union of both sides' bullets under
+        their `## YYYY-MM-DD` headings, deduped, newest-first) and index.md
+        (conflicted content discarded), then regenerate indexes and Doctor-gate the
+        result. JSON status merged | clean | blocked:doctor; a doctor block (exit 1)
+        leaves the merged files in place for inspection.
+
+Exit codes: 0 ok; 1 gate block (apply, merge); 2 usage / operational error.
 """
+import fcntl
+import hashlib
 import json
 import os
 import re
 import shutil
 import sys
 import tempfile
+import subprocess
+from contextlib import contextmanager
 from datetime import date, datetime, timezone
 
 # doctor.py / secret_scan.py live beside this script; when run directly Python puts
@@ -55,45 +79,82 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import doctor as _doctor          # noqa: E402
 import secret_scan as _secret_scan  # noqa: E402
 
+# C2 decision of record: near-duplicate of doctor.py's LINK_RE kept deliberately — the
+# rewriter needs the pre/post capture groups doctor's URL-only pattern doesn't have.
 LINK_RE = re.compile(r"(\[[^\]]*\]\()([^)]+)(\))")
 # A line opening/closing a fenced code block (``` or ~~~), toggled per-line so the
-# link rewriter never mutates link-shaped text inside a fenced example (mirrors doctor.py).
-FENCE_RE = re.compile(r"^(```|~~~)")
+# link rewriter never mutates link-shaped text inside a fenced example. Shared with
+# doctor.py verbatim (identical grammar), so imported rather than re-defined (C2).
+FENCE_RE = _doctor.FENCE_RE
 # A run of backticks delimiting an inline-code span; an opener is closed by the next
 # run of EQUAL length (CommonMark), so link-shaped text inside `…` is left verbatim.
 BACKTICK_RUN_RE = re.compile(r"`+")
-EXTERNAL_SCHEMES = ("http://", "https://", "mailto:", "ftp://", "tel:", "//")
+EXTERNAL_SCHEMES = _doctor.EXTERNAL_SCHEMES  # identical tuple — shared with doctor.py (C2)
 RESERVED = ("index.md", "log.md")
 MANAGED_HEADINGS = ("Concepts", "Sections")
 
 
+# ---------------------------------------------------------------- containment / lock
+
+def _contained(root_abs, candidate):
+    """Real path of candidate iff it stays inside the bundle, else None.
+    realpath (not abspath): a symlinked DIR inside the bundle must not
+    smuggle operations outside it."""
+    root_real = os.path.realpath(root_abs)
+    real = os.path.realpath(candidate)
+    return real if os.path.commonpath([root_real, real]) == root_real else None
+
+
+def _ensure_bundle_gitignore(bundle_root):
+    """Idempotently ensure `<bundle>/.gitignore` lists `.llm-wiki/` so transient state
+    never lands in git. Twin of `_hook_common.ensure_bundle_gitignore` (duplicated here:
+    bundle_ops also runs outside the hooks context). Best-effort — a failed hygiene write
+    must never block the operation that triggered it."""
+    gi = os.path.join(bundle_root, ".gitignore")
+    try:
+        existing = ""
+        if os.path.isfile(gi):
+            with open(gi, "r", encoding="utf-8") as fh:
+                existing = fh.read()
+            if any(l.strip() == ".llm-wiki/" for l in existing.split("\n")):
+                return
+            if not existing.endswith("\n"):
+                existing += "\n"
+        with open(gi, "w", encoding="utf-8") as fh:
+            fh.write(existing + ".llm-wiki/\n")
+    except OSError:
+        pass
+
+
+_HELD_LOCKS = set()  # realpaths of lock files this process already holds (flock deadlocks on re-open)
+
+
+@contextmanager
+def _bundle_lock(bundle_root):
+    """Exclusive flock on `<bundle>/.llm-wiki/lock`, serializing concurrent writers
+    (two `apply` processes racing the log.md read-modify-write). Reentrant within the
+    process: apply holds it across its whole stage-commit section while the nested
+    cmd_log_append re-enters. Creating the state dir carries the .gitignore guarantee."""
+    state_dir = os.path.join(bundle_root, ".llm-wiki")
+    os.makedirs(state_dir, exist_ok=True)
+    _ensure_bundle_gitignore(bundle_root)
+    lock_path = os.path.realpath(os.path.join(state_dir, "lock"))
+    if lock_path in _HELD_LOCKS:
+        yield
+        return
+    fh = open(lock_path, "a")
+    try:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        _HELD_LOCKS.add(lock_path)
+        try:
+            yield
+        finally:
+            _HELD_LOCKS.discard(lock_path)
+    finally:
+        fh.close()  # closing the fd releases the flock
+
+
 # ---------------------------------------------------------------- frontmatter
-
-def _parse_frontmatter(text):
-    """Minimal reader: returns a dict of top-level `key: scalar` pairs (lists ignored).
-    Mirrors doctor.py's restricted grammar enough to read title/description."""
-    if text.startswith("﻿"):
-        text = text[1:]  # strip a leading UTF-8 BOM (matches doctor.py)
-    lines = text.split("\n")
-    if not lines or lines[0].rstrip() != "---":
-        return {}
-    close = None
-    for i in range(1, len(lines)):
-        if lines[i].rstrip() == "---":
-            close = i
-            break
-    if close is None:
-        return {}
-    data = {}
-    for line in lines[1:close]:
-        m = re.match(r"^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$", line)
-        if m and m.group(2).strip():
-            v = m.group(2).strip()
-            if len(v) >= 2 and v[0] == v[-1] and v[0] in ("'", '"'):
-                v = v[1:-1]
-            data[m.group(1)] = v
-    return data
-
 
 def _humanize(slug):
     return slug.replace("-", " ").replace("_", " ").strip().title()
@@ -103,12 +164,19 @@ def _humanize(slug):
 
 def _concept_meta(abspath):
     with open(abspath, "r", encoding="utf-8") as fh:
-        fm = _parse_frontmatter(fh.read())
+        text = fh.read()
+    if text.startswith("﻿"):
+        text = text[1:]  # strip a leading UTF-8 BOM (doctor.validate strips it pre-parse too)
+    status, fm = _doctor.parse_frontmatter(text)
+    if status != _doctor.OK:
+        fm = {}  # unparseable frontmatter -> slug fallbacks; the Doctor reports it (R1)
     slug = os.path.basename(abspath)[:-3]
+    title, desc = fm.get("title"), fm.get("description", "")
     return {
         "slug": slug,
-        "title": fm.get("title") or _humanize(slug),
-        "description": fm.get("description", ""),
+        # doctor's parser can yield block lists; title/description are scalar-only here
+        "title": title if isinstance(title, str) and title else _humanize(slug),
+        "description": desc if isinstance(desc, str) else "",
     }
 
 
@@ -259,51 +327,54 @@ def cmd_index(bundle_root):
 # ---------------------------------------------------------------- log append
 
 def cmd_log_append(bundle_root, kind, message, day):
-    log_path = os.path.join(bundle_root, "log.md")
-    bullet = "* **%s**: %s" % (kind, message)
-    heading = "## %s" % day
-    try:
-        if os.path.isfile(log_path):
-            with open(log_path, "r", encoding="utf-8") as fh:
-                lines = fh.read().split("\n")
-        else:
-            lines = ["# Directory Update Log", ""]
-    except OSError as e:
-        sys.stderr.write("error: cannot read log.md: %s\n" % e)
-        return 2
+    # the whole read-modify-write runs under the bundle lock so two concurrent
+    # writers cannot each read the same log.md and drop the other's bullet
+    with _bundle_lock(bundle_root):
+        log_path = os.path.join(bundle_root, "log.md")
+        bullet = "* **%s**: %s" % (kind, message)
+        heading = "## %s" % day
+        try:
+            if os.path.isfile(log_path):
+                with open(log_path, "r", encoding="utf-8") as fh:
+                    lines = fh.read().split("\n")
+            else:
+                lines = ["# Directory Update Log", ""]
+        except OSError as e:
+            sys.stderr.write("error: cannot read log.md: %s\n" % e)
+            return 2
 
-    # parse the existing date headings (line index + ISO date), in document order
-    headings = []
-    for i, l in enumerate(lines):
-        if l.startswith("## "):
-            try:
-                headings.append((i, date.fromisoformat(l[3:].strip())))
-            except ValueError:
-                pass  # malformed heading — leave it for the Doctor to flag
-    target = date.fromisoformat(day)
-    exact = next((i for i, d in headings if d == target), None)
-    if exact is not None:
-        # merge into the existing same-date section, after any blank line below it
-        j = exact + 1
-        while j < len(lines) and lines[j].strip() == "":
-            j += 1
-        lines.insert(j, bullet)
-    else:
-        # insert a fresh section before the first older-dated heading (keeps
-        # newest-first); if none is older, append at the end
-        older = next((i for i, d in headings if d < target), None)
-        insert_at = older if older is not None else len(lines)
-        lines[insert_at:insert_at] = [heading, "", bullet, ""]
-    text = "\n".join(lines)
-    if not text.endswith("\n"):
-        text += "\n"
-    try:
-        with open(log_path, "w", encoding="utf-8") as fh:
-            fh.write(text)
-    except OSError as e:
-        sys.stderr.write("error: cannot write log.md: %s\n" % e)
-        return 2
-    return 0
+        # parse the existing date headings (line index + ISO date), in document order
+        headings = []
+        for i, l in enumerate(lines):
+            if l.startswith("## "):
+                try:
+                    headings.append((i, date.fromisoformat(l[3:].strip())))
+                except ValueError:
+                    pass  # malformed heading — leave it for the Doctor to flag
+        target = date.fromisoformat(day)
+        exact = next((i for i, d in headings if d == target), None)
+        if exact is not None:
+            # merge into the existing same-date section, after any blank line below it
+            j = exact + 1
+            while j < len(lines) and lines[j].strip() == "":
+                j += 1
+            lines.insert(j, bullet)
+        else:
+            # insert a fresh section before the first older-dated heading (keeps
+            # newest-first); if none is older, append at the end
+            older = next((i for i, d in headings if d < target), None)
+            insert_at = older if older is not None else len(lines)
+            lines[insert_at:insert_at] = [heading, "", bullet, ""]
+        text = "\n".join(lines)
+        if not text.endswith("\n"):
+            text += "\n"
+        try:
+            with open(log_path, "w", encoding="utf-8") as fh:
+                fh.write(text)
+        except OSError as e:
+            sys.stderr.write("error: cannot write log.md: %s\n" % e)
+            return 2
+        return 0
 
 
 # ---------------------------------------------------------------- move
@@ -359,7 +430,9 @@ def _rewrite_links(text, file_old_abs, file_new_abs, old_abs, new_abs, bundle_ro
     (equal unless this file is the one being moved). Link-shaped text inside fenced
     (```/~~~) code blocks or inline-code (`…`) spans is documentation, not a real link,
     so it is left verbatim. Processed line-by-line (splitting on "\\n" preserves any
-    CRLFs, which ride along as a trailing "\\r" on each segment)."""
+    CRLFs, which ride along as a trailing "\\r" on each segment).
+    Decision of record: BOTH the `./`-relative and `/`-bundle-relative link forms are
+    handled on purpose — robustness for foreign bundles that use either convention."""
     moved_self = file_old_abs != file_new_abs
     old_dir, new_dir = os.path.dirname(file_old_abs), os.path.dirname(file_new_abs)
 
@@ -406,7 +479,7 @@ def cmd_move(bundle_root, src_rel, dst_rel):
     new_abs = os.path.normpath(os.path.join(bundle_root, dst_rel))
     root_abs = os.path.abspath(bundle_root)
     for p in (old_abs, new_abs):
-        if os.path.commonpath([root_abs, os.path.abspath(p)]) != root_abs:
+        if _contained(root_abs, p) is None:
             sys.stderr.write("error: path escapes the bundle: %s\n" % p)
             return 2
     if not os.path.isfile(old_abs):
@@ -452,7 +525,7 @@ def cmd_remove(bundle_root, rel):
     if os.path.basename(abspath) in RESERVED:
         sys.stderr.write("error: remove operates on concepts, not reserved files\n")
         return 2
-    if os.path.commonpath([root_abs, abspath]) != root_abs:
+    if _contained(root_abs, abspath) is None:
         sys.stderr.write("error: path escapes the bundle: %s\n" % rel)
         return 2
     if not os.path.isfile(abspath):
@@ -476,6 +549,7 @@ def _init_empty_bundle(bundle_root, day):
     A bare `# Directory Update Log` fails Doctor R3c (no date section), so the log is
     seeded with an Initialization entry via the engine — matching the
     log-is-never-hand-authored convention. Idempotent: an existing file is left alone."""
+    _ensure_bundle_gitignore(bundle_root)
     idx = os.path.join(bundle_root, "index.md")
     if not os.path.isfile(idx):
         with open(idx, "w", encoding="utf-8") as fh:
@@ -503,9 +577,12 @@ def _build(bundle_root, concept_rel, content, kind, message, day):
 def cmd_apply(bundle_root, concept_rel, content_file, kind, message, day):
     """Consolidated gated write: stage on a /tmp mirror, regenerate index + log,
     Doctor-gate (strict) and secret-scan; only on a clean gate is the LIVE bundle
-    touched — re-built against the live tree (robust to concurrent applies), git-reversible.
-    A block leaves the live bundle byte-for-byte untouched. Emits a one-line JSON status
-    to stdout (applied | blocked:doctor | blocked:secret | error:post-commit)."""
+    touched — re-built against the live tree, git-reversible. The whole stage-commit
+    section runs under the bundle flock so concurrent applies serialize instead of
+    racing the log.md read-modify-write. A block leaves the live bundle's concepts/
+    index/log byte-for-byte untouched (only the gitignored `.llm-wiki/` lock state
+    may appear). Emits a one-line JSON status to stdout
+    (applied | blocked:doctor | blocked:secret | error:post-commit)."""
     root_abs = os.path.abspath(bundle_root)
     dest_abs = os.path.normpath(os.path.join(root_abs, concept_rel))
     if os.path.basename(dest_abs) in RESERVED:
@@ -514,7 +591,7 @@ def cmd_apply(bundle_root, concept_rel, content_file, kind, message, day):
     if not dest_abs.endswith(".md"):
         sys.stderr.write("error: --concept must be a .md path\n")
         return 2
-    if os.path.commonpath([root_abs, dest_abs]) != root_abs:
+    if _contained(root_abs, dest_abs) is None:
         sys.stderr.write("error: path escapes the bundle: %s\n" % concept_rel)
         return 2
     try:
@@ -536,66 +613,464 @@ def cmd_apply(bundle_root, concept_rel, content_file, kind, message, day):
 
     mirror = tempfile.mkdtemp(prefix="llm-wiki-apply-")
     try:
-        # --- stage on the throwaway mirror; the live bundle is NOT touched here ---
-        if os.path.isdir(root_abs):
-            shutil.copytree(root_abs, mirror, dirs_exist_ok=True)
-        _init_empty_bundle(mirror, day)
-        rc = _build(mirror, concept_rel, content, kind, message, day)
-        if rc != 0:
-            sys.stderr.write("error: staging failed (exit %d)\n" % rc)
-            return 2
+        # The flock spans staging AND commit: staging's copytree must snapshot a
+        # settled live bundle, and the commit rebuild must not interleave with a
+        # concurrent apply's (both would read-modify-write the same log.md).
+        with _bundle_lock(root_abs):
+            # --- stage on the throwaway mirror; the live bundle is NOT touched here ---
+            if os.path.isdir(root_abs):
+                shutil.copytree(root_abs, mirror, dirs_exist_ok=True)
+            _init_empty_bundle(mirror, day)
+            rc = _build(mirror, concept_rel, content, kind, message, day)
+            if rc != 0:
+                sys.stderr.write("error: staging failed (exit %d)\n" % rc)
+                return 2
 
-        _r, _n, findings = _doctor.validate(mirror)
-        errors = [f for f in findings if f["severity"] == "ERROR"]
-        if errors:
-            sys.stderr.write("doctor blocked apply (%d error(s)):\n" % len(errors))
-            for f in errors:
-                sys.stderr.write("ERROR %s %s:%d   %s\n"
-                                 % (f["rule"], f["file"], f["line"], f["message"]))
-            print(json.dumps({"status": "blocked:doctor", "concept": concept_rel,
-                              "errors": len(errors)}))
-            return 1
+            _r, _n, findings = _doctor.validate(mirror)
+            errors = [f for f in findings if f["severity"] == "ERROR"]
+            if errors:
+                sys.stderr.write("doctor blocked apply (%d error(s)):\n" % len(errors))
+                for f in errors:
+                    sys.stderr.write("ERROR %s %s:%d   %s\n"
+                                     % (f["rule"], f["file"], f["line"], f["message"]))
+                print(json.dumps({"status": "blocked:doctor", "concept": concept_rel,
+                                  "errors": len(errors)}))
+                return 1
 
-        # Scan every input channel apply commits, not just the body: the log message
-        # lands in log.md and the concept path lands in index.md, both unscanned otherwise.
-        # (Title/description derive from content, already scanned.) Do NOT scan staged
-        # files — a grandfathered secret elsewhere must not block an unrelated apply.
-        sfindings = []
-        for channel, text in (("content", content.decode("utf-8", "replace")),
-                              ("log-message", message), ("concept-path", concept_rel)):
-            for f in _secret_scan.scan(text):
-                sfindings.append((channel, f))
-        if sfindings:
-            sys.stderr.write("secret scan blocked apply (%d finding(s)):\n" % len(sfindings))
-            for channel, f in sfindings:
-                sys.stderr.write("SECRET %s %s line %d preview=%s\n"
-                                 % (channel, f["category"], f["line"], f["preview"]))
-            print(json.dumps({"status": "blocked:secret", "concept": concept_rel,
-                              "findings": len(sfindings)}))
-            return 1
+            # Scan every input channel apply commits, not just the body: the log message
+            # lands in log.md and the concept path lands in index.md, both unscanned otherwise.
+            # (Title/description derive from content, already scanned.) Do NOT scan staged
+            # files — a grandfathered secret elsewhere must not block an unrelated apply.
+            sfindings = []
+            for channel, text in (("content", content.decode("utf-8", "replace")),
+                                  ("log-message", message), ("concept-path", concept_rel)):
+                for f in _secret_scan.scan(text):
+                    sfindings.append((channel, f))
+            if sfindings:
+                sys.stderr.write("secret scan blocked apply (%d finding(s)):\n" % len(sfindings))
+                for channel, f in sfindings:
+                    sys.stderr.write("SECRET %s %s line %d preview=%s\n"
+                                     % (channel, f["category"], f["line"], f["preview"]))
+                print(json.dumps({"status": "blocked:secret", "concept": concept_rel,
+                                  "findings": len(sfindings)}))
+                return 1
 
-        # --- commit: only now (gates clean) is the live bundle mutated ---
-        os.makedirs(root_abs, exist_ok=True)
-        _init_empty_bundle(root_abs, day)
-        rc = _build(root_abs, concept_rel, content, kind, message, day)
-        if rc != 0:
-            sys.stderr.write("error: commit failed (exit %d)\n" % rc)
-            return 2
-        _r2, _n2, lfind = _doctor.validate(root_abs)
-        lerr = [f for f in lfind if f["severity"] == "ERROR"]
-        if lerr:
-            sys.stderr.write("error: post-commit Doctor failed unexpectedly:\n")
-            for f in lerr:
-                sys.stderr.write("ERROR %s %s:%d   %s\n"
-                                 % (f["rule"], f["file"], f["line"], f["message"]))
-            print(json.dumps({"status": "error:post-commit", "concept": concept_rel,
-                              "hint": "live bundle mutated and failed validation - "
-                                      "restore with: git checkout -- %s" % root_abs}))
-            return 1
-        print(json.dumps({"status": "applied", "concept": concept_rel}))
-        return 0
+            # --- commit: only now (gates clean) is the live bundle mutated ---
+            os.makedirs(root_abs, exist_ok=True)
+            _init_empty_bundle(root_abs, day)
+            rc = _build(root_abs, concept_rel, content, kind, message, day)
+            if rc != 0:
+                sys.stderr.write("error: commit failed (exit %d)\n" % rc)
+                return 2
+            _r2, _n2, lfind = _doctor.validate(root_abs)
+            lerr = [f for f in lfind if f["severity"] == "ERROR"]
+            if lerr:
+                sys.stderr.write("error: post-commit Doctor failed unexpectedly:\n")
+                for f in lerr:
+                    sys.stderr.write("ERROR %s %s:%d   %s\n"
+                                     % (f["rule"], f["file"], f["line"], f["message"]))
+                print(json.dumps({"status": "error:post-commit", "concept": concept_rel,
+                                  "hint": "live bundle mutated and failed validation - "
+                                          "restore with: git checkout -- %s" % root_abs}))
+                return 1
+            print(json.dumps({"status": "applied", "concept": concept_rel}))
+            return 0
     finally:
         shutil.rmtree(mirror, ignore_errors=True)
+
+
+def _load_batch_manifest(path):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            value = json.load(handle)
+    except (OSError, ValueError, UnicodeDecodeError) as exc:
+        raise ValueError("cannot read batch manifest: %s" % exc) from exc
+    if not isinstance(value, dict) or not isinstance(value.get("concepts"), list):
+        raise ValueError("batch manifest concepts must be a list")
+    for field, expected in (
+        ("project", str), ("expected_head", str), ("expected_source_hashes", dict),
+        ("expected_destinations", dict),
+    ):
+        if not isinstance(value.get(field), expected):
+            raise ValueError("batch manifest %s has the wrong type" % field)
+    if not 1 <= len(value["concepts"]) <= 40:
+        raise ValueError("batch manifest must contain 1..40 concepts")
+    message = value.get("log_message")
+    if not isinstance(message, str) or not message.strip() or "\n" in message or "\r" in message:
+        raise ValueError("batch log_message must be one non-empty line")
+    return value
+
+
+def _validated_batch(root_abs, manifest):
+    concepts, seen = [], set()
+    for index, item in enumerate(manifest["concepts"]):
+        if not isinstance(item, dict):
+            raise ValueError("batch concept %d must be an object" % index)
+        rel, content = item.get("path"), item.get("content")
+        if not isinstance(rel, str) or not rel.endswith(".md"):
+            raise ValueError("batch concept %d has an invalid .md path" % index)
+        dest = os.path.normpath(os.path.join(root_abs, rel))
+        canonical = os.path.relpath(dest, root_abs).replace(os.sep, "/")
+        if (
+            os.path.basename(dest) in RESERVED
+            or _contained(root_abs, dest) is None
+            or rel.replace("\\", "/") != canonical
+            or canonical in seen
+        ):
+            raise ValueError("batch concept path is reserved, duplicate, or escapes: %s" % rel)
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("batch concept %s has empty content" % rel)
+        seen.add(canonical)
+        concepts.append((canonical, content.encode("utf-8")))
+    return concepts
+
+
+def _absolute_hash(path):
+    if not os.path.isfile(path):
+        return None
+    digest = hashlib.sha256()
+    try:
+        with open(path, "rb") as handle:
+            for chunk in iter(lambda: handle.read(65536), b""):
+                digest.update(chunk)
+    except OSError:
+        return None
+    return "sha256:" + digest.hexdigest()
+
+
+def _git_head(project):
+    try:
+        proc = subprocess.run(
+            ["git", "-C", project, "rev-parse", "HEAD"], capture_output=True, text=True,
+            timeout=10, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unborn"
+    return proc.stdout.strip() if proc.returncode == 0 and proc.stdout.strip() else "unborn"
+
+
+def _batch_preflight(root_abs, manifest, concepts):
+    project = os.path.realpath(manifest["project"])
+    if not os.path.isdir(project) or _git_head(project) != manifest["expected_head"]:
+        return "repository HEAD changed"
+    for source, expected in manifest["expected_source_hashes"].items():
+        if not isinstance(source, str) or os.path.isabs(source) or ".." in source.replace("\\", "/").split("/"):
+            return "source path is unsafe"
+        if _absolute_hash(os.path.realpath(os.path.join(project, source))) != expected:
+            return "source hash changed: %s" % source
+    expected_destinations = manifest["expected_destinations"]
+    if set(expected_destinations) != {rel for rel, _content in concepts}:
+        return "destination preconditions do not match the batch"
+    for rel, _content in concepts:
+        if _absolute_hash(os.path.join(root_abs, rel)) != expected_destinations[rel]:
+            return "destination changed: %s" % rel
+    return None
+
+
+def _build_batch(bundle_root, concepts, message, day):
+    for rel, content in concepts:
+        dest = os.path.normpath(os.path.join(bundle_root, rel))
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        with open(dest, "wb") as handle:
+            handle.write(content)
+    rc = cmd_index(bundle_root)
+    return rc if rc else cmd_log_append(bundle_root, "Creation", message, day)
+
+
+def cmd_batch_apply(bundle_root, manifest_file, day):
+    root_abs = os.path.abspath(bundle_root)
+    try:
+        manifest = _load_batch_manifest(manifest_file)
+        concepts = _validated_batch(root_abs, manifest)
+    except ValueError as exc:
+        sys.stderr.write("error: %s\n" % exc)
+        return 2
+    message = manifest["log_message"]
+    mirror = tempfile.mkdtemp(prefix="llm-wiki-batch-")
+    backup = tempfile.mkdtemp(prefix="llm-wiki-batch-backup-")
+    try:
+        with _bundle_lock(root_abs):
+            stale = _batch_preflight(root_abs, manifest, concepts)
+            if stale:
+                print(json.dumps({"status": "stale-result", "reason": stale}))
+                return 3
+            if os.path.isdir(root_abs):
+                shutil.copytree(root_abs, mirror, dirs_exist_ok=True)
+            _init_empty_bundle(mirror, day)
+            rc = _build_batch(mirror, concepts, message, day)
+            if rc:
+                sys.stderr.write("error: batch staging failed (exit %d)\n" % rc)
+                return 2
+            _r, _n, findings = _doctor.validate(mirror)
+            errors = [finding for finding in findings if finding["severity"] == "ERROR"]
+            if errors:
+                print(json.dumps({"status": "blocked:doctor", "errors": len(errors)}))
+                return 1
+            secret_findings = []
+            channels = [("log-message", message)]
+            for rel, content in concepts:
+                channels.extend((("concept-path", rel), ("content", content.decode("utf-8", "replace"))))
+            for channel, text in channels:
+                for finding in _secret_scan.scan(text):
+                    secret_findings.append((channel, finding))
+            if secret_findings:
+                print(json.dumps({"status": "blocked:secret", "findings": len(secret_findings)}))
+                return 1
+
+            existed = os.path.isdir(root_abs)
+            if existed:
+                shutil.copytree(root_abs, backup, dirs_exist_ok=True)
+            try:
+                os.makedirs(root_abs, exist_ok=True)
+                _init_empty_bundle(root_abs, day)
+                rc = _build_batch(root_abs, concepts, message, day)
+            except OSError as exc:
+                rc = 2
+                sys.stderr.write("error: batch commit failed: %s\n" % exc)
+            if rc:
+                shutil.rmtree(root_abs, ignore_errors=True)
+                if existed:
+                    shutil.copytree(backup, root_abs)
+                return 2
+            try:
+                _r2, _n2, live_findings = _doctor.validate(root_abs)
+            except (OSError, UnicodeError, ValueError) as exc:
+                shutil.rmtree(root_abs, ignore_errors=True)
+                if existed:
+                    shutil.copytree(backup, root_abs)
+                sys.stderr.write("error: post-commit validation failed; batch rolled back: %s\n" % exc)
+                return 2
+            live_errors = [finding for finding in live_findings if finding["severity"] == "ERROR"]
+            if live_errors:
+                shutil.rmtree(root_abs, ignore_errors=True)
+                if existed:
+                    shutil.copytree(backup, root_abs)
+                print(json.dumps({"status": "error:post-commit", "errors": len(live_errors)}))
+                return 1
+            print(json.dumps({
+                "status": "applied", "concepts": [rel for rel, _content in concepts]
+            }))
+            return 0
+    finally:
+        shutil.rmtree(mirror, ignore_errors=True)
+        shutil.rmtree(backup, ignore_errors=True)
+
+
+# ---------------------------------------------------------------- linkcheck
+
+def cmd_linkcheck(bundle_root):
+    """Report every internal markdown link in the bundle (skipping `.llm-wiki/`) as
+    {"status": "ok", "links": [...]} — same regex/fence/image/scheme handling as
+    doctor.check_links, but exhaustive (every link, with an `exists` bool) instead of
+    broken-only. Report-only: exit 0 even when links are broken."""
+    root_abs = os.path.abspath(bundle_root)
+    md_paths = []
+    for root, dirs, files in os.walk(root_abs):
+        dirs[:] = [d for d in dirs if d != ".llm-wiki"]
+        for fn in files:
+            if fn.endswith(".md"):
+                md_paths.append(os.path.join(root, fn))
+    links = []
+    for p in sorted(md_paths):
+        rel = os.path.relpath(p, root_abs).replace(os.sep, "/")
+        try:
+            with open(p, "r", encoding="utf-8") as fh:
+                text = fh.read()
+        except (OSError, UnicodeDecodeError) as e:
+            sys.stderr.write("error: cannot read %s: %s\n" % (rel, e))
+            return 2
+        base = os.path.dirname(p)
+        in_fence = False
+        for n, line in enumerate(text.split("\n"), 1):
+            if FENCE_RE.match(line):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue  # links inside a ``` example are documentation, not real cross-links
+            for m in _doctor.LINK_RE.finditer(line):
+                # `![alt](src)` is an image embed, not a concept link — skip the image tail.
+                if m.start() > 0 and line[m.start() - 1] == "!":
+                    continue
+                raw = m.group(1).strip()
+                # markdown allows `(<url> "title")`; take the URL part only
+                if raw.startswith("<") and ">" in raw:
+                    target = raw[1:raw.index(">")]
+                else:
+                    target = raw.split()[0] if raw.split() else ""
+                if not target or target.startswith("#"):
+                    continue
+                if target.lower().startswith(EXTERNAL_SCHEMES):
+                    continue
+                path_part = target.split("#", 1)[0].split("?", 1)[0]
+                if not path_part:
+                    continue  # was a pure fragment
+                if path_part.startswith("/"):
+                    resolved_abs = os.path.join(root_abs, path_part.lstrip("/"))
+                else:
+                    resolved_abs = os.path.join(base, path_part)
+                resolved_abs = os.path.normpath(resolved_abs)
+                exists = (os.path.isdir(resolved_abs) if path_part.endswith("/")
+                          else os.path.isfile(resolved_abs))
+                links.append({
+                    "file": rel,
+                    "line": n,
+                    "raw": target,
+                    "resolved": os.path.relpath(resolved_abs, root_abs).replace(os.sep, "/"),
+                    "exists": exists,
+                })
+    print(json.dumps({"status": "ok", "links": links}))
+    return 0
+
+
+# ---------------------------------------------------------------- merge
+
+def _has_conflict(text):
+    return any(l.startswith("<<<<<<< ") for l in text.split("\n"))
+
+
+def _split_conflict(text):
+    """Resolve standard git conflict markers into the two full sides (ours, theirs).
+    Lines outside a conflict hunk are common to both; `=======` only counts as a
+    separator while inside a hunk (a setext underline elsewhere is left alone)."""
+    ours, theirs = [], []
+    state = 0  # 0 = common, 1 = ours hunk, 2 = theirs hunk
+    for line in text.split("\n"):
+        if line.startswith("<<<<<<< ") and state == 0:
+            state = 1
+        elif line.rstrip() == "=======" and state == 1:
+            state = 2
+        elif line.startswith(">>>>>>> ") and state == 2:
+            state = 0
+        elif state == 1:
+            ours.append(line)
+        elif state == 2:
+            theirs.append(line)
+        else:
+            ours.append(line)
+            theirs.append(line)
+    return "\n".join(ours), "\n".join(theirs)
+
+
+def _parse_log_side(text):
+    """Parse one side of log.md with the same grammar doctor.check_log enforces:
+    fence-aware, `## YYYY-MM-DD` H2 date headings, `* `/`- ` bullets under them.
+    Returns (title_line_or_None, {date: [bullet lines]}). Bullets under a malformed
+    heading (and any other stray prose) are dropped — the log is engine-authored, so
+    grammar-only content is the invariant; the Doctor gate after merge reports gaps."""
+    title, entries, cur, in_fence = None, {}, None, False
+    for line in text.split("\n"):
+        if FENCE_RE.match(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if line.startswith("## "):
+            heading = line[3:].strip()
+            if _doctor.DATE_RE.match(heading):
+                try:
+                    cur = date.fromisoformat(heading)
+                    entries.setdefault(cur, [])
+                    continue
+                except ValueError:
+                    pass
+            cur = None
+        elif (line.startswith("* ") or line.startswith("- ")) and cur is not None:
+            entries[cur].append(line)
+        elif title is None and line.startswith("# "):
+            title = line
+    return title, entries
+
+
+def _merge_log_text(text):
+    """Union-merge a conflicted log.md: both sides' bullets under their date headings,
+    deduped byte-identical, dates newest-first, first-seen bullet order per date."""
+    ours, theirs = _split_conflict(text)
+    title_a, ent_a = _parse_log_side(ours)
+    title_b, ent_b = _parse_log_side(theirs)
+    merged = {}
+    for ent in (ent_a, ent_b):
+        for d, bullets in ent.items():
+            lst = merged.setdefault(d, [])
+            for b in bullets:
+                if b not in lst:
+                    lst.append(b)
+    parts = [title_a or title_b or "# Directory Update Log", ""]
+    for d in sorted(merged, reverse=True):
+        parts.append("## %s" % d.isoformat())
+        parts.append("")
+        parts.extend(merged[d])
+        parts.append("")
+    while parts and parts[-1] == "":
+        parts.pop()
+    return "\n".join(parts) + "\n"
+
+
+def cmd_merge(bundle_root):
+    """Resolve git conflict markers in log.md (bullet union) and index.md files
+    (conflicted content discarded — the regen below rebuilds them from frontmatter),
+    then regenerate indexes unconditionally and Doctor-gate the result. A doctor block
+    leaves the merged files in place so the caller can inspect them."""
+    root_abs = os.path.abspath(bundle_root)
+    log_path = os.path.join(root_abs, "log.md")
+    resolved = []
+    # merge is a writer too — the conflict scan, the log.md read, AND the rewrite all
+    # run under one lock, so a concurrent apply/log-append cannot land a bullet between
+    # the read and the stale-text rewrite (lost update)
+    with _bundle_lock(root_abs):
+        index_paths = []
+        for root, dirs, files in os.walk(root_abs):
+            dirs[:] = [d for d in dirs if d != ".llm-wiki"]
+            if "index.md" in files:
+                index_paths.append(os.path.normpath(os.path.join(root, "index.md")))
+        try:
+            log_text = None
+            if os.path.isfile(log_path):
+                with open(log_path, "r", encoding="utf-8") as fh:
+                    log_text = fh.read()
+            conflicted_indexes = []
+            for p in sorted(index_paths):
+                with open(p, "r", encoding="utf-8") as fh:
+                    if _has_conflict(fh.read()):
+                        conflicted_indexes.append(p)
+        except (OSError, UnicodeDecodeError) as e:
+            sys.stderr.write("error: cannot read bundle file: %s\n" % e)
+            return 2
+
+        log_conflicted = log_text is not None and _has_conflict(log_text)
+        if not log_conflicted and not conflicted_indexes:
+            print(json.dumps({"status": "clean"}))
+            return 0
+
+        if log_conflicted:
+            try:
+                with open(log_path, "w", encoding="utf-8") as fh:
+                    fh.write(_merge_log_text(log_text))
+            except OSError as e:
+                sys.stderr.write("error: cannot write log.md: %s\n" % e)
+                return 2
+            resolved.append("log.md")
+        for p in conflicted_indexes:
+            os.remove(p)  # discarded; the index regen below rebuilds it
+            resolved.append(os.path.relpath(p, root_abs).replace(os.sep, "/"))
+        rc = cmd_index(root_abs)
+        if rc != 0:
+            sys.stderr.write("error: index regeneration failed (exit %d)\n" % rc)
+            return 2
+
+    try:
+        _r, _n, findings = _doctor.validate(root_abs)
+    except ValueError as e:
+        sys.stderr.write("error: %s\n" % e)
+        return 2
+    errors = [f for f in findings if f["severity"] == "ERROR"]
+    if errors:
+        print(json.dumps({"status": "blocked:doctor", "resolved": resolved,
+                          "violations": errors,
+                          "hint": "merged files were left in place for inspection - "
+                                  "fix the violations and re-run doctor"}))
+        return 1
+    print(json.dumps({"status": "merged", "resolved": resolved}))
+    return 0
 
 
 # ---------------------------------------------------------------- cli
@@ -624,9 +1099,9 @@ def main(argv):
         sys.stderr.write("error: %s needs a bundle-root argument\n" % sub)
         return 2
     bundle_root = rest[0]
-    # apply auto-initializes an absent bundle, so it tolerates a missing directory;
+    # apply operations auto-initialize an absent bundle, so they tolerate a missing directory;
     # every other subcommand operates in place and requires the bundle to exist.
-    if sub != "apply" and not os.path.isdir(bundle_root):
+    if sub not in ("apply", "batch-apply") and not os.path.isdir(bundle_root):
         sys.stderr.write("error: not a directory: %s\n" % bundle_root)
         return 2
 
@@ -647,6 +1122,18 @@ def main(argv):
         if not day:
             day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         return cmd_apply(bundle_root, concept, content_file, kind, message, day)
+
+    if sub == "batch-apply":
+        manifest, day = _opt(rest, "--manifest"), _opt(rest, "--date")
+        if not manifest:
+            sys.stderr.write("error: batch-apply requires --manifest\n")
+            return 2
+        if _bad_date(day):
+            sys.stderr.write("error: --date must be an ISO date (YYYY-MM-DD)\n")
+            return 2
+        if not day:
+            day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        return cmd_batch_apply(bundle_root, manifest, day)
 
     if sub == "index":
         return cmd_index(bundle_root)
@@ -681,6 +1168,10 @@ def main(argv):
             sys.stderr.write("error: remove requires --concept\n")
             return 2
         return cmd_remove(bundle_root, concept)
+    if sub == "linkcheck":
+        return cmd_linkcheck(bundle_root)
+    if sub == "merge":
+        return cmd_merge(bundle_root)
 
     sys.stderr.write("error: unknown subcommand: %s\n" % sub)
     return 2

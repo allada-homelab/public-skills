@@ -16,18 +16,21 @@ Steps:
 1. **Resolve the bundle root** (`--bundle`; else `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk up). None →
    there is no wiki yet (one is created automatically on the first `/llm-wiki:capture`); say so and stop.
 2. **Conformance.** Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "<bundle>" --mode strict
-   --format json`. Summarize: errors (R1/R2/R3*) and **R4 broken-link WARNINGs** (report-only). Broken
-   links are *candidates to fix*, never auto-removed.
+   --format json`. Summarize: errors (R1/R2/R3*), **R4 broken-link WARNINGs**, and **R5 type-vocabulary
+   WARNINGs** (concepts whose `type` is off SKILL.md's canonical vocabulary) — all report-only. Broken
+   links are *candidates to fix*, never auto-removed; R5 off-vocabulary types are a *consistency* nudge
+   (a `capture` edit-in-place toward a canonical token keeps grouping and this digest's analytics stable),
+   never a block.
 3. **Graph health.** From `index.md` listings and concept cross-links, surface **orphans** (concepts no
    index or concept links to), **near-duplicates** (very similar titles/slugs/`resource`s), and obvious
    **missing links** (concepts that clearly relate but aren't linked).
 4. **Staleness.** Rank concepts by likely staleness using `timestamp` (if present), the newest `log.md`
    entry touching them, and any linked `resource`. Old concepts with no recent log activity are
    prune/merge candidates.
-4a. **Anchor freshness sweep** (the proactive complement to `/llm-wiki:query`'s lazy per-read verify).
+4a. **Anchor freshness sweep** (the proactive complement to the compiler/verifier's targeted checks).
    For each concept with a `## Verify` anchor + `verified:` stamp, run the cheap git gate against its
    anchored file(s): `git -C "${CLAUDE_PROJECT_DIR}" log --since="<verified>" -1 --format=%H --
-   <anchor-file>` (the same freshness gate `/llm-wiki:query` step 5 uses — keep byte-identical).
+   <anchor-file>`.
    **Non-empty (or the file no longer resolves)** → the anchored code changed since last
    verified → list as **needs re-verification** (a `capture` edit-in-place candidate; or point the user at
    `/llm-wiki:query <concept>`, whose read flow dispatches the verifier — `tend` is read-only and cannot

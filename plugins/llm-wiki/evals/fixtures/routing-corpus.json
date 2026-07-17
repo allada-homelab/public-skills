@@ -1,0 +1,53 @@
+[
+  {
+    "name": "direct lookup",
+    "prompt": "What is the token rotation interval?",
+    "candidates": [{"title": "Token rotation", "description": "Signing-key schedule", "section_path": "auth"}],
+    "route": "glimmer",
+    "lens": "neutral",
+    "direct": true
+  },
+  {
+    "name": "cross-domain implementation",
+    "prompt": "Compare auth and billing retry behavior before we implement the change",
+    "candidates": [
+      {"title": "Auth retries", "description": "Retry policy", "section_path": "auth"},
+      {"title": "Billing retries", "description": "Retry policy", "section_path": "billing"}
+    ],
+    "route": "oracle",
+    "lens": "implementer"
+  },
+  {
+    "name": "cross-domain safety why",
+    "prompt": "Why is the safety policy different across auth and billing?",
+    "candidates": [
+      {"title": "Auth policy", "description": "Current controls", "section_path": "auth"},
+      {"title": "Billing policy", "description": "Current controls", "section_path": "billing"}
+    ],
+    "route": "archaeologist",
+    "lens": "neutral"
+  },
+  {
+    "name": "historical investigation",
+    "prompt": "What is the migration history for token signing?",
+    "candidates": [{"title": "Signing migration", "description": "Decision history", "section_path": "auth"}],
+    "route": "archaeologist",
+    "lens": "historian"
+  },
+  {
+    "name": "debug direct",
+    "prompt": "Debug the token refresh failure",
+    "candidates": [{"title": "Refresh failures", "description": "Known failure modes", "section_path": "auth"}],
+    "route": "glimmer",
+    "lens": "debugger",
+    "direct": true
+  },
+  {
+    "name": "explicit review lens",
+    "prompt": "Summarize token cookies --lens reviewer",
+    "candidates": [{"title": "Session cookies", "description": "Cookie rules", "section_path": "auth"}],
+    "route": "glimmer",
+    "lens": "reviewer",
+    "direct": true
+  }
+]

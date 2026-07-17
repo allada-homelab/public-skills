@@ -25,18 +25,19 @@ Steps:
 2. **Plan the moves.** From the request, produce an explicit list of `from → to` bundle-relative paths
    (a rename is a move within the same directory; a new subdirectory is created by its `to` path).
    Proceed without confirming the plan.
-3. **Baseline link health.** Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "<bundle>" --mode
-   strict --format json` and record the **set of already-broken links** (`before`). Identify each broken
-   link by its **resolved target** (resolve the link relative to its containing file, or from the bundle
-   root for `/…` links) — **not** the raw link string, which legitimately changes when a file moves. The
-   Doctor's `R4` finding carries only the **raw link string and its containing `file:line`** (there is no
-   resolved-target field in the output), so you must compute the target yourself —
-   `normpath(join(dirname(file), rawlink))`, or from the bundle root for a leading-`/` link — and key
-   both `before` and `after` on that. A bundle with no pre-existing broken links has an empty `before`;
-   conformance does **not** guarantee this, since R4 broken links are tolerated WARNINGs. If this baseline
-   Doctor reports **errors** (R1/R2/R3 — not R4 warnings), the bundle is non-conformant: stop and fix it
-   first (run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "<bundle>"` to see the violations), since
-   the step-5 gate would otherwise block on those same errors and surface them as the blocker.
+3. **Baseline link health.** Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" linkcheck
+   "<bundle>"` and record `before` = the set of **`resolved`** targets of every emitted link whose
+   `exists` is `false`. `linkcheck` reports one entry per internal link (external schemes skipped) with a
+   bundle-relative, normalized `resolved` target and an `exists` bool, so key `before` on `resolved` —
+   there is nothing to compute by hand (`resolved` is exactly the old `normpath(join(dirname(file),
+   rawlink))`, and keys on the target, not the raw string, so it stays stable when a file moves). A bundle
+   with no pre-existing broken links has an empty `before`; conformance does **not** guarantee this, since
+   broken links are tolerated WARNINGs. Separately, confirm the base is **conformant** so the step-5 gate
+   won't trip on a pre-existing error: if `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "<bundle>"
+   --mode strict --format json` reports **errors** (R1/R2/R3 — not R4 warnings), the bundle is
+   non-conformant: stop and fix it first (run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py"
+   "<bundle>"` to see the violations), since the step-5 gate would otherwise block on those same errors
+   and surface them as the blocker.
 4. **Stage in a mirror.** `mirror=$(mktemp -d)`; `cp -r "<bundle>/." "$mirror/"`. For each planned move,
    in order: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" move "$mirror" --from <a> --to <b>`
    (this rewrites inbound links in **both** the `./` and `/` forms and the moved file's own relative
@@ -49,10 +50,11 @@ Steps:
    - `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" index "$mirror"`
    - `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" log-append "$mirror" --kind Update --message "Moved <summary>." --date "$today"`
 5. **Doctor gate + link-health diff.** Run the Doctor on `$mirror` (strict, json). Exit ≠ 0 → show, `rm
-   -rf "$mirror"`, stop. Collect the mirror's broken links by **resolved target** (`after`, same keying
-   as step 3). Require `after ⊆ before`: if any link broke that wasn't already broken (the common case:
-   `before` is empty, so `after` must be empty too), it is a **regression** — report each newly-broken
-   link, `rm -rf "$mirror"`, write nothing.
+   -rf "$mirror"`, stop. Then run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" linkcheck
+   "$mirror"` and collect `after` = the `resolved` targets of its links whose `exists` is `false` (same
+   keying as step 3). Require `after ⊆ before`: if any link broke that wasn't already broken (the common
+   case: `before` is empty, so `after` must be empty too), it is a **regression** — report each
+   newly-broken link, `rm -rf "$mirror"`, write nothing.
 6. **Secret scan (always).** Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/secret_scan.py" <path> --format
    json` over each concept whose content changed (and over the staged log bullet) — **always**, since a hit
    halts the apply. A **hit** is a non-zero `summary.findings` in the JSON output (`secret_scan.py` always
