@@ -7,7 +7,7 @@ tags:
   - autonomy
   - gotcha
 timestamp: 2026-06-26T00:00:00Z
-verified: 2026-07-04
+verified: 2026-07-17
 ---
 # Post-compaction re-injection is a SessionStart-on-compact job, not PreCompact
 
@@ -34,7 +34,7 @@ survival-guaranteed channel for landing text in the freshly-compacted window. `P
 
 ## Verify
 - plugins/llm-wiki/hooks/hooks.json — SessionStart block has no `matcher` (match-all → fires on `compact`)
-- plugins/llm-wiki/scripts/hook_session_start.py:148-151 — the `source == "compact"` branch
+- run: `grep -c '== "compact"' plugins/llm-wiki/scripts/hook_session_start.py` — expected: >= 1 (the compact-source branch; line numbers drift, the branch is the anchor)
 
 ## Related
 - See [Phase 3 autonomy — hook-driven, auto-default with a guard floor](./phase-3-autonomy-architecture.md) — the six wired hook events this refines.

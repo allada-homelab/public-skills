@@ -1,12 +1,12 @@
 ---
 type: Reference
 title: OKF Doctor — strict-producer rule set
-description: The conformance rules doctor.py enforces (R1/R2/R3a–c plus R4 link-health and R5 type-vocabulary), its strict/lenient modes, and exit codes.
+description: The conformance rules doctor.py enforces (R1/R2/R3a–c plus R4 link-health, R5 type-vocabulary, R6 provenance, and R7 bundle-shape), its strict/lenient modes, and exit codes.
 tags:
   - doctor
   - conformance
   - okf
-verified: 2026-07-02T00:00:00Z
+verified: 2026-07-17T00:00:00Z
 ---
 # OKF Doctor — strict-producer rule set
 
@@ -31,21 +31,29 @@ pre-write gate for everything `/llm-wiki` authors; **lenient-consumer mode** is 
   is checked case-insensitively against a fixed `CANONICAL_TYPES` set (e.g. `concept`, `decision`,
   `gotcha`, `reference`, `table`, `bigquery table`, …). OKF §3 only requires a non-empty `type`, so a
   drifted value is a curation nudge, not an error — R5 never changes the exit code.
+- **R6 — Wiki-managed provenance (ERROR).** A `wiki_managed: true` concept must carry a `## Wiki
+  provenance` JSON block, and any present provenance block must validate (complete, stable,
+  objectively grounded).
+- **R7 — Bundle shape (WARNING only, directory targets).** A bundle with zero concept files, or with
+  concepts but no root `index.md`, gets a report-only warning — previously a moved/emptied bundle
+  validated byte-identically to a healthy one (LW-1/LW-4 in the 2026-07-17 homelab bug report).
+  Single-file targets skip R7; an auto-inited empty bundle legitimately warns until its first capture.
 
 ## Modes & output
 
 - `--mode strict` (default) runs all rules; `--mode lenient` is a Phase 4 stub that exits `2`.
 - `--format text` (human-readable) or `--format json` (deterministic, sorted findings).
 - Exit codes: `0` = conformant (warnings allowed), `1` = one or more errors, `2` = operational error
-  (bad path, a bare `index.md`, or `--mode lenient`).
+  (bad path, a bare `index.md`, or `--mode lenient`). `-h`/`--help` prints usage and exits `0`.
 
 The Doctor is validation-only — it never writes. The maintenance commands (`/llm-wiki:capture` /
 `:prune` / `:reorganize`) make conformant changes deterministically via the shared `scripts/bundle_ops.py`
 engine — including its consolidated **`apply`** gated-write subcommand (stage on a mirror → regenerate
 index → append log → Doctor-gate → secret-scan → commit), which `capture` and the background
 `wiki-capturer` agent both call. `reorganize` additionally diffs R4 before/after a move to guarantee it
-introduces zero newly-broken links. Write gates key on ERROR only, so R4 and R5 (both WARNING-only)
+introduces zero newly-broken links. Write gates key on ERROR only, so R4, R5, and R7 (all WARNING-only)
 never block a write.
 
 ## Verify
-- plugins/llm-wiki/scripts/doctor.py — contains R1/R2/R3/R4/R5 check implementations
+- plugins/llm-wiki/scripts/doctor.py — contains R1/R2/R3/R4/R5/R6/R7 check implementations
+- run: `grep -c "R7" plugins/llm-wiki/scripts/doctor.py` — expected: >= 4 (docstring + check_bundle_shape findings)

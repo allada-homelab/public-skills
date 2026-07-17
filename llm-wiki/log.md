@@ -1,5 +1,12 @@
 # Directory Update Log
 
+## 2026-07-17
+
+* **Update**: Bumped `secret-scan-entropy-gate` verified stamp to 2026-07-17 (content already covered the camelCase exemption).
+* **Update**: Updated `post-compaction-reinjection` — replaced the drifted line-range Verify anchor with a grep anchor; re-verified.
+* **Update**: Updated `doctor-rule-set` — documented R6 (provenance) and the new R7 bundle-shape warnings plus `--help`; re-verified.
+* **Update**: Updated `secret-scan-entropy-gate` — documented the letters-only camelCase identifier exemption added to Stage 2 (LW-5).
+
 ## 2026-07-09
 
 * **Update**: Removed the llm-wiki test-fixture corpora (Doctor/bundle_ops/hook fixtures) and pruned the three now-obsolete fixture-harness concepts.
