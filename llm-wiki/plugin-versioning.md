@@ -11,8 +11,8 @@ verified: 2026-07-17T00:00:00Z
 ---
 # Plugin versioning — pinned; every user-visible change requires a version bump
 
-`plugins/llm-wiki/.claude-plugin/plugin.json` **pins an explicit `version`** (0.1.1 as of
-2026-07-17). Per the Claude Code plugins reference: a set `version` pins the plugin to that
+`plugins/llm-wiki/.claude-plugin/plugin.json` **pins an explicit `version`** (the manifest is
+the authority for the current number — this concept deliberately does not cite it). Per the Claude Code plugins reference: a set `version` pins the plugin to that
 string, so installed users only receive updates when it is bumped; the plugin cache is keyed
 by that version (`~/.claude/plugins/cache/public-skills/llm-wiki/<version>/`).
 

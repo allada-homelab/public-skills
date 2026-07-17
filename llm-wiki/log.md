@@ -2,6 +2,8 @@
 
 ## 2026-07-17
 
+* **Creation**: Captured `dispatch-gate-feature-fallback` — why the dispatch gate resolves controller jobs by feature fallback instead of requiring the id in text (0.1.2).
+* **Update**: De-churned `plugin-versioning` — the manifest, not the concept, is the authority for the current version number.
 * **Update**: Updated `marketplace-skill-registration` — step 1 and the Related link now reflect the pinned bump-on-change versioning scheme.
 * **Update**: Updated `plugin-versioning` — version is now pinned; bump-on-change is mandatory (stale-cache gotcha observed 2026-07-17).
 * **Update**: Bumped `secret-scan-entropy-gate` verified stamp to 2026-07-17 (content already covered the camelCase exemption).
