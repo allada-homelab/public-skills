@@ -45,6 +45,13 @@ authority (run it after).
         Apply a bounded set of already provenance-stamped concepts under one bundle lock, one
         mirror/Doctor/secret gate, one index regeneration, and one log entry.
 
+    bundle_ops.py stage <bundle-root>
+        Stage the bundle's current git state (`git add -A` scoped to the bundle directory)
+        while holding the same bundle lock `apply` holds, so staging can never snapshot a
+        half-landed background apply (concept written, index/log not yet). Use this — or
+        re-stage bundle paths immediately before committing — whenever a commit includes
+        the bundle; a live session's Scribe may apply concurrently at any time.
+
     bundle_ops.py linkcheck <bundle-root>
         Report every internal markdown link as one JSON object on stdout:
         {"status": "ok", "links": [{file, line, raw, resolved, exists}]}. External
@@ -858,6 +865,29 @@ def cmd_batch_apply(bundle_root, manifest_file, day):
 
 # ---------------------------------------------------------------- linkcheck
 
+def cmd_stage(bundle_root):
+    """Stage the bundle's current git state atomically w.r.t. `apply`: `git add -A` scoped to
+    the bundle directory, under the bundle flock. Without the lock a foreground `git add` can
+    interleave with a background Scribe apply and commit an index/log that references a concept
+    file the commit doesn't include (an R4 broken link). `.llm-wiki/` transient state is
+    gitignored, so the bundle-scoped `-A` stays safe."""
+    root_abs = os.path.abspath(bundle_root)
+    with _bundle_lock(root_abs):
+        try:
+            proc = subprocess.run(
+                ["git", "-C", root_abs, "add", "-A", "--", "."],
+                capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.SubprocessError) as e:
+            sys.stderr.write("error: git add failed: %s\n" % e)
+            return 2
+    if proc.returncode != 0:
+        sys.stderr.write("error: git add failed (exit %d): %s\n"
+                         % (proc.returncode, proc.stderr.strip()))
+        return 2
+    print(json.dumps({"status": "staged", "bundle": bundle_root}))
+    return 0
+
+
 def cmd_linkcheck(bundle_root):
     """Report every internal markdown link in the bundle (skipping `.llm-wiki/`) as
     {"status": "ok", "links": [...]} — same regex/fence/image/scheme handling as
@@ -1168,6 +1198,8 @@ def main(argv):
             sys.stderr.write("error: remove requires --concept\n")
             return 2
         return cmd_remove(bundle_root, concept)
+    if sub == "stage":
+        return cmd_stage(bundle_root)
     if sub == "linkcheck":
         return cmd_linkcheck(bundle_root)
     if sub == "merge":

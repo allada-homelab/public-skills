@@ -22,6 +22,9 @@ Rules (see docs/llm-wiki/phases/phase-1-tech-plan.md §5):
     R5   concept `type` is in the canonical vocabulary (WARNING only — OKF §3 only requires a
          non-empty type; R5 is a curation nudge to keep grouping/analytics stable, never an ERROR)
     R6   Wiki-managed claim/evidence provenance is complete, stable, and objectively grounded
+    R7   bundle shape (directory targets only; WARNING, never blocks): zero concept files, or
+         concepts present without a root index.md — both are the signature of a moved/emptied
+         bundle, which would otherwise validate byte-identically to a healthy one
 """
 import json
 import os
@@ -310,6 +313,22 @@ def check_links(text, abspath, bundle_root, relpath, findings):
                                    "Link target does not resolve: %s" % target))
 
 
+def check_bundle_shape(paths, bundle_root, findings):
+    """R7 (report-only, directory targets only): a healthy bundle and one whose contents were
+    moved or emptied must not validate identically. Warnings, never errors — an auto-inited
+    bundle is legitimately empty until its first capture lands."""
+    kinds = [classify(p, bundle_root) for p in paths]
+    concepts = kinds.count("concept")
+    if concepts == 0:
+        findings.append(_f("WARNING", "R7", ".", 1,
+                           "Bundle contains no concept files — if this project should have a wiki, "
+                           "the bundle may have been moved or emptied."))
+    elif "root_index" not in kinds:
+        findings.append(_f("WARNING", "R7", ".", 1,
+                           "Bundle has %d concept(s) but no root index.md — regenerate it "
+                           "(bundle_ops.py index)." % concepts))
+
+
 def _key_lookup(text, key):
     """Return (lineno, raw_value) for `key`'s first frontmatter line — (1, '') if absent.
     `raw_value` is verbatim (not unquoted)."""
@@ -366,15 +385,23 @@ def validate(target):
         elif kind == "log":
             check_log(text, rel, findings)
         check_links(text, p, bundle_root, rel, findings)
+    if os.path.isdir(target):
+        check_bundle_shape(paths, bundle_root, findings)
     findings.sort(key=lambda f: (f["file"], f["line"], f["rule"]))
     return bundle_root, len(paths), findings
+
+
+USAGE = "usage: doctor.py <bundle-or-file> [--mode strict|lenient] [--format text|json]\n"
 
 
 def main(argv):
     mode, fmt, target = "strict", "text", None
     it = iter(argv)
     for a in it:
-        if a == "--mode":
+        if a in ("-h", "--help"):
+            sys.stdout.write(USAGE)
+            return 0
+        elif a == "--mode":
             mode = next(it, "")
         elif a == "--format":
             fmt = next(it, "")
@@ -388,7 +415,7 @@ def main(argv):
             return 2
 
     if target is None:
-        sys.stderr.write("usage: doctor.py <bundle-or-file> [--mode strict|lenient] [--format text|json]\n")
+        sys.stderr.write(USAGE)
         return 2
     if mode not in ("strict", "lenient"):
         sys.stderr.write("invalid --mode: %s\n" % mode)

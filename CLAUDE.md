@@ -56,7 +56,9 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
 ## Architecture & conventions
 
 - **Doctor is the conformance authority.** `doctor.py` deterministically enforces OKF v0.1
-  (rules R1/R2/R3a–c, plus report-only **R4** link-health and **R5** type-vocabulary). The `wiki` skill only makes drafts
+  (rules R1/R2/R3a–c and **R6** wiki-managed provenance, plus report-only **R4** link-health,
+  **R5** type-vocabulary, and **R7** bundle-shape: an empty bundle or concepts-without-root-index
+  warns instead of validating byte-identically to a healthy bundle). The `wiki` skill only makes drafts
   *near*-conformant; if they disagree, the Doctor wins. Writes are staged to a `/tmp` bundle
   mirror and Doctor-gated in bundle mode *before* anything lands.
 - **Maintenance is deterministic.** `bundle_ops.py` (index regeneration, `log.md` appends,

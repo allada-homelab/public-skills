@@ -2,6 +2,7 @@
 """SessionStart hook: inject a bounded recursive wiki metadata map without opening concept bodies."""
 
 import os
+import subprocess
 import sys
 import time
 
@@ -41,6 +42,28 @@ def _sweep_stale_markers(project):
             pass
 
 
+def _prior_bundle_evidence(project, bundle):
+    """A signal that a bundle existed at this root before, distinguishing 'vanished' from 'never
+    had one': a non-empty bundle directory (e.g. leftover `.llm-wiki/` state after index.md was
+    lost), else bundle files tracked in git — the load-bearing signal after a whole-directory
+    rename-away, since `.llm-wiki/` state moves *with* the directory. Both checks are best-effort;
+    None means no evidence (the quiet no-bundle state stays quiet)."""
+    try:
+        if os.path.isdir(bundle) and os.listdir(bundle):
+            return "the directory is non-empty"
+    except OSError:
+        pass
+    try:
+        proc = subprocess.run(
+            ["git", "-C", project, "ls-files", "--", os.path.relpath(bundle, project)],
+            capture_output=True, text=True, timeout=5)
+        if proc.returncode == 0 and proc.stdout.strip():
+            return "git tracks %d file(s) under it" % len(proc.stdout.strip().splitlines())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return None
+
+
 def _summary(catalog):
     count = len(catalog["entries"])
     section_count = sum(1 for section in catalog["sections"] if section["path"])
@@ -57,7 +80,20 @@ def main():
     project = _hook_common.project_dir(event)
     bundle = _hook_common.bundle_root(project)
     if not _hook_common.bundle_exists(project):
-        if event.get("source") == "startup":
+        # "Never had a wiki" is a quiet state by design — but "had one and it vanished" must be
+        # loud: without this, renaming/emptying the bundle silently disables the whole coprocessor
+        # while every health signal reads green. Emitted on every source, compaction included.
+        evidence = _prior_bundle_evidence(project, bundle)
+        if evidence:
+            _hook_common.emit_additional_context(
+                "SessionStart",
+                "[llm-wiki] WIKI MISSING — `%s` has no root index.md, but %s. A bundle existed "
+                "here before: it has likely been moved, renamed, or emptied, and the wiki "
+                "coprocessor is disabled until it is restored. Surface this to the user "
+                "prominently, and restore the bundle (move it back, or `git checkout -- %s`) "
+                "rather than re-ingesting from scratch." % (bundle, evidence, bundle),
+            )
+        elif event.get("source") == "startup":
             _hook_common.emit_additional_context(
                 "SessionStart",
                 "[llm-wiki] No knowledge bundle in this repo yet — /llm-wiki:ingest --dry-run "

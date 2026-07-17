@@ -66,6 +66,16 @@ PATTERNS = [
 # labeled Stage-1 patterns catch the named high-value keys).
 TOKEN_RE = re.compile(r"[A-Za-z0-9+=_]{%d,}" % ENTROPY_MIN_LEN)
 
+# Letters-only strict camelCase (lowercase head, capitalized humps, optional trailing acronym) is
+# an identifier, not a secret: Kubernetes/API field names (`maxNoOfPodsToEvictPerNode`,
+# `guaranteedInstanceManagerCPU`) clear the entropy bar purely on case alternation, and they are
+# exactly the vocabulary a wiki must quote verbatim. A >=20-char random token is letters-only only
+# ~3% of the time and camelCase-*shaped* essentially never, so this exemption barely dents the
+# backstop. Any digit or symbol disqualifies — only the unambiguous identifier shape is exempt.
+# Deliberately NOT a backtick/fence exemption: backticked spans are where an agent would paste a
+# discovered credential, so exempting them would hollow the guard.
+CAMELCASE_RE = re.compile(r"^[a-z]+(?:[A-Z][a-z]+)*(?:[A-Z]{2,6})?$")
+
 # Inline "this is not a real secret" marker (detect-secrets convention). Suppresses Stage-2
 # entropy and low-confidence generic shapes on its line only — it can NOT silence a Stage-1 named
 # key format (see the scan loop): named-key formats must be redacted, not pragma'd, because the
@@ -144,6 +154,8 @@ def scan(text):
                 continue
             if PLACEHOLDER_RE.search(token):
                 continue
+            if CAMELCASE_RE.match(token):
+                continue  # letters-only camelCase identifier — see CAMELCASE_RE
             if shannon_entropy(token) >= ENTROPY_MIN and charset_classes(token) >= 2:
                 seen.add((lineno, token))
                 findings.append({"category": "high_entropy_token", "detector": "entropy",
@@ -156,7 +168,10 @@ def main(argv):
     fmt, target = "text", None
     it = iter(argv)
     for a in it:
-        if a == "--format":
+        if a in ("-h", "--help"):
+            sys.stdout.write("usage: secret_scan.py <file-or-\"-\"> [--format text|json]\n")
+            return 0
+        elif a == "--format":
             fmt = next(it, "")
         elif a.startswith("--"):
             sys.stderr.write("unknown flag: %s\n" % a)
