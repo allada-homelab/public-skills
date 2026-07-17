@@ -1,42 +1,42 @@
 ---
 type: decision
-title: Plugin versioning — unpinned for git-SHA auto-update
-description: Why plugin.json omits the version field — Claude Code falls back to the git commit SHA, so every commit auto-updates installed users during active development.
+title: Plugin versioning — pinned; every user-visible change requires a version bump
+description: plugin.json now pins version, so updates only reach installed users on an explicit bump — forgetting one silently strands users on a stale cache while /plugin reports "already at the latest version".
 tags:
   - versioning
   - distribution
   - plugin
 timestamp: 2026-06-15T00:00:00Z
-verified: 2026-06-26T21:36:34Z
+verified: 2026-07-17T00:00:00Z
 ---
-# Plugin versioning — unpinned for git-SHA auto-update
+# Plugin versioning — pinned; every user-visible change requires a version bump
 
-`plugins/llm-wiki/.claude-plugin/plugin.json` deliberately **omits** the `version`
-field. Per the Claude Code plugins reference: setting `version` pins the plugin to that
-string, so users only receive updates when you bump it; if it is omitted, Claude Code
-**falls back to the git commit SHA** and treats every commit as a new version.
+`plugins/llm-wiki/.claude-plugin/plugin.json` **pins an explicit `version`** (0.1.1 as of
+2026-07-17). Per the Claude Code plugins reference: a set `version` pins the plugin to that
+string, so installed users only receive updates when it is bumped; the plugin cache is keyed
+by that version (`~/.claude/plugins/cache/public-skills/llm-wiki/<version>/`).
 
-## The decision
+## The gotcha (observed 2026-07-17)
 
-While the plugin is under active development, leave `version` unset. Every push to `main`
-then auto-updates everyone who installed `llm-wiki@public-skills` — no manual bump step,
-and no risk of silently stranding users on an old build because a release was forgotten.
+Pushing plugin changes **without** bumping `version` strands every installed user on the old
+build *silently*: `/plugin` compares version strings, reports "llm-wiki is already at the
+latest version (0.1.0)", and never refetches — `/reload-plugins` then reloads the stale
+cache. This bit us the same day the fix batch for the homelab bug report was pushed: the
+commits landed on `main` but the installed hooks kept running the old code.
 
-## Trade-off (why this isn't free)
+**Rule: any commit that changes plugin behavior must bump `version` in the same commit.**
 
-- **Gained:** zero release ceremony; the marketplace always serves the latest commit.
-- **Cost:** more frequent version churn for users (every commit is "a new version"), and no
-  human-readable semantic version to reference in a changelog or bug report.
+## History
 
-## When to reverse it
-
-Re-introduce an explicit `version` (and pair it with a CHANGELOG / release checklist) once
-the plugin stabilizes and updates should land on a deliberate cadence rather than per commit
-— i.e. when "every commit ships to users" stops being desirable.
+The plugin originally *omitted* `version` deliberately — Claude Code then falls back to the
+git commit SHA and every push auto-updates installed users (zero release ceremony during
+active development; older SHA-named cache dirs still exist alongside the versioned one).
+Pinning was the planned reversal for a stabler cadence, but the bump-on-change discipline is
+the non-optional other half of that trade.
 
 ## Verify
-- plugins/llm-wiki/.claude-plugin/plugin.json — no `version` field present (omitted deliberately for git-SHA auto-update)
-- run: `grep -c '"version"' plugins/llm-wiki/.claude-plugin/plugin.json` — expected: `0`
+- plugins/llm-wiki/.claude-plugin/plugin.json — explicit `version` field present
+- run: `grep -c '"version"' plugins/llm-wiki/.claude-plugin/plugin.json` — expected: `1`
 
 ## Related
 - [Phase 3 autonomy — hook-driven, auto-default with a guard floor](./phase-3-autonomy-architecture.md) — another plugin-architecture decision recorded for its "why".
