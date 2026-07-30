@@ -8,7 +8,9 @@ tags:
   - marketplace
   - skills
 generated: { by: llm-wiki/unknown, at: 2026-06-25T00:00:00Z }
-verified: { by: llm-wiki/unknown, at: 2026-07-17T00:00:00Z }
+verified:
+  - { by: llm-wiki/unknown, at: 2026-07-17T00:00:00Z }
+  - { by: llm-wiki/claude-opus-5, at: 2026-07-30T02:56:20Z }
 ---
 # Registering a skill in the public-skills marketplace
 

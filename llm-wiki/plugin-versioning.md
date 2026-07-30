@@ -7,7 +7,9 @@ tags:
   - distribution
   - plugin
 generated: { by: llm-wiki/unknown, at: 2026-06-15T00:00:00Z }
-verified: { by: llm-wiki/unknown, at: 2026-07-17T00:00:00Z }
+verified:
+  - { by: llm-wiki/unknown, at: 2026-07-17T00:00:00Z }
+  - { by: llm-wiki/claude-opus-5, at: 2026-07-30T02:56:20Z }
 ---
 # Plugin versioning — pinned; every user-visible change requires a version bump
 

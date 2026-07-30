@@ -8,7 +8,9 @@ tags:
   - autonomy
   - convention
 generated: { by: llm-wiki/unknown, at: 2026-06-26T21:47:23Z }
-verified: { by: llm-wiki/unknown, at: 2026-06-28T05:51:41Z }
+verified:
+  - { by: llm-wiki/unknown, at: 2026-06-28T05:51:41Z }
+  - { by: llm-wiki/claude-opus-5, at: 2026-07-30T02:56:20Z }
 ---
 # Reading is trust-but-verify — the consult-then-confirm loop
 

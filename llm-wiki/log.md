@@ -1,5 +1,9 @@
 # Directory Update Log
 
+## 2026-07-30
+
+* **Update**: Re-confirmed the `## Verify` anchors of [OKF Doctor](./doctor-rule-set.md), [Plugin versioning](./plugin-versioning.md), [Marketplace registration](./marketplace-skill-registration.md), and [Trust-but-verify](./trust-but-verify-loop.md) after the OKF v0.2 upgrade changed their anchor files.
+
 ## 2026-07-17
 
 * **Creation**: Captured `dispatch-gate-feature-fallback` — why the dispatch gate resolves controller jobs by feature fallback instead of requiring the id in text (0.1.2).
