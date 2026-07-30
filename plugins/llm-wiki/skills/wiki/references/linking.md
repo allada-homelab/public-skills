@@ -1,4 +1,4 @@
-# Cross-linking (OKF v0.1)
+# Cross-linking (OKF v0.2)
 
 Concepts form a graph by linking to each other with ordinary markdown links. The graph is richer than
 the directory tree — any concept may link to any other.

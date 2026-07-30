@@ -5,8 +5,8 @@ description: How llm-wiki autonomy works — five deterministic hook events, alw
 tags:
   - autonomy
   - hooks
-timestamp: 2026-06-14T00:00:00Z
-verified: 2026-07-02T00:00:00Z
+generated: { by: llm-wiki/unknown, at: 2026-06-14T00:00:00Z }
+verified: { by: llm-wiki/unknown, at: 2026-07-02T00:00:00Z }
 ---
 # llm-wiki autonomy — zero-config always-auto with a guard floor
 

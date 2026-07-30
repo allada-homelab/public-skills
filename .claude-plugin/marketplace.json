@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "llm-wiki",
-      "description": "An autonomous OKF v0.1 knowledge wiki for Claude Code — author, read, and maintain a curated knowledge bundle so each session starts smarter.",
+      "description": "An autonomous OKF v0.2 knowledge wiki for Claude Code — author, read, and maintain a curated knowledge bundle so each session starts smarter.",
       "category": "knowledge",
       "source": "./plugins/llm-wiki"
     },

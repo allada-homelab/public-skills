@@ -7,7 +7,7 @@ tags:
   - durability
   - concurrency
   - gotcha
-timestamp: 2026-07-02
+generated: { by: llm-wiki/unknown, at: 2026-07-02 }
 ---
 
 # apply commits by re-building on live, not copying the mirror

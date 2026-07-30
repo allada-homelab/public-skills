@@ -135,6 +135,8 @@ def prepare_batch(value, output_path):
                 "log_kind": "Creation",
                 "log_message": "Ingested [%s](./%s)." % (proposal["title"], concept_path),
                 "plugin_version": str(value.get("plugin_version") or "0.1.0"),
+                # Feeds both the evidence record and the §5.2 `generated.by` actor.
+                "model": str(value.get("model") or "sonnet"),
             },
         }
         validate_packet(packet, "publication_request")

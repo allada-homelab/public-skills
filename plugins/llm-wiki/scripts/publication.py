@@ -23,7 +23,11 @@ def _git_head(project):
     return proc.stdout.strip() if proc.returncode == 0 and proc.stdout.strip() else "unborn"
 
 
-def _ensure_managed_frontmatter(content):
+def _ensure_managed_frontmatter(content, actor=None, at=None):
+    """Stamp the fields deterministic code owns: `wiki_managed`, and — per OKF v0.2 §5.2 —
+    `generated: { by, at }`. Both are code-owned rather than drafted by the model: `at` is
+    this write's instant and `by` is the producer actually producing it, so a self-reported
+    value could only be wrong. Any `generated` in the draft is replaced for that reason."""
     lines = content.splitlines()
     if not lines or lines[0].strip() != "---":
         raise ValueError("content must have frontmatter")
@@ -31,14 +35,30 @@ def _ensure_managed_frontmatter(content):
         close = lines.index("---", 1)
     except ValueError as exc:
         raise ValueError("content frontmatter is not closed") from exc
-    if any(line.split(":", 1)[0].strip() == "wiki_managed" for line in lines[1:close]):
-        lines = [
-            "wiki_managed: true" if line.split(":", 1)[0].strip() == "wiki_managed" else line
-            for line in lines
-        ]
-    else:
-        lines.insert(close, "wiki_managed: true")
+
+    stamped = ["generated: { by: %s, at: %s }" % (actor, at)] if actor and at else []
+    drop = {"wiki_managed"} | ({"generated"} if stamped else set())
+    head, block = [], list(lines[1:close])
+    i = 0
+    while i < len(block):
+        line = block[i]
+        top_level = line[:1] not in (" ", "\t", "")
+        if top_level and line.split(":", 1)[0].strip() in drop:
+            # Drop the key *and* any indented continuation, so a block-form value
+            # (`generated:` / `  by: …`) can't leave its children orphaned.
+            i += 1
+            while i < len(block) and block[i][:1] in (" ", "\t"):
+                i += 1
+            continue
+        head.append(line)
+        i += 1
+    lines = ["---"] + head + ["wiki_managed: true"] + stamped + lines[close:]
     return "\n".join(lines).rstrip() + "\n"
+
+
+def generated_actor(model):
+    """The §7 actor for content this plugin produced: `<producer>/<version>`."""
+    return "llm-wiki/%s" % (str(model).strip() or "unknown")
 
 
 def _approved_gap_content(payload):
@@ -94,6 +114,9 @@ def prepare(packet, output_path):
     if not isinstance(claims_input, list) or not claims_input:
         raise ValueError("payload.claims must be a non-empty list")
     captured_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # One resolved model for both the evidence record and the §5.2 `generated.by` actor —
+    # a concept whose actor names a different model than its evidence would contradict itself.
+    model = str(payload.get("model") or "sonnet")
     evidence, evidence_seen, claims = [], set(), []
     for claim in claims_input:
         statement = claim["statement"]
@@ -117,7 +140,7 @@ def prepare(packet, output_path):
                 "repository_head": current_head,
                 "scope": scope,
                 "producer": "wiki-scribe",
-                "model": "sonnet",
+                "model": model,
                 "plugin_version": payload.get("plugin_version", "0.1.0"),
                 "captured_at": captured_at,
                 "derived_from": [],
@@ -135,7 +158,9 @@ def prepare(packet, output_path):
         if payload.get("purpose") == "gap_research"
         else payload["content"]
     )
-    content = _ensure_managed_frontmatter(strip(source_content))
+    content = _ensure_managed_frontmatter(
+        strip(source_content), generated_actor(model), captured_at,
+    )
     with open(output_path, "w", encoding="utf-8") as handle:
         handle.write(content.rstrip() + "\n\n" + render(document) + "\n")
     return {"status": "prepared", "claims": len(claims), "evidence": len(evidence)}

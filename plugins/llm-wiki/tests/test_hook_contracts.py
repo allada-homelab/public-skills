@@ -45,7 +45,7 @@ class HookContractTests(unittest.TestCase):
     def create_bundle(self):
         self.bundle.mkdir()
         (self.bundle / "index.md").write_text(
-            '---\nokf_version: "0.1"\n---\n# Knowledge\n\n'
+            '---\nokf_version: "0.2"\n---\n# Knowledge\n\n'
             "## Concepts\n\n_No concepts yet._\n",
             encoding="utf-8",
         )
@@ -109,7 +109,7 @@ class HookContractTests(unittest.TestCase):
             encoding="utf-8",
         )
         (self.bundle / "index.md").write_text(
-            '---\nokf_version: "0.1"\n---\n# Knowledge\n\n## Concepts\n\n_No concepts yet._\n\n'
+            '---\nokf_version: "0.2"\n---\n# Knowledge\n\n## Concepts\n\n_No concepts yet._\n\n'
             "## Sections\n\n* [Auth](./auth/index.md)\n",
             encoding="utf-8",
         )

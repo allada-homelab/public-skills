@@ -57,13 +57,16 @@ job ID as additive `job_id`. `expected_head` and source hashes must be copied ex
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/publication.py" "$request" "$prepared"
    ```
 
-   `stale-result` (exit 3) → stop with no bundle write. Any validation error → `blocked`.
+   `stale-result` (exit 3) → stop with no bundle write. Any validation error → `blocked`. `publication.py`
+   already stamps `generated: { by, at }` on `$prepared` from the request's `model`, so `$prepared` already
+   carries a `generated` and the `apply` step below won't need to backfill one — pass the same actor as
+   `--generated-by` anyway so the value stays consistent if it ever does.
 3. On `prepared`, run only:
 
    ```
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" apply "<bundle>" \
      --concept "<relpath>" --content-file "$prepared" --log-kind <Creation|Update> \
-     --log-message "<single-line linked message>"
+     --log-message "<single-line linked message>" --generated-by "llm-wiki/<model>"
    ```
 
    Branch on its JSON status. Never hand-edit the bundle, index, log, or cross-links; never bypass or

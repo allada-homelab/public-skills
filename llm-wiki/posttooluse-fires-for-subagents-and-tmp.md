@@ -7,7 +7,7 @@ tags:
   - hooks
   - autonomy
   - subagents
-timestamp: 2026-07-04
+generated: { by: llm-wiki/unknown, at: 2026-07-04 }
 ---
 
 # PostToolUse fires for subagent tool calls and /tmp writes — broad markers self-arm

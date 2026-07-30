@@ -159,6 +159,41 @@ PY
 )
 fi
 
+# ---------------------------------------------------------------------------
+# 6. OKF version (llm-wiki): the version doctor.py enforces is the single source of
+#    truth, and no shipped file may still advertise a superseded one. An OKF revision
+#    bump touches ~20 prose files, so a missed one is the likely failure mode — and it
+#    would otherwise be invisible until a user's bundle failed a gate.
+# ---------------------------------------------------------------------------
+DOCTOR="plugins/llm-wiki/scripts/doctor.py"
+okf=$(python3 -c 'import re,sys; m=re.search(r"^OKF_VERSION = \"([^\"]+)\"", open(sys.argv[1]).read(), re.M); print(m.group(1) if m else "")' "$root/$DOCTOR" 2>/dev/null)
+if [ -z "$okf" ]; then
+  bad "doctor.py: could not read OKF_VERSION"
+else
+  ok "doctor.py OKF_VERSION = $okf"
+  # The emitted root-index frontmatter must come from that constant, not a literal.
+  if hasre "plugins/llm-wiki/scripts/bundle_ops.py" 'okf_version: \\"[0-9]'; then
+    bad "bundle_ops.py hardcodes an okf_version literal — derive it from doctor.OKF_VERSION"
+  else
+    ok "bundle_ops.py derives okf_version from doctor.OKF_VERSION"
+  fi
+  # No shipped plugin or doc file may advertise a superseded version. Three deliberate
+  # exemptions, all places the legacy literal MUST still appear: doctor.py (which defines the
+  # legacy-tolerance rule), its tests, and the historical blog reference.
+  stale=$(grep -rIl --exclude-dir=.git -e 'okf_version: "0\.1"' -e 'OKF v0\.1' \
+            "$root/plugins" "$root/CLAUDE.md" "$root/README.md" "$root/.claude-plugin" 2>/dev/null \
+          | sed "s|^$root/||" \
+          | grep -vE '^plugins/llm-wiki/(scripts/doctor\.py|tests/)|reference/okf_blog\.md' || true)
+  if [ -n "$stale" ]; then
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      bad "stale OKF v0.1 reference in $f"
+    done <<< "$stale"
+  else
+    ok "no stale OKF v0.1 references in plugins/ or top-level docs"
+  fi
+fi
+
 echo
 if [ "$fail" -ne 0 ]; then
   echo "FAILED"

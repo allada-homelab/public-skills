@@ -9,7 +9,7 @@ and tooling for development use.
 
 Lets Claude build and tend a persistent, portable knowledge base for a project, so each
 session starts smarter than the last. The wiki is a directory of markdown "concept" files in
-Google's [Open Knowledge Format (OKF) v0.1](./docs/llm-wiki/reference/okf_spec.md) — just files, readable
+Google's [Open Knowledge Format (OKF) v0.2](./docs/llm-wiki/reference/okf_spec.md) — just files, readable
 on GitHub, portable to any OKF consumer. Conformance is **guaranteed by a deterministic Doctor
 script**, and writes are **auto by default** (applied directly in an auto mode, the default) —
 **confirm-first only in `curated` mode** or when you explicitly ask.
@@ -76,7 +76,7 @@ No build step or external dependencies — the plugin scripts are Python 3 stdli
   ```text
   bash scripts/drift_check.sh                                  # expect PASS
   ```
-- **Validate any bundle** against OKF v0.1:
+- **Validate any bundle** against OKF v0.2:
   ```text
   python3 plugins/llm-wiki/scripts/doctor.py <bundle-dir> --mode strict
   ```

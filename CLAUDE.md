@@ -14,7 +14,7 @@ set. Six commands — `query` (answer + browse), `capture` (upsert: create-or-ed
 `reorganize`, `tend` (curation digest + conformance), and `ingest` (repo bootstrap) — compose the
 deterministic `bundle_ops` engine. The main agent owns curation judgment; background **Sonnet**
 subagents (`wiki-capturer` persists a drafted concept, `wiki-verifier` re-checks touched anchors) do the
-mechanical work. Every write is gated by a deterministic Doctor (OKF v0.1) plus a secret scan, applied
+mechanical work. Every write is gated by a deterministic Doctor (OKF v0.2) plus a secret scan, applied
 autonomously and git-reversibly through the consolidated `bundle_ops apply` engine. See
 [docs/llm-wiki](./docs/llm-wiki/) for the product plan, phasing, and the per-phase technical plans.
 
@@ -55,10 +55,16 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
 
 ## Architecture & conventions
 
-- **Doctor is the conformance authority.** `doctor.py` deterministically enforces OKF v0.1
+- **Doctor is the conformance authority.** `doctor.py` deterministically enforces OKF v0.2
   (rules R1/R2/R3a–c and **R6** wiki-managed provenance, plus report-only **R4** link-health,
   **R5** type-vocabulary, and **R7** bundle-shape: an empty bundle or concepts-without-root-index
-  warns instead of validating byte-identically to a healthy bundle). The `wiki` skill only makes drafts
+  warns instead of validating byte-identically to a healthy bundle). It also enforces **R8** — a
+  *present* v0.2 trust/lifecycle/provenance family (`sources`/`generated`/`verified`/`status`/
+  `stale_after`) must be well-shaped, though a *missing* family is never an error (per spec §11) —
+  and **R9**, report-only warnings for legacy v0.1 fields (`timestamp`, a scalar `verified:`, a body
+  `Citations` section, or a root index whose `okf_version` still reads the pre-migration `"0.1"`) that
+  are auto-migrated to v0.2 shape on the next write.
+  The `wiki` skill only makes drafts
   *near*-conformant; if they disagree, the Doctor wins. Writes are staged to a `/tmp` bundle
   mirror and Doctor-gated in bundle mode *before* anything lands.
 - **Maintenance is deterministic.** `bundle_ops.py` (index regeneration, `log.md` appends,
@@ -112,7 +118,9 @@ Python 3 **stdlib only** — no build, no dependencies, no package manager.
 OKF is a vendor-neutral spec for curated knowledge as **a directory of markdown files with YAML
 frontmatter**. Each file is one "concept" (table, dataset, metric, runbook, API, …) and the file
 path is the concept's identity. The only required frontmatter field is `type`; conventional
-optional fields are `title`, `description`, `resource`, `tags`, `timestamp`. Concepts cross-link
+optional fields are `title`, `description`, `resource`, `tags`, plus the v0.2 trust/lifecycle/provenance
+families `sources`, `generated`, `verified`, and `status`/`stale_after` (superseding the v0.1
+`timestamp` field and a body `# Citations` list). Concepts cross-link
 via ordinary markdown links, forming a graph richer than the directory tree. Two reserved
 filenames: `index.md` (progressive disclosure) and `log.md` (chronological change history).
 Producers and consumers are independent — no SDK, account, or platform required.
@@ -121,7 +129,7 @@ Producers and consumers are independent — no SDK, account, or platform require
 
 Reference material that grounds this repo's work (not itself an OKF bundle):
 
-- `okf_spec.md` — distilled OKF v0.1 rules (the Doctor enforces these).
+- `okf_spec.md` — distilled OKF v0.2 rules (the Doctor enforces these).
 - `okf_blog.md` — Google Cloud's OKF announcement (2026-06-12).
 - `okf_repo.md` — links to the OKF spec / repo / reference implementations.
 - `claude_code_plugin_system.md` — how Claude Code marketplaces/plugins/skills/commands/hooks/MCP compose.

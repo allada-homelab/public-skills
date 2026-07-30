@@ -24,7 +24,7 @@ needs — architecture, conventions, runbooks, decisions, gotchas, the meaning o
 scattered across code comments, wikis, chat history, and people's heads. Claude rediscovers the
 same facts every session and forgets corrections between them.
 
-Google's **Open Knowledge Format (OKF v0.1)** standardizes the "LLM-wiki" pattern: a directory of
+Google's **Open Knowledge Format (OKF v0.2)** standardizes the "LLM-wiki" pattern: a directory of
 markdown files with YAML frontmatter, where each file is a *concept*, the file path is its
 identity, and markdown links form a knowledge graph. It is deliberately minimal — the only hard
 requirement is a non-empty `type` field — and it is a *format, not a platform*: no SDK, no runtime,
@@ -86,7 +86,7 @@ sync or hosted services; non-markdown storage backends; a fixed, opinionated typ
 ## The Wiki as a Product Surface
 
 - **Location:** default `llm-wiki/` at the git repo root; user-configurable path at init. Lives in version control alongside the code it describes.
-- **Shape (OKF v0.1):** a directory of concept files; each concept is one `.md` with YAML frontmatter (`type` required; `title`, `description`, `resource`, `tags`, `timestamp` optional) and a markdown body. File path = concept identity. Relative markdown links = the relationship graph.
+- **Shape (OKF v0.1 as originally scoped here; superseded by OKF v0.2 — see `CLAUDE.md`):** a directory of concept files; each concept is one `.md` with YAML frontmatter (`type` required; `title`, `description`, `resource`, `tags`, `timestamp` optional — v0.2 supersedes `timestamp` with the `generated`/`sources`/`verified`/`status`/`stale_after` families) and a markdown body. File path = concept identity. Relative markdown links = the relationship graph.
 - **Reserved files the plugin manages automatically:**
   - `index.md` per directory — progressive-disclosure listing so Claude can see what exists before opening files.
   - `log.md` per scope — change history, date-grouped newest-first, ISO `YYYY-MM-DD` headings.
@@ -139,7 +139,7 @@ flowchart TB
 **Authoring & lifecycle**
 - **Initialize** — bootstrap a conformant bundle at the chosen path, with root `index.md`, optional domain pack, and a `log.md`. One-time, user-invoked.
 - **Capture (Add)** — turn a finding from the current work/conversation into a new concept doc: correct `type`, sensible frontmatter, body, links to related concepts, and a `log.md` entry. Refuses to create duplicates (offers to refine the existing concept instead).
-- **Refine (Edit/Update)** — update an existing concept, refresh `timestamp`, append to `log.md`, and fix any links the change affects.
+- **Refine (Edit/Update)** — update an existing concept, refresh `timestamp` (v0.2 supersedes this with the `generated`/`verified` provenance families), append to `log.md`, and fix any links the change affects.
 - **Prune (Remove)** — retire stale or duplicate concepts; repair inbound links; record the removal in `log.md`.
 - **Reorganize** — restructure the directory/graph as the wiki grows (split overloaded files, regroup by type/domain), updating all relative links and regenerating affected `index.md` files.
 
@@ -182,7 +182,7 @@ The wiki should get better with use, not just bigger:
 
 1. **Learn from corrections.** When the user corrects Claude, or Claude discovers something non-obvious during work, that becomes a candidate concept/edit (proposed in Curated, auto-captured + logged in Proactive).
 2. **Gap detection.** When a Query can't be answered from the wiki, log the miss and offer to fill it.
-3. **Staleness signals.** Use `timestamp` + `log.md` + the linked `resource` to flag concepts likely out of date (e.g., the code/file a concept describes changed).
+3. **Staleness signals.** Use `timestamp` (v0.2: `generated`/`stale_after`) + `log.md` + the linked `resource` to flag concepts likely out of date (e.g., the code/file a concept describes changed).
 4. **Graph health.** Surface orphan concepts (no inbound links), duplicate/near-duplicate concepts, and missing cross-links; propose merges and new links.
 5. **Tend-the-garden pass.** An on-demand (later: scheduled) self-improvement review that dedupes, re-links, regenerates indexes, prunes, and produces a digest of what changed.
 6. **Reinforcement.** Track which concepts get consulted/cited to prioritize what's worth keeping fresh and what's dead weight.
@@ -205,7 +205,7 @@ The product promise: hooks *steer Claude toward consulting and updating the wiki
 
 - This repo ships a **plugin marketplace** so users can add it and install `/llm-wiki`.
 - After install, `/llm-wiki` (or a help/onboarding entry) explains the capabilities, runs **Initialize**, and lets the user pick path, domain pack, and autonomy mode.
-- The plugin bundles the **OKF spec as a reference skill** so Claude always authors to v0.1 and can explain the format.
+- The plugin bundles the **OKF spec as a reference skill** so Claude always authors to v0.2 and can explain the format.
 
 ---
 
@@ -219,7 +219,7 @@ flowchart LR
     P3 --> P4["Phase 4 — Interop & Scale\nconsume external bundles\nmulti-bundle · large-wiki perf · enrichment"]
 ```
 
-- **Phase 0 — Foundation.** Marketplace entry + plugin skeleton; `/llm-wiki` discoverable; OKF v0.1 codified as a reference skill.
+- **Phase 0 — Foundation.** Marketplace entry + plugin skeleton; `/llm-wiki` discoverable; OKF v0.2 codified as a reference skill.
 - **Phase 1 — Author & Read (MVP).** Initialize, Capture, Explore, Query, Conform — run in confirm-first form (the autonomy modes that flip this to default-Proactive arrive in Phase 3). Default `llm-wiki/`. *This is the smallest thing that delivers value.*
 - **Phase 2 — Maintain.** Refine, Prune, Reorganize; automated `index.md`/`log.md`; the conformance Doctor as a guardrail.
 - **Phase 3 — Proactive & Self-Improve.** Hooks on by default; the **Curated / Proactive (default) / Max** autonomy modes; **Max-mode async subagents** for background distillation; and the self-learning loops (corrections, gaps, staleness, tend-the-garden).
@@ -252,7 +252,7 @@ flowchart LR
 ## Verification (how we'll validate the product, per phase)
 
 - **Dogfood** each phase on a real repo (e.g., this one): Initialize a bundle, Capture real findings, Query them back.
-- **Conformance:** the Doctor must report the dogfooded bundle as 100% conformant to OKF v0.1's three rules.
+- **Conformance:** the Doctor must report the dogfooded bundle as 100% conformant to OKF v0.2's rules.
 - **Portability proof:** the resulting bundle renders correctly on GitHub and loads in Google's reference OKF visualizer with no edits — proving format-not-platform interop.
 - **Answerability test:** a fixed question set answerable from the wiki after a session, but not before.
 - **Autonomy test:** Curated mode never writes without confirmation; Proactive (default) writes are always reflected in `log.md` and reversible via git; **Max mode** dispatches background subagents without blocking the foreground task and returns a reviewable digest, with all writes still logged and reversible.

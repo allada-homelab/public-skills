@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OKF v0.1 conformance validator ("Doctor") for the /llm-wiki plugin.
+"""OKF v0.2 conformance validator ("Doctor") for the /llm-wiki plugin.
 
 Stdlib-only. Strict-producer mode is the pre-write gate for everything the plugin
 authors; lenient-consumer mode (for reading foreign bundles) is a Phase 4 stub here.
@@ -16,7 +16,7 @@ Rules (see docs/llm-wiki/phases/phase-1-tech-plan.md §5):
     R1   concept has parseable YAML frontmatter
     R2   concept frontmatter has a non-empty `type`
     R3a  subdirectory index.md has zero frontmatter
-    R3b  root index.md frontmatter keys ⊆ {okf_version}, and okf_version == "0.1"
+    R3b  root index.md frontmatter keys ⊆ {okf_version}, and okf_version == "0.2"
     R3c  log.md: ISO YYYY-MM-DD headings, newest-first, bold **Update/Creation/Initialization** bullets
     R4   internal markdown links resolve (WARNING only — broken links are tolerated per OKF spec §5)
     R5   concept `type` is in the canonical vocabulary (WARNING only — OKF §3 only requires a
@@ -25,19 +25,40 @@ Rules (see docs/llm-wiki/phases/phase-1-tech-plan.md §5):
     R7   bundle shape (directory targets only; WARNING, never blocks): zero concept files, or
          concepts present without a root index.md — both are the signature of a moved/emptied
          bundle, which would otherwise validate byte-identically to a healthy one
+    R8   OKF v0.2 trust/lifecycle/provenance families (§5) are well-shaped *when present* —
+         `generated`, `verified`, `status`, `stale_after`, `sources`, `usage_window`, and the §7
+         actor convention. A missing family is never a finding (§11 forbids rejecting for one);
+         footnote→`sources[].id` attribution is report-only
+    R9   legacy v0.1 fields superseded by v0.2 (§13.1): `timestamp`, a bare scalar `verified:`,
+         a body `Citations` section, and `okf_version: "0.1"` (WARNING — `bundle_ops apply`
+         rewrites them to v0.2 shape in place, so installed bundles keep validating)
 """
 import json
 import os
 import re
 import sys
-from datetime import date
+from datetime import date, datetime
 
 from provenance import ProvenanceError, extract as extract_provenance, validation_errors as provenance_errors
 
 SCHEMA = "okf-doctor/1"
 KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$")
-LIST_ITEM_RE = re.compile(r"^(\s*)-\s+(.*)$")
+FLOW_KEY_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_.-]*)\s*:\s*")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+# The OKF revision this plugin produces, and the older revisions it still reads. A legacy
+# bundle is warned about (R9) and rewritten to current shape by `bundle_ops apply`, never
+# rejected — spec §13.1 lets a v0.2 consumer fall back to the v0.1 fields.
+OKF_VERSION = "0.2"
+LEGACY_OKF_VERSIONS = frozenset({"0.1"})
+
+# §7 actor convention: `<producer>/<version>` for tools, `human:<id>`, `process:<id>`.
+ACTOR_RE = re.compile(r"^(?:human:\S+|process:\S+|[A-Za-z0-9_.-]+/\S+)$")
+STATUS_VALUES = frozenset({"draft", "stable", "deprecated"})
+# §5.1 per-source credibility signals, and the sibling that frames every usage_count.
+SOURCE_DATE_FIELDS = ("last_modified",)
+FOOTNOTE_REF_RE = re.compile(r"(?<!\\)\[\^([^\]]+)\]")
+CITATIONS_HEADING_RE = re.compile(r"^#{1,6}\s+Citations\s*$")
 ATX_HEADING_RE = re.compile(r"^(#+)\s+(.*)$")
 # A heading body that *looks like* a date — used to catch date headings placed at the wrong
 # ATX level (H1/H3) where they'd otherwise skip the H2 date-section checks entirely.
@@ -66,10 +87,15 @@ UNPARSEABLE = "bad"    # opened a block we can't parse (or it never closed)
 OK = "ok"
 
 
+class _YamlError(Exception):
+    """Frontmatter outside the supported grammar — reported as R1."""
+
+
 def parse_frontmatter(text):
-    """Return (status, dict). Restricted grammar: blank lines, '# comments',
-    'key: scalar', and 'key:' followed by indented '  - item' lists. Anything
-    else -> UNPARSEABLE (fail closed; we only validate files we authored)."""
+    """Return (status, dict). Supported grammar: scalars, block lists, block mappings, and
+    flow collections (`{a: b}` / `[a, b]`) nested to any depth — enough for the OKF v0.2
+    trust/provenance families (§5) without a YAML dependency. Anything else -> UNPARSEABLE
+    (fail closed; we only validate files we authored)."""
     lines = text.split("\n")
     if not lines or lines[0].rstrip() != "---":
         return (NONE, None)
@@ -80,43 +106,174 @@ def parse_frontmatter(text):
             break
     if close is None:
         return (UNPARSEABLE, None)
+    try:
+        items = _significant(lines[1:close])
+        data, consumed = _parse_map(items, 0, items[0][0] if items else 0)
+        if consumed != len(items):
+            raise _YamlError("unconsumed frontmatter lines")
+    except _YamlError:
+        return (UNPARSEABLE, None)
+    return (OK, data)
 
-    body = lines[1:close]
-    data = {}
-    i = 0
-    while i < len(body):
-        line = body[i]
-        if line.strip() == "" or line.lstrip().startswith("#"):
-            i += 1
+
+def _significant(body):
+    """[(indent, text)] with blank lines and whole-line comments dropped."""
+    out = []
+    for raw in body:
+        if "\t" in raw:
+            raise _YamlError("tab indentation")
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
             continue
-        if "\t" in line:
-            return (UNPARSEABLE, None)
-        key_indent = len(line) - len(line.lstrip())
+        out.append((len(raw) - len(raw.lstrip()), stripped))
+    return out
+
+
+def _parse_map(items, i, indent):
+    """Parse a block mapping whose keys sit at `indent`. Returns (dict, next index)."""
+    data = {}
+    while i < len(items):
+        ind, line = items[i]
+        if ind < indent:
+            break
+        if ind > indent or line.startswith("- ") or line == "-":
+            raise _YamlError("expected a mapping key")
         m = KEY_RE.match(line)
         if not m:
-            return (UNPARSEABLE, None)
-        key, raw = m.group(1), m.group(2).strip()
-        # flow collections are outside the restricted grammar
-        if raw[:1] in ("{", "["):
-            return (UNPARSEABLE, None)
-        if raw == "":
-            # may be a block list: consume following '- item' lines. A YAML block sequence may
-            # sit at the same indent as its key (zero-indent is valid), so accept any item whose
-            # dash indent is >= the owning key's indent.
-            items = []
-            j = i + 1
-            while j < len(body):
-                lm = LIST_ITEM_RE.match(body[j])
-                if not lm or len(lm.group(1)) < key_indent:
-                    break
-                items.append(_unquote(lm.group(2).strip()))
-                j += 1
-            data[key] = items if items else ""
-            i = j
-        else:
-            data[key] = _unquote(raw)
+            raise _YamlError("not a mapping key: %s" % line)
+        key, raw = m.group(1), _strip_inline_comment(m.group(2).strip())
+        if raw:
+            data[key] = _scalar_or_flow(raw)
             i += 1
-    return (OK, data)
+            continue
+        # `key:` with nothing after it — a nested block, or an empty value.
+        data[key], i = _parse_nested(items, i + 1, ind)
+    return data, i
+
+
+def _parse_nested(items, i, parent_indent):
+    """Parse the block that follows a bare `key:`. Returns (value, next index)."""
+    if i >= len(items):
+        return "", i
+    ind, line = items[i]
+    if line.startswith("- ") or line == "-":
+        # A YAML block sequence may sit at its parent key's own indent, so accept ind >= parent.
+        if ind < parent_indent:
+            return "", i
+        return _parse_seq(items, i, ind)
+    if ind > parent_indent:
+        return _parse_map(items, i, ind)
+    return "", i
+
+
+def _parse_seq(items, i, indent):
+    """Parse a block sequence whose `-` markers sit at `indent`. Returns (list, next index)."""
+    out = []
+    while i < len(items):
+        ind, line = items[i]
+        if ind != indent or not (line.startswith("- ") or line == "-"):
+            break
+        rest = _strip_inline_comment(line[1:].strip())
+        i += 1
+        if not rest:
+            value, i = _parse_nested(items, i, indent)
+            out.append(value)
+            continue
+        if rest[0] in "{[":
+            out.append(_parse_flow(rest))
+            continue
+        m = KEY_RE.match(rest)
+        if not m:
+            out.append(_unquote(rest))
+            continue
+        # `- key: value` opens a mapping item; its remaining keys are indented past the dash.
+        key, raw = m.group(1), m.group(2).strip()
+        item = {}
+        if raw:
+            item[key] = _scalar_or_flow(raw)
+        else:
+            item[key], i = _parse_nested(items, i, ind)
+        if i < len(items) and items[i][0] > ind and not items[i][1].startswith("- "):
+            rest_keys, i = _parse_map(items, i, items[i][0])
+            item.update(rest_keys)
+        out.append(item)
+    return out, i
+
+
+def _strip_inline_comment(raw):
+    """Drop a trailing ` # comment` sitting outside quotes and flow collections."""
+    depth, quote = 0, None
+    for n, ch in enumerate(raw):
+        if quote:
+            if ch == quote:
+                quote = None
+        elif ch in "'\"":
+            quote = ch
+        elif ch in "{[":
+            depth += 1
+        elif ch in "}]":
+            depth -= 1
+        elif ch == "#" and depth == 0 and n > 0 and raw[n - 1] in " \t":
+            return raw[:n].rstrip()
+    return raw
+
+
+def _scalar_or_flow(raw):
+    return _parse_flow(raw) if raw[0] in "{[" else _unquote(raw)
+
+
+def _parse_flow(raw):
+    value, rest = _flow_value(raw)
+    if rest.strip():
+        raise _YamlError("trailing content after flow collection")
+    return value
+
+
+def _flow_value(s):
+    """Parse one flow-collection value. Returns (value, unconsumed remainder)."""
+    s = s.lstrip()
+    if not s:
+        raise _YamlError("empty flow value")
+    if s[0] == "{":
+        return _flow_items(s[1:], "}", {})
+    if s[0] == "[":
+        return _flow_items(s[1:], "]", [])
+    if s[0] in "'\"":
+        quote, buf, n = s[0], [], 1
+        while n < len(s):
+            if s[n] == quote:
+                return "".join(buf), s[n + 1:]
+            buf.append(s[n])
+            n += 1
+        raise _YamlError("unterminated quote")
+    n = 0
+    while n < len(s) and s[n] not in ",}]":
+        n += 1
+    return s[:n].strip(), s[n:]
+
+
+def _flow_items(s, closer, into):
+    """Parse flow entries up to `closer` into a dict or list. Returns (collection, remainder)."""
+    s = s.lstrip()
+    if s[:1] == closer:
+        return into, s[1:]
+    while True:
+        if isinstance(into, dict):
+            m = FLOW_KEY_RE.match(s)
+            if not m:
+                raise _YamlError("expected `key:` in flow mapping")
+            key = m.group(1)
+            into[key], s = _flow_value(s[m.end():])
+        else:
+            value, s = _flow_value(s)
+            into.append(value)
+        s = s.lstrip()
+        if s[:1] == ",":
+            s = s[1:].lstrip()
+            continue
+        if s[:1] == closer:
+            return into, s[1:]
+        raise _YamlError("expected `,` or `%s` in flow collection" % closer)
 
 
 def _unquote(v):
@@ -135,30 +292,10 @@ def classify(path, bundle_root):
     return "concept"
 
 
-def _has_flow_collection(text):
-    """True if the frontmatter block holds a `key: [...]`/`key: {...}` flow collection — the
-    one UNPARSEABLE cause worth a specific message (the restricted grammar wants block lists)."""
-    lines = text.split("\n")
-    if not lines or lines[0].rstrip() != "---":
-        return False
-    for line in lines[1:]:
-        if line.rstrip() == "---":
-            break
-        m = KEY_RE.match(line)
-        if m and m.group(2).strip()[:1] in ("[", "{"):
-            return True
-    return False
-
-
 def check_concept(text, relpath, findings):
     status, fm = parse_frontmatter(text)
     if status != OK:
-        if status == NONE:
-            why = "no frontmatter block"
-        elif _has_flow_collection(text):
-            why = "flow collections `[...]`/`{...}` are not supported — use block-list form"
-        else:
-            why = "frontmatter is not parseable"
+        why = "no frontmatter block" if status == NONE else "frontmatter is not parseable"
         findings.append(_f("ERROR", "R1", relpath, 1, "Concept must have parseable YAML frontmatter (%s)." % why))
         return
     val = fm.get("type")
@@ -176,6 +313,8 @@ def check_concept(text, relpath, findings):
         findings.append(_f("WARNING", "R5", relpath, _key_lookup(text, "type")[0],
                            'type "%s" is not in the canonical vocabulary — prefer one of: %s'
                            % (val.strip(), ", ".join(sorted(CANONICAL_TYPES)))))
+    check_v02_families(fm, text, relpath, findings)
+    check_legacy_fields(fm, text, relpath, findings)
     managed = str(fm.get("wiki_managed", "")).lower() == "true"
     try:
         provenance = extract_provenance(text)
@@ -195,6 +334,193 @@ def check_concept(text, relpath, findings):
             findings.append(_f("ERROR", "R6", relpath, line, message))
 
 
+def _iso_datetime(value):
+    if not isinstance(value, str) or not value.strip():
+        return False
+    try:
+        datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return True
+
+
+def _plain_date(value):
+    return isinstance(value, str) and bool(DATE_RE.match(value.strip()))
+
+
+def _body(text):
+    """(body, offset) — everything after a closing frontmatter `---`, plus the number of lines
+    consumed before it, so body findings can be reported at file-relative line numbers like
+    every other rule."""
+    lines = text.split("\n")
+    if not lines or lines[0].rstrip() != "---":
+        return text, 0
+    for n in range(1, len(lines)):
+        if lines[n].rstrip() == "---":
+            return "\n".join(lines[n + 1:]), n + 1
+    return "", 0
+
+
+def _unfenced(body_and_offset):
+    """[(file lineno, line)] for body lines outside fenced code blocks."""
+    body, offset = body_and_offset
+    out, in_fence = [], False
+    for n, line in enumerate(body.split("\n"), 1):
+        if FENCE_RE.match(line):
+            in_fence = not in_fence
+            continue
+        if not in_fence:
+            out.append((n + offset, line))
+    return out
+
+
+def _actor_errors(value, label, relpath, line, findings):
+    """§7: an identity field must be a non-empty string in the actor convention."""
+    if not isinstance(value, str) or not value.strip():
+        findings.append(_f("ERROR", "R8", relpath, line,
+                           "`%s` is required and must be a non-empty actor string (§7)." % label))
+    elif not ACTOR_RE.match(value.strip()):
+        findings.append(_f("ERROR", "R8", relpath, line,
+                           '`%s` must follow the §7 actor convention — `<producer>/<version>`, '
+                           '`human:<id>`, or `process:<id>` (got "%s").' % (label, value.strip())))
+
+
+def check_v02_families(fm, text, relpath, findings):
+    """R8: an OKF v0.2 trust/lifecycle/provenance family that is PRESENT must be well-shaped.
+    Absence is never a finding — §11 forbids rejecting a concept for a missing optional family."""
+    generated = fm.get("generated")
+    if generated is not None:
+        line = _key_lookup(text, "generated")[0]
+        if not isinstance(generated, dict):
+            findings.append(_f("ERROR", "R8", relpath, line,
+                               "`generated` must be a mapping with `by` and `at` (§5.2)."))
+        else:
+            _actor_errors(generated.get("by"), "generated.by", relpath, line, findings)
+            if "at" in generated and not _iso_datetime(generated.get("at")):
+                findings.append(_f("ERROR", "R8", relpath, line,
+                                   "`generated.at` must be an ISO 8601 datetime (§5.2)."))
+
+    verified = fm.get("verified")
+    # A bare scalar is the legacy v0.1 shape — R9 owns it, so don't double-report here.
+    if verified is not None and not isinstance(verified, str):
+        line = _key_lookup(text, "verified")[0]
+        # §5.2/§11: a bare mapping MUST be treated as a one-element list.
+        entries = [verified] if isinstance(verified, dict) else verified
+        if not isinstance(entries, list) or not entries:
+            findings.append(_f("ERROR", "R8", relpath, line,
+                               "`verified` must be a `{ by, at }` mapping or a non-empty list of them (§5.2)."))
+        else:
+            for index, entry in enumerate(entries):
+                if not isinstance(entry, dict):
+                    findings.append(_f("ERROR", "R8", relpath, line,
+                                       "`verified[%d]` must be a `{ by, at }` mapping (§5.2)." % index))
+                    continue
+                _actor_errors(entry.get("by"), "verified[%d].by" % index, relpath, line, findings)
+                if not _iso_datetime(entry.get("at")):
+                    findings.append(_f("ERROR", "R8", relpath, line,
+                                       "`verified[%d].at` must be an ISO 8601 datetime (§5.2)." % index))
+
+    status = fm.get("status")
+    if status is not None:
+        if not isinstance(status, str) or status.strip() not in STATUS_VALUES:
+            findings.append(_f("ERROR", "R8", relpath, _key_lookup(text, "status")[0],
+                               "`status` must be one of %s (§5.4)." % ", ".join(sorted(STATUS_VALUES))))
+
+    if "stale_after" in fm and not _plain_date(fm.get("stale_after")):
+        findings.append(_f("ERROR", "R8", relpath, _key_lookup(text, "stale_after")[0],
+                           "`stale_after` must be an absolute date `YYYY-MM-DD` (§5.5)."))
+
+    source_ids = check_sources(fm, text, relpath, findings)
+
+    window = fm.get("usage_window")
+    if window is not None:
+        line = _key_lookup(text, "usage_window")[0]
+        if not isinstance(window, dict):
+            findings.append(_f("ERROR", "R8", relpath, line,
+                               "`usage_window` must be a `{ from, to }` mapping (§5.1)."))
+        else:
+            for bound in ("from", "to"):
+                if bound in window and not _plain_date(window.get(bound)):
+                    findings.append(_f("ERROR", "R8", relpath, line,
+                                       "`usage_window.%s` must be a date `YYYY-MM-DD` (§5.1)." % bound))
+
+    check_footnote_attribution(fm, text, source_ids, relpath, findings)
+
+
+def check_sources(fm, text, relpath, findings):
+    """R8 for §5.1 `sources`. Returns the set of declared source ids (for footnote joining)."""
+    sources = fm.get("sources")
+    if sources is None:
+        return set()
+    line = _key_lookup(text, "sources")[0]
+    if not isinstance(sources, list) or not sources:
+        findings.append(_f("ERROR", "R8", relpath, line,
+                           "`sources` must be a non-empty list of entries (§5.1)."))
+        return set()
+    ids, seen = set(), set()
+    for index, entry in enumerate(sources):
+        if not isinstance(entry, dict):
+            findings.append(_f("ERROR", "R8", relpath, line,
+                               "`sources[%d]` must be a mapping (§5.1)." % index))
+            continue
+        resource = entry.get("resource")
+        if not isinstance(resource, str) or not resource.strip():
+            findings.append(_f("ERROR", "R8", relpath, line,
+                               "`sources[%d].resource` is required within an entry (§5.1)." % index))
+        entry_id = entry.get("id")
+        if isinstance(entry_id, str) and entry_id.strip():
+            key = entry_id.strip()
+            # ids are the join key for per-claim footnote attribution — duplicates misattribute.
+            if key in seen:
+                findings.append(_f("ERROR", "R8", relpath, line,
+                                   '`sources` id "%s" is used more than once (§5.1).' % key))
+            seen.add(key)
+            ids.add(key)
+        for field in SOURCE_DATE_FIELDS:
+            if field in entry and not _plain_date(entry.get(field)):
+                findings.append(_f("ERROR", "R8", relpath, line,
+                                   "`sources[%d].%s` must be a date `YYYY-MM-DD` (§5.1)." % (index, field)))
+        count = entry.get("usage_count")
+        if count is not None and not (isinstance(count, str) and count.strip().isdigit()):
+            findings.append(_f("ERROR", "R8", relpath, line,
+                               "`sources[%d].usage_count` must be an integer (§5.1)." % index))
+    return ids
+
+
+def check_footnote_attribution(fm, text, source_ids, relpath, findings):
+    """R8 (report-only): a `[^label]` footnote joins into `sources[].id` (§5.1). Only checked
+    once a concept declares `sources` — a bundle not using the convention is not doing it wrong."""
+    if fm.get("sources") is None:
+        return
+    body = _body(text)
+    for lineno, line in _unfenced(body):
+        for match in FOOTNOTE_REF_RE.finditer(line):
+            label = match.group(1).strip()
+            if label and label not in source_ids:
+                findings.append(_f("WARNING", "R8", relpath, lineno,
+                                   'footnote [^%s] does not match any `sources[].id` — per-claim '
+                                   'attribution resolves through that join key (§5.1).' % label))
+
+
+def check_legacy_fields(fm, text, relpath, findings):
+    """R9 (report-only): v0.1 fields superseded by v0.2 (§13.1). Warnings, never errors — the
+    spec permits consuming them, and `bundle_ops apply` rewrites them to v0.2 shape in place."""
+    if "timestamp" in fm:
+        findings.append(_f("WARNING", "R9", relpath, _key_lookup(text, "timestamp")[0],
+                           "`timestamp` is superseded by `generated: { by, at }` (§13.1) — "
+                           "it will be migrated on the next write."))
+    if isinstance(fm.get("verified"), str):
+        findings.append(_f("WARNING", "R9", relpath, _key_lookup(text, "verified")[0],
+                           "a bare `verified:` datetime is superseded by a `{ by, at }` entry "
+                           "(§5.2) — it will be migrated on the next write."))
+    for lineno, line in _unfenced(_body(text)):
+        if CITATIONS_HEADING_RE.match(line):
+            findings.append(_f("WARNING", "R9", relpath, lineno,
+                               "a body `Citations` section is superseded by the `sources` "
+                               "frontmatter family (§13.1)."))
+            break
+
+
 def check_root_index(text, relpath, findings):
     status, fm = parse_frontmatter(text)
     if status == NONE:
@@ -207,13 +533,18 @@ def check_root_index(text, relpath, findings):
         findings.append(_f("ERROR", "R3b", relpath, 1,
                            "Root index.md frontmatter may only contain `okf_version`; found: %s." % ", ".join(extra)))
     if "okf_version" in fm:
-        # Spec §3/§6 mandate the *quoted* string form `okf_version: "0.1"`. The restricted
-        # parser does no YAML type coercion, so check the raw value verbatim (narrow: this one
-        # line only — no quote-tracking elsewhere). Both wrong-version and unquoted-0.1 fail here.
+        # Spec §8/§12 mandate the *quoted* string form `okf_version: "0.2"`. The parser does no
+        # YAML type coercion, so check the raw value verbatim (narrow: this one line only — no
+        # quote-tracking elsewhere), which also catches the unquoted `0.2` float form.
         line, raw = _key_lookup(text, "okf_version")
-        if raw != '"0.1"':
+        if raw in ('"%s"' % v for v in LEGACY_OKF_VERSIONS):
+            findings.append(_f("WARNING", "R9", relpath, line,
+                               'Root index.md declares OKF %s; this producer writes "%s" — it will '
+                               "be migrated on the next write." % (raw, OKF_VERSION)))
+        elif raw != '"%s"' % OKF_VERSION:
             findings.append(_f("ERROR", "R3b", relpath, line,
-                               'Root index.md `okf_version` must be the quoted string "0.1" (got %s).' % raw))
+                               'Root index.md `okf_version` must be the quoted string "%s" (got %s).'
+                               % (OKF_VERSION, raw)))
 
 
 def check_subdir_index(text, relpath, findings):

@@ -7,7 +7,7 @@ description: >-
   schemas, provenance, OKF, index.md, or log.md.
 ---
 
-# llm-wiki knowledge coprocessor + OKF v0.1
+# llm-wiki knowledge coprocessor + OKF v0.2
 
 > ## ⚠️ NEVER put secrets in the wiki
 > No API keys, access keys, auth tokens, passwords, SSH/PEM **private keys**, or connection
@@ -46,7 +46,9 @@ record in the wiki and leave a one-line pointer in the local doc. Make the call 
 These are exactly what the Doctor enforces. Author to them:
 
 - **R1 — Parseable frontmatter.** Every concept file opens with a `---` YAML frontmatter block that
-  parses. Keep it simple: `key: value` scalars and simple `- item` lists.
+  parses. Scalars, block lists, flow collections (`{ by: x, at: y }`, `tags: [a, b]`), nested block
+  mappings, and block lists of mappings are all accepted — see `references/frontmatter.md` for the
+  shape. Tabs, and an unterminated quote or a block that never closes, still fail the parse.
 - **R2 — Non-empty `type`.** Every concept's frontmatter has a `type` field with a non-empty value.
   `type` is any label the producer defines; OKF only requires it be non-empty.
   - *Prefer the canonical vocabulary* (lowercase, single token, hyphens ok): `concept`, `decision`,
@@ -57,7 +59,7 @@ These are exactly what the Doctor enforces. Author to them:
     `Architecture Decision` gets nudged toward `architecture` or `decision`.
 - **R3 — Reserved-file structures.**
   - A **subdirectory** `index.md` has **zero frontmatter**.
-  - The **root** `index.md` may carry **only** `okf_version: "0.1"` in frontmatter (nothing else), and
+  - The **root** `index.md` may carry **only** `okf_version: "0.2"` in frontmatter (nothing else), and
     that is the *only* place a version is declared.
   - `log.md` lists changes **newest-first**, with `## YYYY-MM-DD` (ISO-8601) date headings and bullets
     that begin with a bold prefix: `**Update**`, `**Creation**`, or `**Initialization**`.

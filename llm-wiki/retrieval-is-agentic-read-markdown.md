@@ -6,7 +6,7 @@ tags:
   - retrieval
   - architecture
   - query
-verified: 2026-06-28
+verified: { by: llm-wiki/unknown, at: 2026-06-28 }
 ---
 # Retrieval is agentic-read-markdown — llm-wiki has no search engine
 

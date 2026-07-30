@@ -6,7 +6,7 @@ tags:
   - secrets
   - hooks
   - false-positives
-verified: 2026-07-17T00:00:00Z
+verified: { by: llm-wiki/unknown, at: 2026-07-17T00:00:00Z }
 ---
 # Secret-scan entropy gate excludes path/URL separators and camelCase identifiers
 

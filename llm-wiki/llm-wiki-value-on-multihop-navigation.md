@@ -6,7 +6,7 @@ tags:
   - optimizer
   - evaluation
   - retrieval
-verified: 2026-06-29
+verified: { by: llm-wiki/unknown, at: 2026-06-29 }
 ---
 # Where llm-wiki's value concentrates — knowledge the code can't tell you
 

@@ -6,8 +6,8 @@ tags:
   - hooks
   - autonomy
   - gotcha
-timestamp: 2026-06-26T00:00:00Z
-verified: 2026-07-17
+generated: { by: llm-wiki/unknown, at: 2026-06-26T00:00:00Z }
+verified: { by: llm-wiki/unknown, at: 2026-07-17 }
 ---
 # Post-compaction re-injection is a SessionStart-on-compact job, not PreCompact
 

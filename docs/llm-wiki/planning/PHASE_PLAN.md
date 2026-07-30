@@ -73,7 +73,7 @@ Adopted recommendations (no objection): report-only secret scan **pulled forward
 bundle, capture a finding as a conforming concept, and read it back via explore/query. The only phase
 whose absence means the product doesn't exist.
 
-**Capabilities.** Plugin skeleton + marketplace entry; OKF v0.1 codified as a reference skill;
+**Capabilities.** Plugin skeleton + marketplace entry; OKF v0.2 codified as a reference skill;
 `init`, `capture`, `explore`, `query` commands; `conform` ("Doctor") as both an on-demand command and
 a callable pre-write check; `allowed-tools` least-privilege scoping; everything confirm-first.
 
@@ -84,12 +84,14 @@ one **shared deterministic validation script** (Doctor) the commands call intern
 **Conformance (verified against spec §6 + conformance rules).** Doctor enforces all three hard rules,
 with rule 3 stated *in full* — not "`index.md`/`log.md` are reserved" but their **required structures**:
 - subdirectory `index.md` carries **zero frontmatter**;
-- root `index.md` carries **only** `okf_version: "0.1"` (the sole place frontmatter is allowed in an index);
+- root `index.md` carries **only** `okf_version: "0.2"` (the literal was `"0.1"` at Phase 1 time; the
+  bundle has since migrated — see `CLAUDE.md`) (the sole place frontmatter is allowed in an index);
 - `log.md` is newest-first with ISO-8601 `YYYY-MM-DD` headings and bold `**Update**` / `**Creation**` /
   `**Initialization**` prefixes.
 
 These are **hard conformance**, not house style. Only `title`/`description`/`resource`/`tags`/`timestamp`
-are genuinely soft.
+were genuinely soft at Phase 1 time; OKF v0.2 has since superseded `timestamp` with the
+`generated`/`sources`/`verified`/`status`/`stale_after` families — see `CLAUDE.md`.
 
 **Producer vs. consumer mode.** Doctor has two modes from day one. **Strict producer mode** is the
 pre-write gate for everything the plugin authors (surrounding `index.md` regenerated, `log.md` appended
@@ -183,7 +185,8 @@ self-learning loops; a deferrable Max-mode subagent tail.
 - **End-of-work digest.** **SessionEnd** (bounded, avoids per-turn noise); add **Stop** only if testing
   shows long sessions lose learnings.
 - **Self-learning loops.** Corrections; gap detection (on Phase 1's query gap flag); staleness
-  (`timestamp` + `log.md` + linked `resource` + the Phase 1 consultation counter); graph health
+  (`timestamp` — v0.2: `generated`/`stale_after` — + `log.md` + linked `resource` + the Phase 1
+  consultation counter); graph health
   (orphans / near-dupes / missing links); reinforcement (counter feeding prune/staleness); and an
   on-demand `/tend` command emitting a reviewable digest. All in-session; no background agents.
 - **Deferrable Max tail — verify before building (locked decision 2).** `agents/*.md` subagents for
@@ -246,7 +249,7 @@ guard at ingest). Max tail is **not** a hard dependency — interop ships inline
 |---|---|---|---|
 | Package all components as one installable unit | Plugin (`plugin.json`) | 1 | The container; nothing lighter groups multiple primitives. |
 | Discover/install from one git URL | Marketplace (inline `source`, SHA-pinned) | 1 | Single inline-path entry while the plugin lives in this repo. |
-| OKF v0.1 knowledge, conformant-by-construction | **Skill** (auto-activates by context) | 1 | Skills auto-load on context match; the deterministic guarantee rests on the Doctor **script**, not the skill. |
+| OKF v0.2 knowledge, conformant-by-construction | **Skill** (auto-activates by context) | 1 | Skills auto-load on context match; the deterministic guarantee rests on the Doctor **script**, not the skill. |
 | `init` / `capture` / `explore` / `query` | Slash commands over native Read/Write/Edit/Glob/Grep | 1 | No MCP (markdown on disk); no hooks (confirm-first). |
 | Conformance validation (all 3 hard rules) | Shared deterministic **script** (Doctor), strict-producer + lenient-consumer modes | 1 | One script, three surfaces (command, in-command gate, later hook). Producer mode must not inherit consumer tolerances. |
 | Least-privilege per command | `allowed-tools` frontmatter | 1 | A command field, not a primitive. |

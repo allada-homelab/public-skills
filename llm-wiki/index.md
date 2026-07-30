@@ -1,5 +1,5 @@
 ---
-okf_version: "0.1"
+okf_version: "0.2"
 ---
 # llm-wiki
 
@@ -18,7 +18,7 @@ and read back with `/llm-wiki:query`.
 * [Plugin versioning — pinned; every user-visible change requires a version bump](./plugin-versioning.md) — plugin.json now pins version, so updates only reach installed users on an explicit bump — forgetting one silently strands users on a stale cache while /plugin reports "already at the latest version".
 * [Post-compaction re-injection is a SessionStart-on-compact job, not PreCompact](./post-compaction-reinjection.md) — To re-inject wiki context after a compaction, branch the SessionStart hook on source=="compact" — a PreCompact hook is the wrong tool (its additionalContext may not survive compaction).
 * [PostToolUse fires for subagent tool calls and /tmp writes — broad markers self-arm](./posttooluse-fires-for-subagents-and-tmp.md) — Claude Code hooks fire for background subagents' tool calls too, and a PostToolUse marker keyed on "any Write/Edit outside the bundle" counts /tmp scratch writes — so llm-wiki's own wiki-capturer (which drafts to /tmp) re-armed the Stop-hook capture nudge, producing phantom "nothing durable — stopping" turns; scope such markers to files under the project dir.
-* [Reading is trust-but-verify — the consult-then-confirm loop](./trust-but-verify-loop.md) — Trust a wiki finding on its face, but cheaply confirm load-bearing claims against current state via a ## Verify anchor + freshness gate, with background self-healing verification.
+* [Reading is trust-but-verify — the consult-then-confirm loop](./trust-but-verify-loop.md) — Trust a wiki finding on its face, but cheaply confirm load-bearing claims against current state via a
 * [Registering a skill in the public-skills marketplace](./marketplace-skill-registration.md) — How to add a standalone skill to this marketplace — the manifest registers plugins (not skills directly), so a skill ships inside a plugin under plugins/<name>/skills/.
 * [Repo ingestion — orchestrated multi-agent bootstrap](./repo-ingestion-architecture.md) — How /llm-wiki:ingest bootstraps a wiki from an existing repo — an orchestrator command fans out read-only Sonnet wiki-explorer subagents that return concept proposals, then writes one Doctor-gated autonomous batch.
 * [Retrieval is agentic-read-markdown — llm-wiki has no search engine](./retrieval-is-agentic-read-markdown.md) — llm-wiki has no embeddings, vector store, chunking, top-k, or reranking — retrieval is an agent grepping then reading index.md and following ./ links, so retrieval quality is tuned via the read prompt and index.md descriptions, not RAG hyperparameters.

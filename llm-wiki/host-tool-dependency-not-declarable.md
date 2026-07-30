@@ -8,7 +8,8 @@ tags:
   - convention
   - gotcha
   - orchestration
-timestamp: 2026-07-02
+generated: { by: llm-wiki/unknown, at: 2026-07-02 }
+verified: { by: llm-wiki/unknown, at: 2026-07-02 }
 ---
 
 # Host-tool dependency → fail-loud runtime precondition, not a manifest field
@@ -23,5 +24,3 @@ The same shape applies to optional external *agents* (`agent({agentType})` again
 
 - `plugins/get-shit-done/commands/run.md` — the **Precondition** line ("if [Workflow] is not available in this session, say so plainly and stop — never silently no-op") ahead of the numbered steps.
 - `plugins/get-shit-done/README.md` — the Requirements bullet stating the `Workflow` tool is required (and optional reviewer/research agents are not).
-
-verified: 2026-07-02

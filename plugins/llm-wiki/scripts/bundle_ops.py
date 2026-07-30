@@ -10,7 +10,7 @@ authority (run it after).
         Regenerate every index.md from concept frontmatter. The preamble (everything
         above the first `## ` heading) is preserved verbatim; the `## Concepts` /
         `## Sections` listings below it are machine-owned. Root index keeps only
-        `okf_version: "0.1"` frontmatter; subdir index.md gets zero frontmatter.
+        `okf_version` frontmatter; subdir index.md gets zero frontmatter.
 
     bundle_ops.py log-append <bundle-root> --kind Creation|Update|Initialization
                   --message <markdown> [--date YYYY-MM-DD]
@@ -27,12 +27,15 @@ authority (run it after).
     bundle_ops.py remove <bundle-root> --concept <relpath>
         Delete one concept file (guarded: refuses reserved files and paths outside the
         bundle). Inbound links are intentionally left for the Doctor to report (R4) —
-        per spec §5 broken links are tolerated, never silently rewritten away.
+        per spec §6.1 broken links are tolerated, never silently rewritten away.
 
     bundle_ops.py apply <bundle-root> --concept <relpath> --content-file <path>
                   [--log-kind Creation|Update|Initialization] [--log-message <md>]
-                  [--date YYYY-MM-DD]
-        The consolidated gated write. Auto-initializes an absent bundle, stages the
+                  [--date YYYY-MM-DD] [--generated-by <actor>]
+        The consolidated gated write. Auto-initializes an absent bundle, stamps the OKF
+        v0.2 `generated: { by, at }` field when the content lacks one (`--generated-by`
+        names the §7 actor, e.g. `llm-wiki/claude-opus-5`), migrates any legacy v0.1
+        concepts in the bundle to v0.2 field shape, stages the
         concept on a /tmp mirror (index regen + log append), Doctor-gates (strict) and
         secret-scans it, and only on a clean gate copies the result onto the LIVE bundle
         (a block leaves its concepts/index/log byte-for-byte untouched; only the
@@ -85,6 +88,10 @@ from datetime import date, datetime, timezone
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import doctor as _doctor          # noqa: E402
 import secret_scan as _secret_scan  # noqa: E402
+
+# The generator-owned root index frontmatter. Sourced from the Doctor's constant so the
+# emitted version and the version R3b enforces can never drift apart.
+_ROOT_FRONTMATTER = '---\nokf_version: "%s"\n---\n' % _doctor.OKF_VERSION
 
 # C2 decision of record: near-duplicate of doctor.py's LINK_RE kept deliberately — the
 # rewriter needs the pre/post capture groups doctor's URL-only pattern doesn't have.
@@ -165,6 +172,103 @@ def _bundle_lock(bundle_root):
 
 def _humanize(slug):
     return slug.replace("-", " ").replace("_", " ").strip().title()
+
+
+# ------------------------------------------------------- v0.1 -> v0.2 migration
+
+# The actor recorded when migrating a legacy concept. The producing model was never stored in
+# v0.1 frontmatter, so claiming a specific one would fabricate provenance; `llm-wiki/unknown`
+# is the honest `<producer>/<version>` form for "written by llm-wiki, model unrecorded".
+MIGRATION_ACTOR = "llm-wiki/unknown"
+_LEGACY_TS_RE = re.compile(r"^(timestamp|verified):[ \t]*(\S.*?)[ \t]*$")
+
+
+def migrate_legacy_frontmatter(text):
+    """Rewrite a concept's superseded v0.1 fields to their v0.2 shape (§13.1).
+
+    `timestamp: X` -> `generated: { by, at: X }`; a bare scalar `verified: X` -> a
+    `{ by, at: X }` mapping. Only top-level frontmatter keys are touched, so a nested
+    `timestamp` inside a `sources` entry and every body line survive verbatim. Returns
+    (text, changed). A body `Citations` list is deliberately NOT converted: free-text
+    citations don't map mechanically onto `sources` entries, so R9 keeps warning instead
+    of the engine guessing structure it can't recover."""
+    lines = text.split("\n")
+    if not lines or lines[0].rstrip() != "---":
+        return text, False
+    close = next((n for n in range(1, len(lines)) if lines[n].rstrip() == "---"), None)
+    if close is None:
+        return text, False
+
+    status, fm = _doctor.parse_frontmatter(text)
+    if status != _doctor.OK:
+        return text, False  # unparseable: the Doctor reports R1; never guess at a rewrite
+    has_generated = isinstance(fm.get("generated"), dict)
+
+    out, changed = [], False
+    for n, line in enumerate(lines):
+        if not (1 <= n < close):
+            out.append(line)
+            continue
+        match = _LEGACY_TS_RE.match(line)  # anchored at column 0: top-level keys only
+        if not match:
+            out.append(line)
+            continue
+        key, value = match.group(1), match.group(2)
+        if key == "timestamp":
+            # An explicit `generated` is authoritative — drop the legacy duplicate.
+            if not has_generated:
+                out.append("generated: { by: %s, at: %s }" % (MIGRATION_ACTOR, value))
+            changed = True
+            continue
+        if value.startswith("{") or value.startswith("["):
+            out.append(line)  # already a v0.2 mapping/list on one line
+            continue
+        out.append("verified: { by: %s, at: %s }" % (MIGRATION_ACTOR, value))
+        changed = True
+    return "\n".join(out), changed
+
+
+def stamp_generated_if_absent(text, actor, at):
+    """Guarantee a §5.2 `generated: { by, at }` on a concept about to be written.
+
+    Insert-only: a `generated` already in the content is authoritative (the publication path
+    stamps one with the model it actually ran, which is better information than this default).
+    Code owns `at` because a drafting model cannot reliably know the current instant."""
+    lines = text.split("\n")
+    if not lines or lines[0].rstrip() != "---":
+        return text  # no frontmatter: doctor reports R1; never invent a block
+    close = next((n for n in range(1, len(lines)) if lines[n].rstrip() == "---"), None)
+    if close is None:
+        return text
+    status, fm = _doctor.parse_frontmatter(text)
+    if status != _doctor.OK or "generated" in (fm or {}):
+        return text
+    lines.insert(close, "generated: { by: %s, at: %s }" % (actor, at))
+    return "\n".join(lines)
+
+
+def migrate_bundle(bundle_root):
+    """Migrate every concept in the bundle to v0.2 field shape. Returns the relpaths changed.
+    Reserved files are skipped: the root index's `okf_version` is rewritten by the index
+    regeneration that follows, and log.md carries no frontmatter."""
+    changed = []
+    for root, _dirs, files in os.walk(bundle_root):
+        for name in sorted(files):
+            if not name.endswith(".md") or name in ("index.md", "log.md"):
+                continue
+            path = os.path.join(root, name)
+            try:
+                with open(path, "r", encoding="utf-8") as fh:
+                    text = fh.read()
+            except (OSError, UnicodeDecodeError):
+                continue  # doctor reports unreadable/non-UTF-8 files; don't fail the write
+            updated, did = migrate_legacy_frontmatter(text)
+            if not did:
+                continue
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(updated)
+            changed.append(os.path.relpath(path, bundle_root).replace(os.sep, "/"))
+    return changed
 
 
 # ---------------------------------------------------------------- index regen
@@ -251,7 +355,7 @@ def _render_index(dir_abs, bundle_root, concepts, subdirs):
     else:
         body = "# %s" % title
     # frontmatter is generator-owned: root carries only okf_version; subdirs carry none
-    preamble = ('---\nokf_version: "0.1"\n---\n%s' % body) if is_root else body
+    preamble = (_ROOT_FRONTMATTER + body) if is_root else body
     parts = [preamble, ""]
     parts.append("## Concepts")
     parts.append("")
@@ -560,12 +664,12 @@ def _init_empty_bundle(bundle_root, day):
     idx = os.path.join(bundle_root, "index.md")
     if not os.path.isfile(idx):
         with open(idx, "w", encoding="utf-8") as fh:
-            fh.write('---\nokf_version: "0.1"\n---\n%s\n' % INIT_TITLE)
+            fh.write("%s%s\n" % (_ROOT_FRONTMATTER, INIT_TITLE))
     if not os.path.isfile(os.path.join(bundle_root, "log.md")):
         cmd_log_append(bundle_root, "Initialization", "Bundle created.", day)
 
 
-def _build(bundle_root, concept_rel, content, kind, message, day):
+def _build(bundle_root, concept_rel, content, kind, message, day, actor=None, at=None):
     """Write the concept bytes at <relpath>, regenerate the index, append the log entry.
     The single place the three deterministic ops compose for one capture; run identically
     against the throwaway mirror (gating) and the live bundle (commit)."""
@@ -573,15 +677,38 @@ def _build(bundle_root, concept_rel, content, kind, message, day):
     parent = os.path.dirname(dest)
     if parent:
         os.makedirs(parent, exist_ok=True)
+    if actor:
+        content = stamp_generated_if_absent(
+            content.decode("utf-8"), actor, at).encode("utf-8")
     with open(dest, "wb") as fh:
         fh.write(content)
+    rc = _migrate_and_log(bundle_root, day)
+    if rc != 0:
+        return rc
     rc = cmd_index(bundle_root)
     if rc != 0:
         return rc
     return cmd_log_append(bundle_root, kind, message, day)
 
 
-def cmd_apply(bundle_root, concept_rel, content_file, kind, message, day):
+def _migrate_and_log(bundle_root, day):
+    """Bring any legacy v0.1 concepts up to v0.2 shape, recording it once in log.md.
+    Runs inside the same staged-mirror-then-commit flow as the write itself, so the
+    migrated bytes are Doctor-gated before they land and are equally git-reversible."""
+    changed = migrate_bundle(bundle_root)
+    if not changed:
+        return 0
+    sys.stderr.write("migrated %d concept(s) to OKF v%s field shape\n"
+                     % (len(changed), _doctor.OKF_VERSION))
+    return cmd_log_append(
+        bundle_root, "Update",
+        "Migrated %d concept(s) to OKF v%s frontmatter (`timestamp` -> `generated`, "
+        "scalar `verified` -> `{ by, at }`)." % (len(changed), _doctor.OKF_VERSION),
+        day,
+    )
+
+
+def cmd_apply(bundle_root, concept_rel, content_file, kind, message, day, actor=None):
     """Consolidated gated write: stage on a /tmp mirror, regenerate index + log,
     Doctor-gate (strict) and secret-scan; only on a clean gate is the LIVE bundle
     touched — re-built against the live tree, git-reversible. The whole stage-commit
@@ -618,6 +745,10 @@ def cmd_apply(bundle_root, concept_rel, content_file, kind, message, day):
     if message is None:
         message = "Captured `%s`." % concept_rel.replace(os.sep, "/")
 
+    # One instant for both the staged and the committed build, so the gated bytes and the
+    # bytes that land are identical.
+    stamped_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
     mirror = tempfile.mkdtemp(prefix="llm-wiki-apply-")
     try:
         # The flock spans staging AND commit: staging's copytree must snapshot a
@@ -628,7 +759,7 @@ def cmd_apply(bundle_root, concept_rel, content_file, kind, message, day):
             if os.path.isdir(root_abs):
                 shutil.copytree(root_abs, mirror, dirs_exist_ok=True)
             _init_empty_bundle(mirror, day)
-            rc = _build(mirror, concept_rel, content, kind, message, day)
+            rc = _build(mirror, concept_rel, content, kind, message, day, actor, stamped_at)
             if rc != 0:
                 sys.stderr.write("error: staging failed (exit %d)\n" % rc)
                 return 2
@@ -665,7 +796,7 @@ def cmd_apply(bundle_root, concept_rel, content_file, kind, message, day):
             # --- commit: only now (gates clean) is the live bundle mutated ---
             os.makedirs(root_abs, exist_ok=True)
             _init_empty_bundle(root_abs, day)
-            rc = _build(root_abs, concept_rel, content, kind, message, day)
+            rc = _build(root_abs, concept_rel, content, kind, message, day, actor, stamped_at)
             if rc != 0:
                 sys.stderr.write("error: commit failed (exit %d)\n" % rc)
                 return 2
@@ -780,6 +911,9 @@ def _build_batch(bundle_root, concepts, message, day):
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         with open(dest, "wb") as handle:
             handle.write(content)
+    rc = _migrate_and_log(bundle_root, day)
+    if rc != 0:
+        return rc
     rc = cmd_index(bundle_root)
     return rc if rc else cmd_log_append(bundle_root, "Creation", message, day)
 
@@ -1151,7 +1285,14 @@ def main(argv):
             return 2
         if not day:
             day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        return cmd_apply(bundle_root, concept, content_file, kind, message, day)
+        # §7 actor for the `generated` stamp. Defaulted rather than required so an older
+        # caller keeps working; callers that know their model should pass it.
+        actor = _opt(rest, "--generated-by") or MIGRATION_ACTOR
+        if not _doctor.ACTOR_RE.match(actor):
+            sys.stderr.write("error: --generated-by must follow the OKF actor convention "
+                             "(<producer>/<version>, human:<id>, process:<id>)\n")
+            return 2
+        return cmd_apply(bundle_root, concept, content_file, kind, message, day, actor)
 
     if sub == "batch-apply":
         manifest, day = _opt(rest, "--manifest"), _opt(rest, "--date")

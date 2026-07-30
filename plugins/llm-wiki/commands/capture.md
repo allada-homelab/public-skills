@@ -28,7 +28,9 @@ directory, creating it if needed), and an optional `--bundle <path>`.
 Steps:
 
 1. **Resolve the bundle root.** Use `--bundle` if given; else the default `${CLAUDE_PROJECT_DIR}/llm-wiki`
-   if it holds a root `index.md` (`okf_version: "0.1"`); else walk up from the cwd for one. **None found →
+   if it holds a root `index.md` whose frontmatter carries an `okf_version` key (any value — a bundle may
+   still declare the legacy `"0.1"` mid-migration and must still be found); else walk up from the cwd for
+   one. **None found →
    use the default `${CLAUDE_PROJECT_DIR}/llm-wiki`** — `apply` creates a conformant empty bundle
    (`index.md` + `log.md`) automatically on the first write, so there is nothing to bootstrap by hand.
 2. **Decide the concept (create vs. update).** From the hint and session context, determine `type`,
@@ -54,14 +56,19 @@ Steps:
 4. **Compose the concept content** (full file bytes — `apply` lands exactly what you write, nothing more):
    - **Create:** from the template; relative `./` links; a non-empty `type`. Cross-link to a related
      existing concept only if one exists; on the first capture into an empty bundle, add no cross-link. For
-     a **code-grounded** finding, include a `## Verify` `file:symbol` anchor and stamp
-     `verified:` with the current full UTC datetime `YYYY-MM-DDThh:mm:ssZ` (`date -u +%Y-%m-%dT%H:%M:%SZ`,
-     matching `references/concept-template.md`); omit both for a genuinely non-code-verifiable finding.
+     a **code-grounded** finding, include a `## Verify` `file:symbol` anchor and stamp a `verified:` mapping
+     `{ by: <actor>, at: <UTC datetime> }` — actor `process:llm-wiki-verifier` for this capture-time
+     re-confirmation, or `human:<id>` if a human directly confirmed it — with `at` the current full UTC
+     datetime `YYYY-MM-DDThh:mm:ssZ` (`date -u +%Y-%m-%dT%H:%M:%SZ`, matching
+     `references/concept-template.md`); omit both for a genuinely non-code-verifiable finding. **Never write
+     `generated:`** — `apply` stamps it (step 6).
    - **Update:** apply the user's change to the existing concept's body and/or frontmatter, **preserve a
      non-empty `type`**, keep links in the relative `./` form. If the change alters a fact the concept's
-     `## Verify` anchor covers, update the anchor too and **re-stamp `verified:`** to the current full UTC
-     datetime `YYYY-MM-DDThh:mm:ssZ` (`date -u +%Y-%m-%dT%H:%M:%SZ`) — a capture that re-confirms a fact is
-     the point at which it was last verified.
+     `## Verify` anchor covers, update the anchor too and **append a new `verified:` mapping entry**
+     `{ by: process:llm-wiki-verifier (or human:<id>), at: <UTC datetime> }` (the current full UTC datetime
+     `YYYY-MM-DDThh:mm:ssZ` via `date -u +%Y-%m-%dT%H:%M:%SZ`) — a capture that re-confirms a fact is the
+     point at which it was last verified; keep prior entries as the verification history. Do not touch
+     `generated:` — `apply` leaves it as-is when already present and only stamps it when absent.
 5. **Write the composed content to a unique temp file** outside the bundle. Mint the path with
    `tmp=$(mktemp /tmp/llm-wiki-capture-XXXXXX.md)` (a fixed path can collide with a concurrent background
    `wiki-capturer`), then Write the bytes to `$tmp` with the Write tool. This file is the exact bytes
@@ -69,14 +76,18 @@ Steps:
 6. **Apply through the gated engine.** Run, with `<relpath>` the concept's bundle-relative path,
    `<Creation|Update>` chosen by the create-vs-update branch from step 2, and a linked-title log message
    (`"Added [<title>](./<relpath>)."` for a create, `"Refined [<title>](./<relpath>)."` for an update, to
-   match the existing log style):
+   match the existing log style). Pass `--generated-by llm-wiki/<model>` naming the model you're running as
+   (for example `--generated-by llm-wiki/claude-opus-5`) so a `generated:` `apply` has to stamp (only when
+   the content omits it) attributes to the actual producer instead of the `llm-wiki/unknown` default:
 
    ```
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" apply "<bundle>" --concept "<relpath>" --content-file "$tmp" --log-kind <Creation|Update> --log-message "<Added|Refined> [<title>](./<relpath>)."
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" apply "<bundle>" --concept "<relpath>" --content-file "$tmp" --log-kind <Creation|Update> --log-message "<Added|Refined> [<title>](./<relpath>)." --generated-by "llm-wiki/<model>"
    ```
 
-   `apply` owns staging, index regen, log append, the Doctor gate, the secret scan, and the commit — do
-   **not** re-author or `cp` the file yourself. It prints a one-line JSON status to stdout. Branch on it:
+   `apply` owns staging, index regen, log append, the Doctor gate, the secret scan, the commit, and
+   auto-migrating any legacy v0.1 fields the bundle still carries (`timestamp` → `generated`, scalar
+   `verified` → `{ by, at }`), logging that migration once — do **not** re-author or `cp` the file yourself.
+   It prints a one-line JSON status to stdout. Branch on it:
    - **`applied`** (exit 0) → done. The concept, index, and log are committed; surface the one-line
      breadcrumb (step 7) — never a prose recap of the body.
    - **`blocked:doctor`** (exit 1) → the draft is non-conformant and **nothing was written**. Show the

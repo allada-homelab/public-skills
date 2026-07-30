@@ -14,7 +14,7 @@ Where they disagree, the later/more-specific doc wins (PHASE_PLAN over PRODUCT_P
 a phase tech plan over both on that phase's specifics).
 
 [`reference/`](./reference/) holds the source material these plans are built on: the distilled OKF
-v0.1 spec (`okf_spec.md` — what the Doctor enforces), the OKF announcement (`okf_blog.md`) and repo
+v0.2 spec (`okf_spec.md` — what the Doctor enforces), the OKF announcement (`okf_blog.md`) and repo
 links (`okf_repo.md`), and the Claude Code plugin-system reference (`claude_code_plugin_system.md`).
 
 ## Status (2026-06-14)

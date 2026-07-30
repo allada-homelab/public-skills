@@ -16,21 +16,30 @@ Steps:
 1. **Resolve the bundle root** (`--bundle`; else `${CLAUDE_PROJECT_DIR}/llm-wiki`; else walk up). None →
    there is no wiki yet (one is created automatically on the first `/llm-wiki:capture`); say so and stop.
 2. **Conformance.** Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "<bundle>" --mode strict
-   --format json`. Summarize: errors (R1/R2/R3*), **R4 broken-link WARNINGs**, and **R5 type-vocabulary
-   WARNINGs** (concepts whose `type` is off SKILL.md's canonical vocabulary) — all report-only. Broken
-   links are *candidates to fix*, never auto-removed; R5 off-vocabulary types are a *consistency* nudge
-   (a `capture` edit-in-place toward a canonical token keeps grouping and this digest's analytics stable),
-   never a block.
+   --format json`. Summarize: errors (R1/R2/R3*, plus **R8 malformed-family ERRORs** — a *present* v0.2
+   trust/lifecycle/provenance field, e.g. `sources`/`generated`/`verified`/`status`/`stale_after`, that is
+   shaped wrong; a *missing* family is never an error), **R4 broken-link WARNINGs**, **R5 type-vocabulary
+   WARNINGs** (concepts whose `type` is off SKILL.md's canonical vocabulary), **R8 footnote-attribution
+   WARNINGs** (a `[^label]` footnote with no matching `sources[].id`), and **R9 legacy-field WARNINGs**
+   (a v0.1 `timestamp`, scalar `verified`, or body `# Citations` list — always report-only; `apply`
+   auto-migrates these to v0.2 shape on the bundle's next write, so a WARNING here is expected to clear
+   itself rather than needing hand-editing). Broken links are *candidates to fix*, never auto-removed; R5
+   off-vocabulary types are a *consistency* nudge (a `capture` edit-in-place toward a canonical token keeps
+   grouping and this digest's analytics stable), never a block.
 3. **Graph health.** From `index.md` listings and concept cross-links, surface **orphans** (concepts no
    index or concept links to), **near-duplicates** (very similar titles/slugs/`resource`s), and obvious
    **missing links** (concepts that clearly relate but aren't linked).
-4. **Staleness.** Rank concepts by likely staleness using `timestamp` (if present), the newest `log.md`
-   entry touching them, and any linked `resource`. Old concepts with no recent log activity are
-   prune/merge candidates.
+4. **Staleness.** Rank concepts by likely staleness using `generated.at` (if present; a legacy `timestamp`
+   with no `generated` is itself an R9 WARNING — surface it under conformance, not as a fresh signal), the
+   newest `log.md` entry touching them, and any linked `resource`. Old concepts with no recent log activity
+   are prune/merge candidates. Additionally surface, as their own staleness signals: concepts whose
+   `stale_after` date has passed (`today >= stale_after`) as **expired**, and concepts carrying
+   `status: draft` (not yet reviewed) or `status: deprecated` (kept only for links/history) — list both
+   distinctly from ordinary staleness rather than folding them into the same bucket.
 4a. **Anchor freshness sweep** (the proactive complement to the compiler/verifier's targeted checks).
-   For each concept with a `## Verify` anchor + `verified:` stamp, run the cheap git gate against its
-   anchored file(s): `git -C "${CLAUDE_PROJECT_DIR}" log --since="<verified>" -1 --format=%H --
-   <anchor-file>`.
+   For each concept with a `## Verify` anchor and a `verified` entry (a single `{ by, at }` mapping or a
+   list of them — use the latest `at`), run the cheap git gate against its anchored file(s): `git -C
+   "${CLAUDE_PROJECT_DIR}" log --since="<latest-verified-at>" -1 --format=%H -- <anchor-file>`.
    **Non-empty (or the file no longer resolves)** → the anchored code changed since last
    verified → list as **needs re-verification** (a `capture` edit-in-place candidate; or point the user at
    `/llm-wiki:query <concept>`, whose read flow dispatches the verifier — `tend` is read-only and cannot
@@ -43,6 +52,7 @@ Steps:
    any you can still see in context, but don't imply the wiki remembers gaps across sessions.
 6. **Digest.** Emit a single prioritized, **non-destructive** digest grouped by suggested action —
    `capture` (edit-in-place: stale/incorrect, incl. **needs-re-verification** and weak/missing anchors
-   from 4a), `prune` (orphaned/dead/superseded), `reorganize` (structure/links) — each item naming the concept and
+   from 4a, expired `stale_after` concepts, and `status: draft`/`deprecated` concepts from step 4),
+   `prune` (orphaned/dead/superseded), `reorganize` (structure/links) — each item naming the concept and
    the one-line reason. End by offering to run the relevant command for any
    item the user picks. Propose nothing destructive without their go-ahead.

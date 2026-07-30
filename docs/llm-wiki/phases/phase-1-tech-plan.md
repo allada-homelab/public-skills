@@ -21,7 +21,7 @@
 ## 1. Overview
 
 Phase 1 ships the smallest installable plugin that proves the OKF loop end-to-end: a user, inside a
-normal Claude Code session, can initialize an OKF v0.1 knowledge bundle, capture a session finding as a
+normal Claude Code session, can initialize an OKF v0.2 knowledge bundle, capture a session finding as a
 conformant concept, and read it back via `explore`/`query` — all confirm-first, with no hooks, no MCP,
 and no subagents. Conformance is *guaranteed* by a deterministic Doctor script (the pre-write gate and
 the on-demand `conform` command), not by the reference Skill, which only makes Claude's first-draft
@@ -175,7 +175,8 @@ Body carries only what Claude must hold for every OKF action:
    forming a graph; `index.md`/`log.md` are reserved and are never concepts.
 2. **The three hard rules as authoring constraints** — R1 parseable frontmatter on every concept;
    R2 non-empty `type`; R3 reserved-file structures (subdir `index.md` zero frontmatter, root `index.md`
-   only `okf_version: "0.1"`, `log.md` newest-first with ISO `YYYY-MM-DD` headings and bold
+   only `okf_version: "0.2"` (the literal was `"0.1"` at Phase 1 time; see `CLAUDE.md`), `log.md`
+   newest-first with ISO `YYYY-MM-DD` headings and bold
    `**Creation**`/`**Update**`/`**Initialization**` prefixes). Stated verbatim-faithful to Doctor's R1/R2/R3.
 3. **Boundary statement:** "These rules guide what you write; they do not verify it. Every authored file
    is checked by the deterministic Doctor in strict-producer mode before the confirm diff. Doctor is the
@@ -189,7 +190,7 @@ Body carries only what Claude must hold for every OKF action:
 
 | Reference file | Carries | Spec basis |
 |---|---|---|
-| `frontmatter.md` | `type` (required, non-empty, any string); the five recommended keys (`title`, `description`, `resource`, `tags`, `timestamp`) with types + ISO-8601 example; custom keys allowed, unknown keys preserved | §3 |
+| `frontmatter.md` | `type` (required, non-empty, any string); the recommended keys (`title`, `description`, `resource`, `tags`) with types + ISO-8601 example — Phase 1 also listed `timestamp`, since superseded by the v0.2 `generated`/`sources`/`verified`/`status`/`stale_after` families; custom keys allowed, unknown keys preserved | §3 |
 | `reserved-files.md` | exact `index.md` body shape; root-vs-subdir frontmatter distinction; exact `log.md` shape (newest-first, `## YYYY-MM-DD`, bold prefixes) with a two-entry example | §6, §9 |
 | `linking.md` | bundle-relative (`/x.md`) vs relative (`./x.md`); undirected edges, relationship conveyed in prose; broken links tolerated on read | §5 |
 | `concept-template.md` | copy-paste conformant skeleton aligned to the GOOD fixture, so a captured concept passes Doctor first try | §3, §7, fixtures |
@@ -211,7 +212,8 @@ A read-only `query`/`explore` loads none of the authoring references; a `capture
   content for new files; unified diff for edits) and receiving explicit affirmative. `explore`/`query`
   are read-only *except* the counter increment, itself confirm-gated.
 - **Bundle-root resolution:** explicit `--bundle <path>` → else the default bundle location
-  `${CLAUDE_PROJECT_DIR}/llm-wiki` (if it holds a root `index.md` with `okf_version: "0.1"`) → else walk
+  `${CLAUDE_PROJECT_DIR}/llm-wiki` (if it holds a root `index.md` with `okf_version` set, `"0.2"` today —
+  `"0.1"` at Phase 1 time) → else walk
   up from the cwd for such an `index.md`. None found → `init` offers to create; the other four fail with
   "No OKF bundle here. Run `/llm-wiki:init` first." (Default bundle dir is `llm-wiki/`, per the product plan.)
 - **Consultation counter:** `<bundle-root>/.llm-wiki/consultations.json` (a dotdir non-`.md`, invisible
@@ -247,7 +249,8 @@ is touched until after the gate passes *and* the user confirms.
   memory → stage to `/tmp` mirror, run Doctor bundle-mode gate (catches a regression in init's own
   boilerplate) → show full content of every new file → on confirm, Write each (root `index.md` first; if
   it fails, stop — no partial bundle).
-- **Files touched (on confirm):** `<target>/index.md` (frontmatter exactly `okf_version: "0.1"`),
+- **Files touched (on confirm):** `<target>/index.md` (frontmatter exactly `okf_version: "0.2"`; the
+  literal was `"0.1"` at Phase 1 time),
   `<target>/log.md` (`# Directory Update Log`, then `## 2026-06-14` / `* **Initialization**: Bundle
   created.`), optional `<target>/<pack>/index.md` (zero frontmatter).
 - **Doctor gate:** bundle-mode over the staged files; non-zero → abort with violations verbatim, write
@@ -346,7 +349,7 @@ is reported but never changes exit code.
 |---|---|---|---|
 | Concept | **R1** | first line `---`, block closes, parser ≠ `UNPARSEABLE` | fail → ERROR R1 |
 | Concept | **R2** | `type` key present, value non-empty after trim + quote-strip (evaluated only if R1 passed, to avoid double-reporting one root cause) | absent/empty → ERROR R2 |
-| Root `index.md` | **R3b** | frontmatter optional; if present, key set ⊆ `{okf_version}`; any other key → ERROR R3b. **`okf_version` present but ≠ `"0.1"` → ERROR R3b** (a producer only ever emits `"0.1"`; best-effort-on-unknown-version is a *consumer* tolerance reserved for Phase 4 lenient mode). Present-but-`UNPARSEABLE` → ERROR R3b. |
+| Root `index.md` | **R3b** | frontmatter optional; if present, key set ⊆ `{okf_version}`; any other key → ERROR R3b. **`okf_version` present but ≠ `"0.2"` → ERROR R3b** (a producer only ever emits `"0.2"` today — Phase 1 shipped this check against `"0.1"`; best-effort-on-unknown-version is a *consumer* tolerance reserved for Phase 4 lenient mode). Present-but-`UNPARSEABLE` → ERROR R3b. |
 | Subdir `index.md` | **R3a** | must have zero frontmatter; any `---` block at all (parseable or not) → ERROR R3a |
 | `log.md` | **R3c-date** | every `## ` heading matches `^\d{4}-\d{2}-\d{2}$` and is a real date (`date.fromisoformat`) | fail → ERROR R3c (quotes the heading) |
 | `log.md` | **R3c-order** | valid heading dates are non-increasing (equal allowed); evaluated only over date-format-valid headings | first ascending pair → ERROR R3c |

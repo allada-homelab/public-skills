@@ -8,7 +8,8 @@ tags:
   - convention
   - gotcha
   - marketplace
-timestamp: 2026-07-02
+generated: { by: llm-wiki/unknown, at: 2026-07-02 }
+verified: { by: llm-wiki/unknown, at: 2026-07-02 }
 ---
 
 # Disabled/toggleable plugin hook → ship a `.example.json`, not a comment
@@ -24,5 +25,3 @@ This is the mechanism behind get-shit-done's "explicit-only now, auto-trigger la
 - `plugins/get-shit-done/hooks/auto-trigger.example.json` — the disabled hook config; note the `_comment` enable instructions and that no live `plugins/get-shit-done/hooks/hooks.json` exists.
 - `plugins/get-shit-done/scripts/gsd_autotrigger.py` — the detector script the example wires.
 - `plugins/get-shit-done/README.md` — the "Auto-trigger (optional, off by default)" enable steps.
-
-verified: 2026-07-02

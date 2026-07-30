@@ -6,7 +6,7 @@ impact radar and Scribe, and unanswered questions can become bounded background 
 a project that gets easier for agents to work in as a side effect of ordinary development.
 
 Knowledge stays portable and reviewable as Markdown in Google's
-[Open Knowledge Format (OKF) v0.1](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md).
+[Open Knowledge Format (OKF) v0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md).
 There is no server, vector database, or required setup ritual.
 
 ```text

@@ -39,7 +39,7 @@ gates it.
 
 | Subcommand | Contract |
 |---|---|
-| `index <bundle>` | Regenerate every `index.md` from concept frontmatter. The **preamble** (everything above the first `## ` heading) is preserved verbatim; the `## Concepts` / `## Sections` listings below are machine-owned. Root index keeps **only** `okf_version: "0.1"`; subdir `index.md` gets **zero** frontmatter. Concepts are sorted by title; the version is never copied into a non-root index. |
+| `index <bundle>` | Regenerate every `index.md` from concept frontmatter. The **preamble** (everything above the first `## ` heading) is preserved verbatim; the `## Concepts` / `## Sections` listings below are machine-owned. Root index keeps **only** `okf_version: "0.2"` (the literal was `"0.1"` at Phase 2 time; see `CLAUDE.md`); subdir `index.md` gets **zero** frontmatter. Concepts are sorted by title; the version is never copied into a non-root index. |
 | `log-append <bundle> --kind K --message M [--date D]` | Insert `* **K**: M` newest-first under the date heading (`K` ∈ Creation/Update/Initialization), creating today's heading at the top if needed. `--date` (UTC default) keeps mirror and real-bundle writes identical. |
 | `move <bundle> --from A --to B` | Physically move a concept (creating subdirs) and rewrite **every** inbound link across the bundle in **both** the relative (`./`) and bundle-relative (`/`) forms, **plus** the relative links *inside* the moved file (whose anchor directory changed). Indexes are **not** regenerated here — run `index` after. |
 | `remove <bundle> --concept A` | Delete one concept (guarded: refuses reserved files and bundle-escaping paths). Inbound links are intentionally left for the Doctor to report (R4) — never silently rewritten away. |

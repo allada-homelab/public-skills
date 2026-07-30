@@ -1,4 +1,4 @@
-# Reserved files: `index.md` and `log.md` (OKF v0.1)
+# Reserved files: `index.md` and `log.md` (OKF v0.2)
 
 `index.md` and `log.md` have defined structures and are **never** concept documents. The Doctor
 enforces the structures below (rule R3).
@@ -10,7 +10,7 @@ files.
 
 - **Subdirectory `index.md`: zero frontmatter.** No `---` block at all. Body is a heading + a bulleted
   list of the directory's concepts (and child directories), each with a short description.
-- **Root `index.md`: frontmatter may contain only `okf_version: "0.1"`** — no other key. This is the
+- **Root `index.md`: frontmatter may contain only `okf_version: "0.2"`** — no other key. This is the
   one and only place the bundle declares its version. Frontmatter is optional even at the root, but if
   present it must be exactly this.
 
@@ -18,7 +18,7 @@ Root example:
 
 ```markdown
 ---
-okf_version: "0.1"
+okf_version: "0.2"
 ---
 # Sales knowledge
 

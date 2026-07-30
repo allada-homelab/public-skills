@@ -6,8 +6,8 @@ tags:
   - ingestion
   - orchestration
   - subagents
-timestamp: 2026-06-15T00:00:00Z
-verified: 2026-06-28T05:51:41Z
+generated: { by: llm-wiki/unknown, at: 2026-06-15T00:00:00Z }
+verified: { by: llm-wiki/unknown, at: 2026-06-28T05:51:41Z }
 ---
 # Repo ingestion — orchestrated multi-agent bootstrap
 

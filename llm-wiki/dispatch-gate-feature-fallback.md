@@ -7,8 +7,8 @@ tags:
   - hooks
   - dispatch
   - gotcha
-timestamp: 2026-07-17T00:00:00Z
-verified: 2026-07-17T00:00:00Z
+generated: { by: llm-wiki/unknown, at: 2026-07-17T00:00:00Z }
+verified: { by: llm-wiki/unknown, at: 2026-07-17T00:00:00Z }
 ---
 # Dispatch gate resolves jobs by feature fallback — never require the id in text
 

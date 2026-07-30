@@ -6,8 +6,8 @@ tags:
   - versioning
   - distribution
   - plugin
-timestamp: 2026-06-15T00:00:00Z
-verified: 2026-07-17T00:00:00Z
+generated: { by: llm-wiki/unknown, at: 2026-06-15T00:00:00Z }
+verified: { by: llm-wiki/unknown, at: 2026-07-17T00:00:00Z }
 ---
 # Plugin versioning — pinned; every user-visible change requires a version bump
 

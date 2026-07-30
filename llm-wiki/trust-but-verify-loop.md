@@ -7,8 +7,8 @@ tags:
   - verification
   - autonomy
   - convention
-timestamp: 2026-06-26T21:47:23Z
-verified: 2026-06-28T05:51:41Z
+generated: { by: llm-wiki/unknown, at: 2026-06-26T21:47:23Z }
+verified: { by: llm-wiki/unknown, at: 2026-06-28T05:51:41Z }
 ---
 # Reading is trust-but-verify — the consult-then-confirm loop
 

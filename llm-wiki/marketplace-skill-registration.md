@@ -7,8 +7,8 @@ tags:
   - plugin
   - marketplace
   - skills
-timestamp: 2026-06-25T00:00:00Z
-verified: 2026-07-17T00:00:00Z
+generated: { by: llm-wiki/unknown, at: 2026-06-25T00:00:00Z }
+verified: { by: llm-wiki/unknown, at: 2026-07-17T00:00:00Z }
 ---
 # Registering a skill in the public-skills marketplace
 
