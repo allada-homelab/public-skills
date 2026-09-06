@@ -34,6 +34,12 @@ preload the wiki at session start, block credential/non-conformant writes (PreTo
 during-work capture; mode in `.claude/llm-wiki.local.md` defaults to `proactive` (auto). Status: **Phases 1 & 2 shipped; Phase 3 autonomy core landed**
 — see [docs/llm-wiki](./docs/llm-wiki/).
 
+> **Moved:** `minimalist-code-review` and `get-shit-done` now live in
+> [`allada-homelab/agent-harness-marketplace`](https://github.com/allada-homelab/agent-harness-marketplace),
+> where the same skills install natively on Claude Code, pi and dsh. The copies here
+> still install but will not receive further changes; `llm-wiki` stays here until its
+> successor (`okf-wiki`) ships there.
+
 ### `minimalist-code-review` — pragmatic code-review skills for Claude Code
 
 A home for minimalist review-style skills. It ships **`pragmatic-code-review`**: a Socratic,

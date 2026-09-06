@@ -2,23 +2,26 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "public-skills",
   "description": "David Allada's public Claude Code marketplace.",
-  "owner": { "name": "David Allada", "email": "davidanilallada@gmail.com" },
+  "owner": {
+    "name": "David Allada",
+    "email": "davidanilallada@gmail.com"
+  },
   "plugins": [
     {
       "name": "llm-wiki",
-      "description": "An autonomous OKF v0.2 knowledge wiki for Claude Code — author, read, and maintain a curated knowledge bundle so each session starts smarter.",
+      "description": "An autonomous OKF v0.2 knowledge wiki for Claude Code \u2014 author, read, and maintain a curated knowledge bundle so each session starts smarter.",
       "category": "knowledge",
       "source": "./plugins/llm-wiki"
     },
     {
       "name": "minimalist-code-review",
-      "description": "Minimalist code-review skills for Claude Code — a pragmatic, anti-over-engineering pull-request reviewer with a warm, Socratic voice.",
+      "description": "Minimalist code-review skills for Claude Code \u2014 a pragmatic, anti-over-engineering pull-request reviewer with a warm, Socratic voice. Frozen here: maintained in allada-homelab/agent-harness-marketplace.",
       "category": "development",
       "source": "./plugins/minimalist-code-review"
     },
     {
       "name": "get-shit-done",
-      "description": "Get complex or fan-out work done — decompose a task, delegate each subtask to the cheapest capable model (Sonnet/Opus) under an Opus/Fable orchestrator, concurrent research (web + context7), fan out through a checked dynamic workflow, and adversarially verify before done.",
+      "description": "Get complex or fan-out work done \u2014 decompose a task, delegate each subtask to the cheapest capable model (Sonnet/Opus) under an Opus/Fable orchestrator, concurrent research (web + context7), fan out through a checked dynamic workflow, and adversarially verify before done. Frozen here: maintained in allada-homelab/agent-harness-marketplace.",
       "category": "development",
       "source": "./plugins/get-shit-done"
     }
