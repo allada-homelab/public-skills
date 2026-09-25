@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -182,6 +183,105 @@ class HookContractTests(unittest.TestCase):
 
         second_stop = self.run_hook("hook_stop.py", stop_event)
         self.assertEqual(second_stop.stdout, "")
+
+    def _scribe_bash(self, command):
+        return self.run_hook(
+            "hook_pre_bash.py",
+            {
+                "hook_event_name": "PreToolUse",
+                "session_id": "scribe-session",
+                "cwd": str(self.project),
+                "agent_type": "llm-wiki:wiki-capturer",
+                "tool_name": "Bash",
+                "tool_input": {"command": command},
+            },
+        )
+
+    def _documented_scribe_commands(self):
+        """The exact command lines wiki-capturer.md tells the agent to run, placeholders filled."""
+        prompt = (REPO_ROOT / "agents" / "wiki-capturer.md").read_text(encoding="utf-8")
+        lines = [line.strip() for line in prompt.splitlines()
+                 if line.strip().startswith('python3 "${CLAUDE_PLUGIN_ROOT}/scripts/')]
+        fills = {
+            "<bundle_root>": str(self.bundle),
+            "/tmp/<request>.json": "/tmp/request.json",
+            "/tmp/<prepared>.md": "/tmp/prepared.md",
+            "<relpath>": "notes.md",
+            "<Creation|Update>": "Creation",
+            "<single-line linked message>": "Add [notes](./notes.md)",
+            "<model>": "sonnet",
+        }
+        filled = []
+        for line in lines:
+            for placeholder, value in fills.items():
+                line = line.replace(placeholder, value)
+            filled.append(line)
+        return filled
+
+    def test_scribe_bash_allows_every_documented_command(self):
+        commands = self._documented_scribe_commands()
+        self.assertEqual(len(commands), 2, commands)
+        self.assertIn("--generated-by", commands[1])
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertEqual(self._scribe_bash(command).stdout, "")
+
+    def test_scribe_bash_refuses_unknown_flag_and_bad_actor(self):
+        apply = self._documented_scribe_commands()[1]
+        for command in (
+            apply + " --force",
+            apply.replace('"llm-wiki/sonnet"', "not-an-actor"),
+            apply.replace(' "llm-wiki/sonnet"', ""),
+        ):
+            with self.subTest(command=command):
+                output = json.loads(self._scribe_bash(command).stdout)["hookSpecificOutput"]
+                self.assertEqual(output["permissionDecision"], "deny")
+
+    def test_scribe_bash_refusal_names_the_allowed_forms(self):
+        for command in ("ls -la /tmp", "cat /tmp/request.json 2>&1", "ls && ls"):
+            with self.subTest(command=command):
+                reason = json.loads(self._scribe_bash(command).stdout)[
+                    "hookSpecificOutput"]["permissionDecisionReason"]
+                self.assertIn('"${CLAUDE_PLUGIN_ROOT}/scripts/publication.py" /tmp/<request>.json', reason)
+                self.assertIn('"${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" apply <bundle_root>', reason)
+                self.assertIn("--generated-by", reason)
+                self.assertIn("Use Read/Grep/Glob to explore", reason)
+                for refused in ("2>&1", "| head", "&&"):
+                    self.assertIn(refused, reason)
+
+    def test_stop_impact_request_carries_absolute_concept_paths(self):
+        self.create_bundle()
+        (self.bundle / "app-flags.md").write_text(
+            "---\ntype: runbook\ntitle: App flags\nresource: src/app.py\n---\n# App flags\n",
+            encoding="utf-8",
+        )
+        session_id = "impact-session"
+        self.run_hook(
+            "hook_session_start.py",
+            {"hook_event_name": "SessionStart", "source": "startup",
+             "session_id": session_id, "cwd": str(self.project)},
+        )
+        source_path = self.project / "src" / "app.py"
+        source_path.parent.mkdir()
+        source_path.write_text("ENABLED = True\n", encoding="utf-8")
+        self.run_hook(
+            "hook_post_tool.py",
+            {"hook_event_name": "PostToolUse", "session_id": session_id, "cwd": str(self.project),
+             "tool_name": "Write", "tool_input": {"file_path": str(source_path)}},
+        )
+        stop = self.run_hook(
+            "hook_stop.py",
+            {"hook_event_name": "Stop", "session_id": session_id,
+             "cwd": str(self.project), "stop_hook_active": False},
+        )
+        reason = json.loads(stop.stdout)["reason"]
+        match = re.search(r"code-owned impact request at `([^`]+)`", reason)
+        self.assertIsNotNone(match, reason)
+        request = json.loads(Path(match.group(1)).read_text(encoding="utf-8"))
+        self.assertEqual(request["matched_concepts"], ["app-flags.md"])
+        self.assertEqual(request["matched_concept_paths"], [str(self.bundle / "app-flags.md")])
+        for path in request["matched_concept_paths"]:
+            self.assertTrue(os.path.isabs(path) and os.path.isfile(path), path)
 
     def test_pre_tool_allows_outside_write_and_denies_bundle_secret(self):
         self.create_bundle()
