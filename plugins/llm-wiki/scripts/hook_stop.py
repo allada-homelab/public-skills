@@ -74,6 +74,10 @@ def _prepare_impact(project, event, evidence, evidence_path, settings):
         "bundle_root": bundle,
         "matches": matches,
         "matched_concepts": sorted(set(item["concept"] for item in matches)),
+        # Absolute Read targets so the sentinel never has to join (or guess) against bundle_root.
+        "matched_concept_paths": sorted(set(
+            os.path.join(os.path.abspath(bundle), item["concept"]) for item in matches
+        )),
     }
     path = _write_request(project, event.get("session_id"), job, request)
     if path is not None:

@@ -8,6 +8,18 @@ import sys
 import tempfile
 
 import _hook_common
+from doctor import ACTOR_RE
+
+# Every refusal names the exact accepted forms: agents otherwise burn their turn budget probing.
+_ALLOWED_FORMS = (
+    "Wiki Scribe Bash accepts exactly two commands, each run alone with literal absolute /tmp paths:\n"
+    '  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/publication.py" /tmp/<request>.json /tmp/<prepared>.md\n'
+    '  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bundle_ops.py" apply <bundle_root> --concept <relpath>.md '
+    "--content-file /tmp/<prepared>.md --log-kind Creation|Update --log-message \"<message>\" "
+    "[--generated-by llm-wiki/<model>] [--date YYYY-MM-DD]\n"
+    "No redirects (2>&1, >), pipes (| head), chaining (&&, ;), subshells, or shell variables. "
+    "Use Read/Grep/Glob to explore; ls, find, cat and every other command are refused."
+)
 
 
 def _agent(event):
@@ -71,7 +83,11 @@ def _allowed_apply(tokens, project):
         return False
     if not _temp_path(content_file):
         return False
-    allowed_flags = {"--concept", "--content-file", "--log-kind", "--log-message", "--date"}
+    if "--generated-by" in tokens:
+        actor = _option(tokens, "--generated-by")
+        if actor is None or not ACTOR_RE.match(actor):
+            return False
+    allowed_flags = {"--concept", "--content-file", "--log-kind", "--log-message", "--date", "--generated-by"}
     return all(not token.startswith("--") or token in allowed_flags for token in tokens[4:])
 
 
@@ -82,14 +98,14 @@ def main():
     tool_input = event.get("tool_input")
     command = tool_input.get("command") if isinstance(tool_input, dict) else None
     if not isinstance(command, str) or any(value in command for value in (";", "|", "&", ">", "<", "\n", "\r", "`", "$(")):
-        _deny("Wiki Scribe permits one fixed publication command with no shell composition.")
+        _deny("Refused: shell composition. " + _ALLOWED_FORMS)
         return 0
     try:
         tokens = shlex.split(command)
     except ValueError:
         tokens = []
     if not (_allowed_publication(tokens) or _allowed_apply(tokens, _hook_common.project_dir(event))):
-        _deny("Wiki Scribe Bash is restricted to publication.py and gated bundle_ops.py apply.")
+        _deny("Refused: not an accepted command. " + _ALLOWED_FORMS)
     return 0
 
 

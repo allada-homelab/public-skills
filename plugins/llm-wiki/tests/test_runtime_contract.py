@@ -196,6 +196,10 @@ class RuntimeContractTests(unittest.TestCase):
         researcher = _frontmatter(PLUGIN_ROOT / "agents" / "wiki-researcher.md")
         self.assertEqual(researcher.get("tools"), "Read")
 
+    def test_capturer_can_explore_without_bash(self) -> None:
+        capturer = _frontmatter(PLUGIN_ROOT / "agents" / "wiki-capturer.md")
+        self.assertEqual(capturer.get("tools"), "Read, Grep, Glob, Bash, Write")
+
     def test_recall_runs_in_a_forked_scoped_compiler(self) -> None:
         skills = {
             "recall": "llm-wiki:wiki-compiler",
