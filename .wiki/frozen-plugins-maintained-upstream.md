@@ -2,7 +2,7 @@
 type: decision
 title: get-shit-done and minimalist-code-review are frozen copies here
 description: Change get-shit-done and minimalist-code-review in agent-harness-marketplace, not here; the copies in this repo are frozen, and nothing inside their plugin dirs says so.
-tags: [marketplace, plugins, distribution]
+tags: [marketplace, plugin, distribution]
 generated: {by: okf-wiki/opus, at: 2026-09-26T15:01:38Z}
 verified:
   - {by: okf-wiki/opus, at: 2026-09-26T15:01:38Z, commit: f6fe3111a376}
